@@ -40,9 +40,8 @@ int main(void)
         serial_recv();
     }
 
-    /* Signal ready pour le bridge/serveur */
+    /* Signal ready: 1 seul octet pour minimiser le temps bloque en TX */
     serial_send(0x13);
-    serial_send(0x49);
 
     render_row = 0;
 

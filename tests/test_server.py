@@ -285,7 +285,7 @@ TESTS = {
 }
 
 
-PACE_DELAY = 0.04
+PACE_DELAY = 0.06  # 60ms - compromis vitesse/fiabilite
 
 
 async def send_paced(writer, data):

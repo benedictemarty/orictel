@@ -1,37 +1,40 @@
 /**
  * @file display.c
- * @brief Moteur d'affichage TEXTE pour OricTel (v0.1)
+ * @brief Moteur d'affichage HIRES pour OricTel (v0.2)
  *
- * Mode texte 40x28 via acces direct a la RAM ecran ($BB80-$BFDF).
- * Pas de conio pour le rendu (trop lent), on ecrit directement.
+ * Rendu en mode HIRES (240x200 pixels).
+ * Chaque cellule Minitel = 6x8 pixels, rendue depuis les tables de fontes.
+ * Les mosaiques G1 sont generees algorithmiquement (2x3 blocs).
  *
- * Organisation RAM ecran:
- *   Chaque ligne = 40 octets
- *   Ligne 0 = $BB80, Ligne 1 = $BBA8, etc.
- *   Octets avec bits 6+5 = 00 -> serial attributes (encre/fond)
- *   Octets $20-$7F -> caracteres affichables
+ * Organisation HIRES Oric:
+ *   $A000 + ligne_pixel * 40 + colonne = 1 octet (6 pixels)
+ *   Bit 6 = 1 : les bits 5-0 sont des pixels (1=encre, 0=fond)
+ *   Bit 6 = 0, bit 5 = 0 : attribut serial (encre $00-$07, fond $10-$17)
  *
- * Pour la couleur: on utilise les serial attributes de l'Oric.
- * Le premier octet de chaque ligne definit l'encre par defaut.
+ * Strategie couleur simplifiee:
+ *   - Premiere colonne de chaque ligne pixel = attribut encre
+ *   - Le reste = donnees pixel avec bit 6 = 1
  */
 
 #include <string.h>
-#include <conio.h>
 #include "display.h"
 #include "fonts.h"
 
-/* Pointeur direct vers la RAM ecran texte */
-#define SCRN ((unsigned char*)0xBB80)
+/* Pointeur HIRES */
+#define HIRES ((unsigned char*)0xA000)
 
-/* Calcul adresse d'une position ecran */
-#define SCRN_ADDR(col, row) (SCRN + (unsigned int)(row) * 40 + (col))
+/* Calcul adresse pixel: ligne_pixel * 40 + colonne */
+#define HIRES_ADDR(px_row, col) (HIRES + (unsigned int)(px_row) * 40 + (col))
 
-/* Table de conversion caractere Minitel -> caractere Oric */
-/* La plupart sont identiques (ASCII), sauf les accents Minitel */
-/* $7B=e' $7C=e` $7D=e^ $7E=u" $7F=a`  (pas de correspondance Oric) */
+/* ===================================================================
+ *  Passage en mode HIRES via ROM Atmos
+ * =================================================================== */
 
-/* Attributs serial Oric (premier octet valide de la ligne) */
-/* Encre: $00-$07, Fond: $10-$17 */
+static void hires_on(void)
+{
+    /* Appel ROM Atmos HIRES a $EC33 */
+    __asm__("jsr $EC33");
+}
 
 /* ===================================================================
  *  Initialisation
@@ -39,187 +42,176 @@
 
 void display_init(void)
 {
-    /* Effacer l'ecran via ROM (compatible Oric-1 et Atmos) */
-    clrscr();
-
-    /* Mettre l'encre blanche sur toutes les lignes */
-    display_clear();
+    hires_on();
+    /* hires_on() efface deja le framebuffer via la ROM */
 }
 
 /* ===================================================================
- *  Effacement ecran
+ *  Effacement HIRES
  * =================================================================== */
 
 void display_clear(void)
 {
-    unsigned char row;
-    unsigned char* ptr;
+    unsigned int i;
+    unsigned char* ptr = HIRES;
 
-    for (row = 0; row < 28; ++row) {
-        ptr = SCRN_ADDR(0, row);
-        /* Octet 0: attribut encre blanche */
-        ptr[0] = 0x07;  /* Ink white */
-        /* Remplir le reste avec des espaces */
-        memset(ptr + 1, ' ', 39);
+    /* Remplir le framebuffer: chaque octet = $40 (bit 6 set, pixels off) */
+    for (i = 0; i < 8000; ++i) {
+        ptr[i] = 0x40;
     }
 }
 
 /* ===================================================================
- *  Rendu d'une cellule en mode texte
- *
- *  Limitation v0.1: pas de mosaiques G1 en mode texte.
- *  Les mosaiques sont affichees comme '#'.
- *  Les couleurs utilisent les serial attributes Oric.
+ *  Generation glyphe G1 mosaique (2x3 blocs dans 6x8 pixels)
  * =================================================================== */
 
-static unsigned char vtx_to_oric_char(const vtx_cell_t* cell)
+static void generate_mosaic(unsigned char code, unsigned char* glyph)
 {
-    unsigned char ch = cell->ch;
+    unsigned char pattern;
+    unsigned char left, right, line_byte;
+    unsigned char i;
 
-    /* Texte masque */
-    if (cell->flags & ATTR_CONCEALED) {
-        return ' ';
-    }
+    pattern = code & 0x3F;
 
-    /* Mosaiques G1: afficher comme bloc ou espace */
-    if (cell->charset == CHARSET_G1) {
-        /* Les 6 bits bas encodent un motif 2x3 de blocs */
-        /* En mode texte, on ne peut qu'approximer */
-        unsigned char pattern = ch & 0x3F;
-        if (pattern == 0x00) return ' ';    /* Vide */
-        if (pattern == 0x3F) return '#';    /* Plein */
-        if (ch == 0x20) return ' ';         /* Espace G1 = espace */
-        /* Approximation: demi-blocs et blocs */
-        if (pattern >= 0x30) return '#';    /* Majoritairement plein */
-        if (pattern >= 0x10) return ':';    /* Partiellement plein */
-        if (pattern >= 0x04) return '.';    /* Peu rempli */
-        return ' ';
-    }
+    /* Lignes 0-2: rangee haute (bits 0=haut-gauche, 1=haut-droit) */
+    left  = (pattern & 0x01) ? 0x38 : 0x00;  /* Pixels 5,4,3 */
+    right = (pattern & 0x02) ? 0x07 : 0x00;  /* Pixels 2,1,0 */
+    line_byte = (left | right) | 0x40;        /* Bit 6 = pixel mode */
+    for (i = 0; i < 3; ++i) glyph[i] = line_byte;
 
-    /* G2 standalone: quelques caracteres speciaux */
-    if (cell->charset == CHARSET_G2) {
-        switch (ch) {
-            case 0x23: return '#';  /* livre sterling */
-            case 0x27: return 'S';  /* section */
-            case 0x2C: return '<';  /* fleche gauche */
-            case 0x2D: return '-';  /* tiret */
-            case 0x2E: return '>';  /* fleche droite */
-            case 0x30: return '*';  /* degre */
-            case 0x31: return '+';  /* plus ou moins */
-            case 0x38: return '/';  /* division */
-            default:
-                if (ch >= 0x20 && ch <= 0x7E) return ch;
-                return ' ';
-        }
-    }
+    /* Lignes 3-5: rangee milieu (bits 2=milieu-gauche, 3=milieu-droit) */
+    left  = (pattern & 0x04) ? 0x38 : 0x00;
+    right = (pattern & 0x08) ? 0x07 : 0x00;
+    line_byte = (left | right) | 0x40;
+    for (i = 3; i < 6; ++i) glyph[i] = line_byte;
 
-    /* G0: la plupart des caracteres sont directement compatibles */
-    /* Caracteres speciaux Minitel */
-    switch (ch) {
-        case 0x7B: return 'e';  /* e accent aigu */
-        case 0x7C: return 'e';  /* e accent grave */
-        case 0x7D: return 'e';  /* e accent circo */
-        case 0x7E: return 'u';  /* u trema */
-        case 0x7F: return 'a';  /* a accent grave */
-        default: break;
-    }
-
-    /* Verifier que c'est un caractere affichable */
-    if (ch < 0x20 || ch > 0x7E) {
-        return ' ';
-    }
-
-    return ch;
+    /* Lignes 6-7: rangee basse (bits 4=bas-gauche, 5=bas-droit) */
+    left  = (pattern & 0x10) ? 0x38 : 0x00;
+    right = (pattern & 0x20) ? 0x07 : 0x00;
+    line_byte = (left | right) | 0x40;
+    glyph[6] = line_byte;
+    glyph[7] = line_byte;
 }
 
-void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned char row)
+/* ===================================================================
+ *  Rendu d'une cellule en HIRES
+ * =================================================================== */
+
+static void render_cell_hires(const vtx_cell_t* cell,
+                               unsigned char col, unsigned char char_row)
 {
     unsigned char* ptr;
+    const unsigned char* glyph;
+    unsigned char mosaic_buf[8];
+    unsigned char line, pixel_byte;
     unsigned char ch;
+    unsigned char xor_mask;
 
-    if (row >= SCREEN_ROWS || col >= SCREEN_COLS) {
-        return;
+    /* Adresse de base: premiere ligne pixel de cette cellule */
+    ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+
+    ch = cell->ch;
+    xor_mask = (cell->flags & ATTR_INVERT) ? 0x3F : 0x00;
+
+    if (cell->flags & ATTR_CONCEALED) ch = ' ';
+
+    /* Selectionner le glyphe */
+    if (cell->charset == CHARSET_G1) {
+        generate_mosaic(ch, mosaic_buf);
+        glyph = mosaic_buf;
+    } else {
+        glyph = font_get_g0(ch);
     }
 
-    ptr = SCRN_ADDR(col, row);
-    ch = vtx_to_oric_char(cell);
-
-    /* Inversion video: bit 7 sur Oric inverse le caractere */
-    if (cell->flags & ATTR_INVERT) {
-        ch |= 0x80;
+    /* Ecrire 8 lignes avec pointeur incremente (+40 par ligne) */
+    /* RAPIDE: pas de multiplication, juste ptr += 40 */
+    for (line = 0; line < CHAR_H; ++line) {
+        *ptr = (glyph[line] ^ xor_mask) | 0x40;
+        ptr += 40;
     }
-
-    *ptr = ch;
 }
 
 /* ===================================================================
- *  Rendu incremental
+ *  Rendu d'une ligne complete avec attributs couleur
  *
- *  Pour les couleurs: on place un attribut serial encre au debut
- *  de chaque ligne quand la couleur change. C'est une approximation
- *  car l'Oric ne supporte qu'un changement de couleur par colonne.
+ *  Sur l'Oric HIRES, les serial attributes occupent des colonnes
+ *  entieres (toutes les 8 lignes de pixels). Un attribut encre ($00-$07)
+ *  en colonne N affecte toutes les colonnes >= N de cette ligne.
+ *
+ *  Strategie v0.2:
+ *  - Col 0 de chaque ligne = attribut encre (couleur dominante)
+ *  - Cols 1-39 = pixels des caracteres
+ *  - Quand la couleur change, on insere un attribut a cette colonne
  * =================================================================== */
 
-static void render_row(vtx_context_t* ctx, unsigned char row)
+static void set_ink_column(unsigned char* ptr, unsigned char ink)
+{
+    unsigned char line;
+    for (line = 0; line < CHAR_H; ++line) {
+        *ptr = ink;
+        ptr += 40;
+    }
+}
+
+static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 {
     unsigned char col;
-    unsigned char* line;
-    unsigned char ch;
+    unsigned char prev_fg;
 
     if (row >= SCREEN_ROWS) return;
 
-    line = SCRN_ADDR(0, row);
+    /* Col 0: attribut encre blanche */
+    prev_fg = VTX_WHITE;
+    set_ink_column(HIRES_ADDR((unsigned int)row * CHAR_H, 0), prev_fg & 0x07);
 
-    /* v0.1: rendu simple sans gestion des attributs serie couleur.
-     * Tout est en blanc sur noir (attribut encre blanche en col 0).
-     * La gestion des couleurs sera ajoutee en v0.2 avec HIRES. */
-    line[0] = 0x07;  /* Ink white */
-
+    /* Cols 1-39 */
     for (col = 1; col < SCREEN_COLS; ++col) {
         vtx_cell_t* cell = &ctx->screen[row][col];
-        ch = vtx_to_oric_char(cell);
 
-        /* Inversion */
-        if (cell->flags & ATTR_INVERT) {
-            ch |= 0x80;
+        if (cell->fg != prev_fg) {
+            set_ink_column(HIRES_ADDR((unsigned int)row * CHAR_H, col),
+                          cell->fg & 0x07);
+            prev_fg = cell->fg;
+            continue;
         }
 
-        line[col] = ch;
+        render_cell_hires(cell, col, row);
     }
 }
+
+/* ===================================================================
+ *  API publiques
+ * =================================================================== */
 
 void display_render(vtx_context_t* ctx)
 {
     unsigned char row;
-
     for (row = 0; row < SCREEN_ROWS; ++row) {
-        if (!ctx->dirty[row] && !ctx->full_refresh) {
-            continue;
-        }
-        render_row(ctx, row);
+        if (!ctx->dirty[row] && !ctx->full_refresh) continue;
+        render_row_hires(ctx, row);
         ctx->dirty[row] = 0;
     }
-
     ctx->full_refresh = 0;
 }
 
 void display_render_cell_row(vtx_context_t* ctx, unsigned char row)
 {
-    render_row(ctx, row);
+    render_row_hires(ctx, row);
 }
 
-/* ===================================================================
- *  Barre de statut (ligne 26)
- * =================================================================== */
+void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned char row)
+{
+    render_cell_hires(cell, col, row);
+}
 
+/* Barre de statut (lignes texte en mode HIRES: $BF68+) */
 void display_status(const char* msg)
 {
     unsigned char i;
-    unsigned char* line = SCRN_ADDR(0, STATUS_ROW);
+    /* En HIRES, les 3 dernieres lignes texte sont a $BF68 */
+    unsigned char* line = (unsigned char*)(0xBF68 + 40);  /* 2eme ligne texte */
 
-    /* Attribut: encre jaune */
     line[0] = 0x03;  /* Ink yellow */
-
     for (i = 1; i < 40; ++i) {
         if (*msg) {
             line[i] = *msg++;
@@ -229,22 +221,15 @@ void display_status(const char* msg)
     }
 }
 
-/* ===================================================================
- *  Curseur visuel
- * =================================================================== */
-
 void display_cursor(unsigned char visible, unsigned char col, unsigned char row)
 {
-    unsigned char* ptr;
+    unsigned char* base;
 
-    if (row >= SCREEN_ROWS || col >= SCREEN_COLS) {
-        return;
-    }
+    if (row >= SCREEN_ROWS || col >= SCREEN_COLS) return;
 
-    ptr = SCRN_ADDR(col, row);
+    base = HIRES_ADDR((unsigned int)row * CHAR_H + 7, col);
 
     if (visible) {
-        /* Inverser le caractere pour simuler un curseur */
-        *ptr ^= 0x80;
+        *base ^= 0x3F;  /* Inverser la derniere ligne pixel */
     }
 }

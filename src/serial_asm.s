@@ -52,20 +52,18 @@ _serial_init:
         rts
 
 ; ===========================================================================
-; serial_send - Envoie un octet puis attend la fin de transmission
+; serial_send - Envoie un octet (attend TDRE puis ecrit)
 ; Entree: A = octet
-; Ne lit PAS ACIA_STATUS (pour ne pas interférer avec la reception)
+; En polling mode, la lecture de STATUS est sans danger.
 ; ===========================================================================
 _serial_send:
+        pha
+@wait_tdre:
+        lda     ACIA_STATUS
+        and     #TDRE
+        beq     @wait_tdre
+        pla
         sta     ACIA_DATA
-
-        ; Delai ~8500 cycles pour 1200 baud (10 bits/octet)
-        ldy     #7
-@outer: ldx     #0
-@inner: dex
-        bne     @inner
-        dey
-        bne     @outer
         rts
 
 ; ===========================================================================

@@ -1,13 +1,13 @@
 /**
  * @file display.h
- * @brief Moteur d'affichage TEXTE pour OricTel (v0.1)
+ * @brief Moteur d'affichage HIRES pour OricTel (v0.2)
  *
- * Utilise le mode texte standard de l'Oric (40x28) via conio cc65.
- * L'ecran Minitel (40x25) utilise les lignes 0-24.
- * Les lignes 25-27 sont pour la barre de statut OricTel.
+ * Mode HIRES: 240x200 pixels = 40 colonnes x 25 lignes de 6x8 pixels.
+ * Chaque octet HIRES: bit 6 = mode pixel (1) ou attribut serial (0).
+ * Bits 5-0 = 6 pixels (encre/fond) ou code attribut.
  *
- * Compatible Oric-1 et Atmos sans manipulation hardware directe.
- * Le mode HIRES sera ajoute en v0.2 pour les mosaiques G1.
+ * Les 3 lignes texte en bas (rows 25-27 a $BF68+) restent en mode texte
+ * pour la barre de statut.
  */
 
 #ifndef DISPLAY_H
@@ -15,32 +15,34 @@
 
 #include "videotex.h"
 
-/* Dimensions ecran texte Oric */
-#define SCREEN_COLS 40
-#define SCREEN_ROWS 25          /* Lignes Minitel (0-24) */
-#define STATUS_ROW  26          /* Ligne de statut */
+/* Adresses memoire HIRES Oric */
+#define HIRES_BASE  0xA000      /* Debut framebuffer HIRES */
+#define TEXT_STATUS  0xBF68     /* Lignes texte 25-27 en mode HIRES */
 
-/* Adresse ecran texte Oric */
-#define TEXT_SCREEN     0xBB80
+/* Dimensions */
+#define SCREEN_COLS 40
+#define SCREEN_ROWS 25
+#define CHAR_W      6           /* Pixels par caractere */
+#define CHAR_H      8           /* Lignes par caractere */
+#define STATUS_ROW  26
 
 /**
- * Initialise l'affichage: efface l'ecran, configure les couleurs.
+ * Initialise l'affichage en mode HIRES.
  */
 void display_init(void);
 
 /**
- * Rend les cellules modifiees du buffer Videotex a l'ecran texte.
- * @param ctx Contexte Videotex
+ * Rend toutes les cellules modifiees.
  */
 void display_render(vtx_context_t* ctx);
 
 /**
- * Rend une cellule unique.
+ * Rend une seule ligne.
  */
-void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned char row);
+void display_render_cell_row(vtx_context_t* ctx, unsigned char row);
 
 /**
- * Efface l'ecran.
+ * Efface l'ecran HIRES.
  */
 void display_clear(void);
 
@@ -55,10 +57,8 @@ void display_status(const char* msg);
 void display_cursor(unsigned char visible, unsigned char col, unsigned char row);
 
 /**
- * Rend une seule ligne du buffer Videotex (optimise pour eviter overrun ACIA).
- * @param ctx Contexte Videotex
- * @param row Numero de ligne (0-24)
+ * Rend une cellule unique (pour compatibilite).
  */
-void display_render_cell_row(vtx_context_t* ctx, unsigned char row);
+void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned char row);
 
 #endif /* DISPLAY_H */
