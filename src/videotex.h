@@ -110,9 +110,10 @@ typedef struct {
     /* Buffer ecran (40x25 cellules) */
     vtx_cell_t screen[VTX_ROWS][VTX_COLS];
 
-    /* Tableau dirty flags (1 bit par cellule serait ideal, ici 1 octet) */
-    unsigned char dirty[VTX_ROWS];  /* bitmask: 1 = ligne modifiee */
-    unsigned char full_refresh;     /* 1 = tout redessiner */
+    /* Dirty flags et effacement paresseux */
+    unsigned char dirty[VTX_ROWS];      /* 1 = ligne modifiee, a re-rendre */
+    unsigned char row_cleared[VTX_ROWS]; /* 1 = ligne logiquement vide (lazy) */
+    unsigned char full_refresh;         /* 1 = tout redessiner */
 } vtx_context_t;
 
 /**

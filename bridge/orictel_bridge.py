@@ -42,8 +42,9 @@ log = logging.getLogger("orictel-bridge")
 class Bridge:
     """Pont bidirectionnel entre une connexion TCP et un WebSocket."""
 
-    def __init__(self, ws_url: str):
+    def __init__(self, ws_url: str, pace_delay: float = 0.04):
         self.ws_url = ws_url
+        self.pace_delay = pace_delay
         self.ws = None
         self.tcp_reader = None
         self.tcp_writer = None
@@ -155,11 +156,14 @@ class Bridge:
             log.error("Erreur TCP->WS: %s", e)
 
     async def _relay_ws_to_tcp(self, ws, writer: asyncio.StreamWriter):
-        """Relaie les octets WebSocket (serveur Minitel) vers TCP (Oric)."""
+        """Relaie les octets WebSocket (serveur Minitel) vers TCP (Oric).
+
+        PACING: envoie les octets un par un avec un delai de 40ms pour
+        eviter l'overrun du buffer 1-octet de l'ACIA 6551 emule.
+        """
         try:
             async for message in ws:
                 if isinstance(message, str):
-                    # Certains serveurs envoient du texte (chars Videotex)
                     data = bytes(ord(c) & 0x7F for c in message)
                 elif isinstance(message, bytes):
                     data = message
@@ -170,12 +174,17 @@ class Bridge:
                     continue
 
                 self.stats_rx += len(data)
-                writer.write(data)
-                await writer.drain()
+
+                # Pacing: 1 octet toutes les 40ms pour eviter l'overrun ACIA
+                for b in data:
+                    writer.write(bytes([b]))
+                    await writer.drain()
+                    await asyncio.sleep(self.pace_delay)
+
                 if log.isEnabledFor(logging.DEBUG):
                     log.debug(
-                        "WS->TCP: %s",
-                        " ".join(f"{b:02X}" for b in data),
+                        "WS->TCP: %d octets (pace %.0fms)",
+                        len(data), self.pace_delay * 1000,
                     )
         except asyncio.CancelledError:
             raise
@@ -206,6 +215,12 @@ async def main():
         help=f"URL du serveur WebSocket Minitel (defaut: {DEFAULT_WS_URL})",
     )
     parser.add_argument(
+        "--pace",
+        type=float,
+        default=0.04,
+        help="Delai entre octets WS->TCP en secondes (defaut: 0.04 = 40ms)",
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Afficher les octets echanges (debug)",
@@ -215,7 +230,7 @@ async def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    bridge = Bridge(args.ws_url)
+    bridge = Bridge(args.ws_url, pace_delay=args.pace)
 
     server = await asyncio.start_server(
         bridge.handle_tcp_client,

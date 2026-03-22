@@ -41,24 +41,23 @@ void vtx_init(vtx_context_t* ctx)
 
 static void clear_row(vtx_context_t* ctx, unsigned char row)
 {
-    unsigned char i;
-    for (i = 0; i < VTX_COLS; ++i) {
-        ctx->screen[row][i].ch = ' ';
-        ctx->screen[row][i].charset = CHARSET_G0;
-        ctx->screen[row][i].fg = VTX_WHITE;
-        ctx->screen[row][i].bg = VTX_BLACK;
-        ctx->screen[row][i].flags = 0;
-        ctx->screen[row][i].size = SIZE_NORMAL;
-    }
+    /* memset a 0: ch=0 (rendu comme espace), fg=0 (pas utilise en v0.1) */
+    memset(&ctx->screen[row][0], 0, sizeof(vtx_cell_t) * VTX_COLS);
     ctx->dirty[row] = 1;
 }
 
 void vtx_clear_page(vtx_context_t* ctx)
 {
-    unsigned char r;
-    for (r = 1; r < VTX_ROWS; ++r) {
-        clear_row(ctx, r);
-    }
+    /* RAPIDE: memset de tout le buffer ecran (lignes 1-24) a zero.
+     * ~5 cycles/octet * 5760 octets = ~29000 cycles (~29ms)
+     * au lieu de ~50000 cycles avec la boucle C.
+     * ch=0 sera rendu comme espace par vtx_to_oric_char (ch < $20 -> ' ') */
+    memset(&ctx->screen[1][0], 0,
+           sizeof(vtx_cell_t) * VTX_COLS * (VTX_ROWS - 1));
+
+    /* Marquer toutes les lignes comme modifiees */
+    memset(&ctx->dirty[1], 1, VTX_ROWS - 1);
+
     ctx->cur_x = 0;
     ctx->cur_y = 1;
     ctx->charset = CHARSET_G0;

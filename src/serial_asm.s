@@ -1,24 +1,20 @@
 ; ===========================================================================
-; serial_asm.s - Driver ACIA 6551 avec reception IRQ et buffer circulaire
+; serial_asm.s - Driver ACIA 6551 pour OricTel (polling simple)
 ;
-; MOS 6551 ACIA mappee a $031C-$031F.
-; Reception par interruption: l'ISR lit les octets et les stocke dans
-; un buffer circulaire de 256 octets. Le programme principal lit le
-; buffer sans risque d'overrun.
+; Mode polling: pas d'IRQ, le programme principal lit les octets.
+; Le serveur/bridge pace les donnees pour eviter l'overrun.
 ;
 ; Fonctions exportees:
-;   _serial_init  - Initialise ACIA + IRQ
-;   _serial_send  - Envoie un octet (polling TDRE)
-;   _serial_recv  - Lit un octet du buffer (non-bloquant)
-;   _serial_poll  - Verifie si donnees dans le buffer
+;   _serial_init  - Initialise ACIA
+;   _serial_send  - Envoie un octet (delai fixe)
+;   _serial_recv  - Recoit un octet (non-bloquant)
+;   _serial_poll  - Verifie donnee dispo
 ; ===========================================================================
 
         .export _serial_init
         .export _serial_send
         .export _serial_recv
         .export _serial_poll
-
-        .import __INTERRUPTOR_COUNT__
 
         .segment "CODE"
 
@@ -31,143 +27,66 @@ ACIA_CONTROL = $031F
 ; --- Bits Status ---
 RDRF         = $08          ; Bit 3: donnee recue disponible
 TDRE         = $10          ; Bit 4: transmetteur pret
-IRQ_BIT      = $80          ; Bit 7: IRQ occurred
-
-; --- Buffer circulaire en page zero (rapide) ---
-; On utilise 2 octets en page zero pour les pointeurs head/tail
-; et 256 octets en BSS pour le buffer
-rx_head      = $E0          ; Pointeur ecriture (ISR)
-rx_tail      = $E1          ; Pointeur lecture (programme principal)
-
-        .segment "BSS"
-rx_buffer:   .res 256       ; Buffer circulaire 256 octets
-
-        .segment "CODE"
 
 ; ===========================================================================
-; serial_init - Initialise l'ACIA avec reception par IRQ
+; serial_init - Initialise l'ACIA (polling, pas d'IRQ)
 ;
 ; Control: 8 bits, 1 stop, 1200 baud, horloge interne = $18
-; Command: pas de parite, DTR on, RTS low, RX IRQ ACTIVE = $09
-;   Bit 0 = 1 (DTR)
-;   Bit 1 = 0 (RX IRQ activee!) <-- difference avec version polling
-;   Bits 3-2 = 10 (RTS low, TX IRQ off)
-;   Le reste = 0
+; Command: DTR on, RX IRQ off, RTS low, TX IRQ off, no parity = $0B
 ; ===========================================================================
 _serial_init:
-        ; Initialiser le buffer circulaire
-        lda     #0
-        sta     rx_head
-        sta     rx_tail
-
-        ; Reset programme ACIA
+        ; Reset programme
         sta     ACIA_STATUS
 
-        ; Control: 8 bits, 1 stop, 1200 baud, horloge interne
-        lda     #$18
+        ; Control: 8 bits, 1 stop, 300 baud, horloge interne
+        ; 300 baud = 33333 cycles/octet. Le serveur pace les donnees.
+        lda     #$16
         sta     ACIA_CONTROL
 
-        ; Command: DTR on, RX IRQ active, RTS low, TX IRQ off, no parity
-        lda     #$09
+        ; Command: DTR on, IRQ off, RTS low, no parity
+        lda     #$0B
         sta     ACIA_COMMAND
 
         ; Vider le buffer de reception
         lda     ACIA_DATA
-
-        ; Activer les interruptions CPU
-        cli
-
         rts
 
 ; ===========================================================================
-; serial_send - Envoie un octet (polling TDRE)
+; serial_send - Envoie un octet puis attend la fin de transmission
 ; Entree: A = octet
+; Ne lit PAS ACIA_STATUS (pour ne pas interférer avec la reception)
 ; ===========================================================================
 _serial_send:
-        pha
-@wait_tdre:
-        lda     ACIA_STATUS
-        and     #TDRE
-        beq     @wait_tdre
-        pla
         sta     ACIA_DATA
+
+        ; Delai ~8500 cycles pour 1200 baud (10 bits/octet)
+        ldy     #7
+@outer: ldx     #0
+@inner: dex
+        bne     @inner
+        dey
+        bne     @outer
         rts
 
 ; ===========================================================================
-; serial_recv - Lit un octet du buffer circulaire (non-bloquant)
-; Sortie: A = octet, ou $FF si buffer vide
+; serial_recv - Recoit un octet (non-bloquant)
+; Sortie: A = octet recu, ou $FF si aucune donnee
 ; ===========================================================================
 _serial_recv:
-        ; Verifier si le buffer est vide
-        lda     rx_head
-        cmp     rx_tail
-        beq     @empty
-
-        ; Lire l'octet depuis le buffer
-        ldx     rx_tail
-        lda     rx_buffer,x
-
-        ; Avancer le pointeur tail
-        inx
-        stx     rx_tail         ; Wrapping naturel sur 8 bits (0-255)
-
+        lda     ACIA_STATUS
+        and     #RDRF
+        beq     @no_data
+        lda     ACIA_DATA
         rts
-
-@empty:
+@no_data:
         lda     #$FF
         rts
 
 ; ===========================================================================
-; serial_poll - Verifie si des donnees sont dans le buffer
-; Sortie: A = non-zero si donnees dispo, 0 sinon
+; serial_poll - Verifie si une donnee est disponible
+; Sortie: A = non-zero si donnee dispo
 ; ===========================================================================
 _serial_poll:
-        lda     rx_head
-        sec
-        sbc     rx_tail         ; A = head - tail (nombre d'octets dispo)
-        rts
-
-; ===========================================================================
-; ACIA IRQ handler - Appele par le mecanisme d'interruption cc65
-;
-; Lit l'octet recu de l'ACIA et le stocke dans le buffer circulaire.
-; Retourne avec carry set si l'IRQ a ete traitee.
-;
-; Enregistre comme "interruptor" via le segment RODATA et la
-; directive .interruptor de cc65.
-; ===========================================================================
-
-        .segment "RODATA"
-        ; Rien ici, l'interruptor est declare plus bas
-
-        .segment "CODE"
-
-acia_irq:
-        ; Verifier si c'est notre IRQ (ACIA status bit 7)
         lda     ACIA_STATUS
-        bpl     @not_ours       ; Bit 7 = 0 -> pas notre IRQ
-
-        ; Verifier RDRF
         and     #RDRF
-        beq     @not_ours       ; Pas de donnee
-
-        ; Lire l'octet (cela efface RDRF et IRQ)
-        lda     ACIA_DATA
-
-        ; Stocker dans le buffer circulaire
-        ldx     rx_head
-        sta     rx_buffer,x
-        inx
-        stx     rx_head         ; Wrapping naturel sur 8 bits
-
-        ; IRQ traitee: carry set
-        sec
         rts
-
-@not_ours:
-        ; Pas notre IRQ: carry clear
-        clc
-        rts
-
-        ; Declarer comme interrupteur cc65
-        .interruptor acia_irq

@@ -285,7 +285,7 @@ TESTS = {
 }
 
 
-PACE_DELAY = 0.008  # 8ms entre chaque octet = 125 octets/sec (~1200 baud)
+PACE_DELAY = 0.04
 
 
 async def send_paced(writer, data):
