@@ -479,12 +479,21 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
             case 0x12:  /* REP - repetition */
                 ctx->state = VTX_STATE_REP;
                 break;
+            case 0x13:  /* SEP - separateur (touches fonction Minitel) */
+                /* Le prochain octet est le code fonction ($41-$49) */
+                /* En reception, on l'ignore (c'est le serveur qui envoie) */
+                /* En emission, c'est keyboard_process qui l'envoie */
+                ctx->state = VTX_STATE_PRO1;  /* Consommer 1 octet */
+                break;
             case 0x14:  /* DC4/COFF - curseur invisible */
                 ctx->cur_visible = 0;
                 break;
             case 0x16:  /* SS2 - single shift G2 (accents) */
             case 0x19:  /* SS2 - single shift G2 (variante) */
                 ctx->state = VTX_STATE_SS2;
+                break;
+            case 0x18:  /* CAN - effacer jusqu'a fin de ligne */
+                clear_eol(ctx);
                 break;
             case 0x1A:  /* SUB - substitution (affiche espace) */
                 put_char(ctx, ' ', ctx->charset);

@@ -71,7 +71,15 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph)
     unsigned char left, right, line_byte;
     unsigned char i;
 
-    pattern = code & 0x3F;
+    /* Encodage mosaique Minitel (reference: telenet emulateur.js)
+     * bit 0 = haut-gauche
+     * bit 1 = haut-droit
+     * bit 2 = milieu-gauche
+     * bit 3 = milieu-droit
+     * bit 4 = bas-gauche
+     * bit 6 = bas-droit (PAS bit 5 !) */
+    pattern = code & 0x1F;  /* Bits 0-4 */
+    if (code & 0x40) pattern |= 0x20;  /* Bit 6 -> bit 5 du pattern */
 
     /* Lignes 0-2: rangee haute (bits 0=haut-gauche, 1=haut-droit) */
     left  = (pattern & 0x01) ? 0x38 : 0x00;  /* Pixels 5,4,3 */
@@ -144,38 +152,34 @@ static void render_cell_hires(const vtx_cell_t* cell,
  *  - Quand la couleur change, on insere un attribut a cette colonne
  * =================================================================== */
 
-static void set_ink_column(unsigned char* ptr, unsigned char ink)
-{
-    unsigned char line;
-    for (line = 0; line < CHAR_H; ++line) {
-        *ptr = ink;
-        ptr += 40;
-    }
-}
-
 static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 {
     unsigned char col;
-    unsigned char prev_fg;
+    unsigned char* ptr;
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Col 0: attribut encre blanche */
-    prev_fg = VTX_WHITE;
-    set_ink_column(HIRES_ADDR((unsigned int)row * CHAR_H, 0), prev_fg & 0x07);
-
-    /* Cols 1-39 */
-    for (col = 1; col < SCREEN_COLS; ++col) {
-        vtx_cell_t* cell = &ctx->screen[row][col];
-
-        if (cell->fg != prev_fg) {
-            set_ink_column(HIRES_ADDR((unsigned int)row * CHAR_H, col),
-                          cell->fg & 0x07);
-            prev_fg = cell->fg;
-            continue;
+    /* Rendre TOUTES les 40 colonnes comme des caracteres.
+     * Pas d'attribut serial = pas de colonne mangee.
+     * Col 0: attribut encre blanche (obligatoire pour l'ULA Oric).
+     * Cols 1-39: pixels des caracteres.
+     *
+     * Note: on perd col 0 du contenu (remplacee par l'attribut).
+     * C'est le minimum requis par l'ULA. Le Minitel utilise souvent
+     * col 0 pour des mosaiques decoratives, donc c'est acceptable.
+     */
+    ptr = HIRES_ADDR((unsigned int)row * CHAR_H, 0);
+    {
+        unsigned char line;
+        for (line = 0; line < CHAR_H; ++line) {
+            *ptr = 0x07;  /* Ink white - obligatoire pour l'ULA */
+            ptr += 40;
         }
+    }
 
-        render_cell_hires(cell, col, row);
+    /* Cols 1-39: rendu direct des cellules sans attribut intermediaire */
+    for (col = 1; col < SCREEN_COLS; ++col) {
+        render_cell_hires(&ctx->screen[row][col], col, row);
     }
 }
 
