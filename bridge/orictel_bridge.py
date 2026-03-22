@@ -42,7 +42,7 @@ log = logging.getLogger("orictel-bridge")
 class Bridge:
     """Pont bidirectionnel entre une connexion TCP et un WebSocket."""
 
-    def __init__(self, ws_url: str, pace_delay: float = 0.04):
+    def __init__(self, ws_url: str, pace_delay: float = 0.008):
         self.ws_url = ws_url
         self.pace_delay = pace_delay
         self.ws = None
@@ -158,13 +158,9 @@ class Bridge:
     async def _relay_ws_to_tcp(self, ws, writer: asyncio.StreamWriter):
         """Relaie les octets WebSocket (serveur Minitel) vers TCP (Oric).
 
-        Envoie par chunks de 128 octets avec delai entre chaque chunk.
-        Le FIFO emulateur fait 256 octets: on envoie 128 max a la fois
-        pour laisser le 6502 drainer le buffer entre les chunks.
+        Pacing octet par octet a vitesse Minitel 1200 baud (8ms/octet).
+        Le FIFO emulateur (256 octets) + ISR absorbent les petites variations.
         """
-        CHUNK_SIZE = 128
-        CHUNK_DELAY = 0.08  # 80ms entre chunks (~1500 octets/sec)
-
         try:
             async for message in ws:
                 if isinstance(message, str):
@@ -179,13 +175,11 @@ class Bridge:
 
                 self.stats_rx += len(data)
 
-                # Envoyer par chunks pour ne pas deborder le FIFO 256
-                for i in range(0, len(data), CHUNK_SIZE):
-                    chunk = data[i:i + CHUNK_SIZE]
-                    writer.write(chunk)
+                # Pacing byte par byte a vitesse Minitel (8ms = 1200 baud)
+                for b in data:
+                    writer.write(bytes([b]))
                     await writer.drain()
-                    if i + CHUNK_SIZE < len(data):
-                        await asyncio.sleep(CHUNK_DELAY)
+                    await asyncio.sleep(self.pace_delay)
 
                 if log.isEnabledFor(logging.DEBUG):
                     log.debug(
