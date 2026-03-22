@@ -54,4 +54,11 @@ void display_status(const char* msg);
  */
 void display_cursor(unsigned char visible, unsigned char col, unsigned char row);
 
+/**
+ * Rend une seule ligne du buffer Videotex (optimise pour eviter overrun ACIA).
+ * @param ctx Contexte Videotex
+ * @param row Numero de ligne (0-24)
+ */
+void display_render_cell_row(vtx_context_t* ctx, unsigned char row);
+
 #endif /* DISPLAY_H */

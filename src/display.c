@@ -81,32 +81,46 @@ static unsigned char vtx_to_oric_char(const vtx_cell_t* cell)
         return ' ';
     }
 
-    /* Mosaiques G1: afficher comme bloc ou '#' */
+    /* Mosaiques G1: afficher comme bloc ou espace */
     if (cell->charset == CHARSET_G1) {
-        /* Essayer de mapper les motifs G1 les plus courants */
+        /* Les 6 bits bas encodent un motif 2x3 de blocs */
+        /* En mode texte, on ne peut qu'approximer */
         unsigned char pattern = ch & 0x3F;
         if (pattern == 0x00) return ' ';    /* Vide */
-        if (pattern == 0x3F) return 0x7F;   /* Plein -> bloc plein Oric (DEL=bloc) */
-        /* Blocs partiels: utiliser des caracteres semi-graphiques Oric */
-        /* L'Oric n'a pas de vrais semi-graphiques, on approxime */
-        if (pattern & 0x30) {               /* Bas rempli */
-            if (pattern & 0x0F) return '#';
-            return '_';
-        }
-        if (pattern & 0x0F) return '#';     /* Quelque chose de rempli */
+        if (pattern == 0x3F) return '#';    /* Plein */
+        if (ch == 0x20) return ' ';         /* Espace G1 = espace */
+        /* Approximation: demi-blocs et blocs */
+        if (pattern >= 0x30) return '#';    /* Majoritairement plein */
+        if (pattern >= 0x10) return ':';    /* Partiellement plein */
+        if (pattern >= 0x04) return '.';    /* Peu rempli */
         return ' ';
     }
 
-    /* G2: fallback vers G0 */
-    /* G0: la plupart des caracteres sont directement compatibles */
+    /* G2 standalone: quelques caracteres speciaux */
+    if (cell->charset == CHARSET_G2) {
+        switch (ch) {
+            case 0x23: return '#';  /* livre sterling */
+            case 0x27: return 'S';  /* section */
+            case 0x2C: return '<';  /* fleche gauche */
+            case 0x2D: return '-';  /* tiret */
+            case 0x2E: return '>';  /* fleche droite */
+            case 0x30: return '*';  /* degre */
+            case 0x31: return '+';  /* plus ou moins */
+            case 0x38: return '/';  /* division */
+            default:
+                if (ch >= 0x20 && ch <= 0x7E) return ch;
+                return ' ';
+        }
+    }
 
-    /* Caracteres speciaux Minitel non disponibles en Oric standard */
+    /* G0: la plupart des caracteres sont directement compatibles */
+    /* Caracteres speciaux Minitel */
     switch (ch) {
-        case 0x7B: return '{';  /* e' -> { (placeholder) */
-        case 0x7C: return '|';  /* e` -> | */
-        case 0x7D: return '}';  /* e^ -> } */
-        case 0x7E: return '~';  /* u" -> ~ */
-        case 0x7F: return '`';  /* a` -> ` */
+        case 0x7B: return 'e';  /* e accent aigu */
+        case 0x7C: return 'e';  /* e accent grave */
+        case 0x7D: return 'e';  /* e accent circo */
+        case 0x7E: return 'u';  /* u trema */
+        case 0x7F: return 'a';  /* a accent grave */
         default: break;
     }
 
@@ -150,34 +164,27 @@ static void render_row(vtx_context_t* ctx, unsigned char row)
 {
     unsigned char col;
     unsigned char* line;
-    unsigned char prev_fg;
+    unsigned char ch;
 
     if (row >= SCREEN_ROWS) return;
 
     line = SCRN_ADDR(0, row);
-    prev_fg = VTX_WHITE;
 
-    /* Premier octet: attribut encre de la premiere cellule */
-    line[0] = ctx->screen[row][0].fg & 0x07;
-    prev_fg = ctx->screen[row][0].fg;
+    /* v0.1: rendu simple sans gestion des attributs serie couleur.
+     * Tout est en blanc sur noir (attribut encre blanche en col 0).
+     * La gestion des couleurs sera ajoutee en v0.2 avec HIRES. */
+    line[0] = 0x07;  /* Ink white */
 
     for (col = 1; col < SCREEN_COLS; ++col) {
         vtx_cell_t* cell = &ctx->screen[row][col];
-
-        /* Si la couleur d'encre change, inserer un attribut */
-        if (cell->fg != prev_fg && col < SCREEN_COLS - 1) {
-            line[col] = cell->fg & 0x07;
-            prev_fg = cell->fg;
-            /* L'attribut consomme cette colonne */
-            continue;
-        }
-
-        line[col] = vtx_to_oric_char(cell);
+        ch = vtx_to_oric_char(cell);
 
         /* Inversion */
         if (cell->flags & ATTR_INVERT) {
-            line[col] |= 0x80;
+            ch |= 0x80;
         }
+
+        line[col] = ch;
     }
 }
 
@@ -194,6 +201,11 @@ void display_render(vtx_context_t* ctx)
     }
 
     ctx->full_refresh = 0;
+}
+
+void display_render_cell_row(vtx_context_t* ctx, unsigned char row)
+{
+    render_row(ctx, row);
 }
 
 /* ===================================================================

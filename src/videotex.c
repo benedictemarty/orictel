@@ -396,8 +396,23 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         return;
 
     case VTX_STATE_SS2:
-        /* Single shift G2: afficher le caractere en G2 */
+        /* Single shift G2: diacritiques ou caractere G2 standalone */
+        /* $41-$4F = code accent -> sequence 3 octets ($16 + accent + base) */
+        /* Autres = caractere G2 standalone -> sequence 2 octets ($16 + char) */
+        if (byte >= 0x41 && byte <= 0x4F) {
+            /* Code accent: ignorer l'accent, attendre le caractere base */
+            ctx->state = VTX_STATE_SS2_ACC;
+            return;
+        }
+        /* Caractere G2 standalone (ex: $23=livre, $30=degre) */
         put_char(ctx, byte, CHARSET_G2);
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+
+    case VTX_STATE_SS2_ACC:
+        /* Caractere base apres un code accent: afficher le caractere tel quel */
+        /* (on perd l'accent en mode texte, ex: e au lieu de e') */
+        put_char(ctx, byte, CHARSET_G0);
         ctx->state = VTX_STATE_NORMAL;
         return;
 
@@ -459,8 +474,18 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
             case 0x0F:  /* SI - basculer G0 (alphanumerique) */
                 ctx->charset = CHARSET_G0;
                 break;
+            case 0x11:  /* DC1/CON - curseur visible */
+                ctx->cur_visible = 1;
+                break;
             case 0x12:  /* REP - repetition */
                 ctx->state = VTX_STATE_REP;
+                break;
+            case 0x14:  /* DC4/COFF - curseur invisible */
+                ctx->cur_visible = 0;
+                break;
+            case 0x16:  /* SS2 - single shift G2 (accents) */
+            case 0x19:  /* SS2 - single shift G2 (variante) */
+                ctx->state = VTX_STATE_SS2;
                 break;
             case 0x1A:  /* SUB - substitution (affiche espace) */
                 put_char(ctx, ' ', ctx->charset);

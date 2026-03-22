@@ -33,6 +33,7 @@
 #define VTX_STATE_REP       6
 #define VTX_STATE_PRO1      7
 #define VTX_STATE_PRO2      8
+#define VTX_STATE_SS2_ACC   9   /* SS2 accent: attente du caractere base */
 
 /* Jeux de caracteres */
 #define CHARSET_G0  0       /* Alphanumerique */

@@ -61,6 +61,17 @@ class Bridge:
         self.tcp_writer = writer
 
         try:
+            # Attendre le signal "ready" de l'Oric (premier octet recu)
+            # Le programme OricTel envoie 0x13 0x49 (SEP+Connexion) au demarrage
+            log.info("En attente du signal ready de l'Oric...")
+            first_data = await reader.read(1024)
+            if not first_data:
+                log.warning("TCP ferme avant signal ready")
+                writer.close()
+                return
+            log.info("Signal ready recu: %s (%d octets)",
+                     " ".join(f"{b:02X}" for b in first_data[:8]), len(first_data))
+
             # Connexion au serveur Minitel via WebSocket
             log.info("Connexion WebSocket vers %s ...", self.ws_url)
             async with websockets.connect(
