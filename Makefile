@@ -40,7 +40,13 @@ MAPFILE  = orictel.map
 # Emulateur Phosphoric
 EMU      = /home/bmarty/Oric1/oric1-emu
 EMU_ROM  = /home/bmarty/Oric1/roms/basic11b.rom
-EMU_OPTS = --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
+
+# Option A: Backend Digitelec (recommande - pas de bridge)
+MINITEL_SERVER = pavi.3617.fr:3617
+EMU_OPTS = --serial digitelec:$(MINITEL_SERVER)
+
+# Option B: TCP + bridge (decommenter si WebSocket necessaire)
+#EMU_OPTS = --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
 
 # Flags cc65
 CC65FLAGS = -t $(TARGET) -O --add-source
@@ -87,12 +93,16 @@ $(BLDDIR):
 # ============================================================================
 
 run: $(OUTPUT)
+	@echo "=== OricTel -> $(MINITEL_SERVER) (Digitelec) ==="
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) --fastload $(EMU_OPTS)
+
+# Lancer avec le bridge WebSocket (pour ws://3617.fr)
+run-ws: $(OUTPUT)
 	@echo "=== Lancement du bridge WebSocket ==="
 	python3 $(BRDIR)/orictel_bridge.py &
-	@sleep 1
-	@echo "=== Lancement de l'emulateur Phosphoric ==="
-	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) --fastload $(EMU_OPTS)
-	@echo "=== Arret du bridge ==="
+	@sleep 2
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) --fastload \
+		--serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
 	-kill %1 2>/dev/null
 
 # Lancer uniquement le bridge

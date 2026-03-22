@@ -1,14 +1,16 @@
 /**
  * @file main.c
- * @brief Programme principal OricTel - Terminal Minitel 1B pour Oric
+ * @brief OricTel - Terminal Minitel 1B pour Oric 1/Atmos
  *
- * Avec le buffer FIFO de l'emulateur (--serial-buffer 256) et
- * l'IRQ-on-RDRF, le programme peut:
- * 1. Lire TOUS les octets du buffer logiciel d'un coup
- * 2. Les traiter via vtx_process
- * 3. Rendre TOUTES les lignes modifiees
- * 4. Scanner le clavier
- * Sans risque de perte de donnees (l'ISR bufferise en arriere-plan).
+ * Supporte deux modes de connexion:
+ *
+ * 1. Backend Digitelec DTL 2000 (recommande):
+ *    ./oric1-emu --serial digitelec:pavi.3617.fr:3617
+ *    Connexion TCP directe, buffer 512, V23 auto. Pas de bridge.
+ *
+ * 2. Backend TCP + bridge WebSocket:
+ *    python3 bridge/orictel_bridge.py &
+ *    ./oric1-emu --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
  */
 
 #include "serial.h"
@@ -19,32 +21,45 @@
 /* Contexte Videotex global */
 static vtx_context_t vtx;
 
+/* Declaration serial_dcd (assembleur) */
+unsigned char __fastcall__ serial_dcd(void);
+
 int main(void)
 {
     unsigned char byte;
     unsigned char key;
 
-    /* Initialisation */
-    serial_init();
+    /* Initialisation: display AVANT serial !
+     * La ROM HIRES ($EC33) desactive les IRQ temporairement.
+     * Si serial_init est appele avant, le modem se connecte et
+     * envoie des octets pendant que les IRQ sont off -> perte. */
     vtx_init(&vtx);
     display_init();
     keyboard_init();
-
-    /* Barre de statut */
     display_status("OricTel v0.1 | CTRL+S=Sommaire");
 
-    /* Vider le buffer ACIA */
+    /* Serial EN DERNIER: DTR active la connexion modem */
+    serial_init();
+
+    /* Vider le buffer ACIA (donnees arrivees pendant l'init) */
     while (serial_poll()) {
         serial_recv();
     }
 
-    /* Signal ready (1 octet) */
+    /* Signal ready: declenche la connexion WebSocket du bridge.
+     * Avec Digitelec: le modem l'envoie au serveur (inoffensif).
+     * Avec bridge: c'est ce qui ouvre la connexion WebSocket. */
     serial_send(0x13);
+
+    /* Attendre la connexion (DCD)
+     * Avec Digitelec: DTR est deja set par serial_init, le modem
+     * se connecte automatiquement. DCD passe a 0 quand connecte.
+     * Avec TCP direct: DCD est toujours actif. */
 
     /* --- Boucle principale --- */
     for (;;) {
 
-        /* 1. Drainer TOUT le buffer logiciel (rempli par l'ISR) */
+        /* 1. Drainer le buffer ISR */
         while (serial_poll()) {
             byte = serial_recv();
             if (byte != 0xFF) {
@@ -52,9 +67,7 @@ int main(void)
             }
         }
 
-        /* 2. Rendre TOUTES les lignes modifiees d'un coup */
-        /*    Avec le FIFO de l'emulateur, les octets entrants sont    */
-        /*    bufferises par l'ISR pendant le rendu. Pas d'overrun.    */
+        /* 2. Rendre toutes les lignes modifiees */
         display_render(&vtx);
 
         /* 3. Clavier */

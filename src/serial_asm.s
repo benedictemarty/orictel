@@ -1,25 +1,33 @@
 ; ===========================================================================
-; serial_asm.s - Driver ACIA 6551 avec IRQ + buffer FIFO emulateur
+; serial_asm.s - Driver ACIA 6551 pour OricTel
 ;
-; Utilise les nouvelles options de Phosphoric v1.15.2:
-;   --serial-buffer 256    : FIFO 256 octets dans l'emulateur (plus d'overrun)
-;   --serial-irq-on-rdrf   : IRQ re-triggee tant que RDRF est set
+; Supporte deux modes de fonctionnement:
 ;
-; Reception par IRQ avec buffer circulaire logiciel 256 octets.
-; Le buffer FIFO de l'emulateur elimine l'overrun hardware.
-; L'IRQ-on-RDRF garantit que l'ISR est toujours appelee.
+; 1. Backend Digitelec DTL 2000 (recommande):
+;    --serial digitelec:host:port
+;    Buffer 512 octets + CTS flow control dans le modem.
+;    V23 automatique. ACIA 100% fidele au datasheet MOS.
+;    DTR pour connecter, DCD pour detecter la porteuse.
+;
+; 2. Backend TCP + patchs ACIA:
+;    --serial tcp:host:port --serial-buffer 256 --serial-irq-on-rdrf
+;    FIFO 256 dans l'ACIA + IRQ fiable.
+;
+; Dans les deux cas, l'ISR bufferise les octets en reception.
 ;
 ; Fonctions exportees:
-;   _serial_init  - Initialise ACIA + IRQ
+;   _serial_init  - Initialise ACIA + IRQ + DTR
 ;   _serial_send  - Envoie un octet (polling TDRE)
 ;   _serial_recv  - Lit depuis le buffer logiciel
 ;   _serial_poll  - Verifie le buffer logiciel
+;   _serial_dcd   - Verifie DCD (porteuse/connexion)
 ; ===========================================================================
 
         .export _serial_init
         .export _serial_send
         .export _serial_recv
         .export _serial_poll
+        .export _serial_dcd
 
         .segment "CODE"
 
@@ -32,24 +40,33 @@ ACIA_CONTROL = $031F
 ; --- Bits Status ---
 RDRF         = $08          ; Bit 3: donnee recue disponible
 TDRE         = $10          ; Bit 4: transmetteur pret
+DCD_BIT      = $20          ; Bit 5: Data Carrier Detect (0=connecte)
 
 ; --- Buffer circulaire en page zero ---
-rx_head      = $E0          ; Pointeur ecriture (ISR)
-rx_tail      = $E1          ; Pointeur lecture (programme)
+rx_head      = $E0
+rx_tail      = $E1
 
         .segment "BSS"
-rx_buffer:   .res 256       ; Buffer circulaire 256 octets
+rx_buffer:   .res 256
 
         .segment "CODE"
 
 ; ===========================================================================
-; serial_init - Initialise l'ACIA avec reception par IRQ
+; serial_init - Initialise l'ACIA
 ;
-; Control: 8 bits, 1 stop, 19200 baud, horloge interne = $1F
-;   Vitesse max car le buffer FIFO de l'emulateur absorbe les pics.
-;   Le V23 (--serial-v23) override le baud si necessaire.
+; Control: 7 bits, 1 stop, 1200 baud, horloge interne
+;   Bits 6-5 = 01 (7 bits), bit 4 = 1 (interne), bits 3-0 = $08 (1200)
+;   => $28  (pour mode Minitel V23: 7E1)
+;   Note: avec le backend Digitelec, le V23 est automatique
+;         et override le baud rate.
 ;
-; Command: DTR on, RX IRQ ACTIVE, RTS low, TX IRQ off, no parity = $09
+; Command: DTR on, RX IRQ active, RTS low, parite paire
+;   Bit 0 = 1 (DTR = decrocher)
+;   Bit 1 = 0 (RX IRQ active)
+;   Bits 3-2 = 10 (RTS low, TX IRQ off)
+;   Bit 5 = 1 (parite activee)
+;   Bits 7-6 = 01 (parite paire)
+;   => $69
 ; ===========================================================================
 _serial_init:
         ; Buffer circulaire a zero
@@ -61,10 +78,11 @@ _serial_init:
         sta     ACIA_STATUS
 
         ; Control: 8 bits, 1 stop, 19200 baud, horloge interne
+        ; Compatible TCP brut (bridge) et Digitelec (V23 override)
         lda     #$1F
         sta     ACIA_CONTROL
 
-        ; Command: DTR on, RX IRQ active, RTS low, TX IRQ off
+        ; Command: DTR on, RX IRQ active, RTS low, pas de parite
         lda     #$09
         sta     ACIA_COMMAND
 
@@ -77,24 +95,18 @@ _serial_init:
 
 ; ===========================================================================
 ; serial_send - Envoie un octet (polling TDRE)
-; Entree: A = octet
-;
-; Avec --serial-irq-on-rdrf, la lecture de STATUS ne perd plus les IRQ RX.
-; L'IRQ est re-declenchee tant que RDRF est set dans le FIFO.
 ; ===========================================================================
 _serial_send:
         pha
-@wait_tdre:
-        lda     ACIA_STATUS
+@wait:  lda     ACIA_STATUS
         and     #TDRE
-        beq     @wait_tdre
+        beq     @wait
         pla
         sta     ACIA_DATA
         rts
 
 ; ===========================================================================
-; serial_recv - Lit un octet du buffer circulaire logiciel
-; Sortie: A = octet, ou $FF si buffer vide
+; serial_recv - Lit un octet du buffer circulaire
 ; ===========================================================================
 _serial_recv:
         lda     rx_head
@@ -110,8 +122,7 @@ _serial_recv:
         rts
 
 ; ===========================================================================
-; serial_poll - Verifie si des donnees sont dans le buffer
-; Sortie: A = non-zero si donnees dispo
+; serial_poll - Verifie si des donnees dans le buffer
 ; ===========================================================================
 _serial_poll:
         lda     rx_head
@@ -120,31 +131,31 @@ _serial_poll:
         rts
 
 ; ===========================================================================
-; ISR ACIA - Lit l'octet recu et le stocke dans le buffer
-;
-; Avec --serial-irq-on-rdrf, l'IRQ est re-triggee tant que le FIFO
-; de l'emulateur contient des donnees. L'ISR est appelee pour chaque
-; octet disponible.
+; serial_dcd - Verifie DCD (Data Carrier Detect)
+; Sortie: A = 0 si connecte, non-zero si pas de porteuse
+; (DCD est actif bas sur le 6551: bit 5 = 0 = connecte)
+; ===========================================================================
+_serial_dcd:
+        lda     ACIA_STATUS
+        and     #DCD_BIT
+        rts
+
+; ===========================================================================
+; ISR ACIA - Reception par interruption
 ; ===========================================================================
 acia_irq:
         lda     ACIA_STATUS
         and     #RDRF
         beq     @not_ours
-
-        ; Lire l'octet (efface RDRF pour ce byte dans le FIFO)
         lda     ACIA_DATA
-
-        ; Stocker dans le buffer circulaire
         ldx     rx_head
         sta     rx_buffer,x
         inx
         stx     rx_head
-
-        sec             ; IRQ traitee
+        sec
         rts
-
 @not_ours:
-        clc             ; Pas notre IRQ
+        clc
         rts
 
         .interruptor acia_irq
