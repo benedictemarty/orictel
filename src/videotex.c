@@ -1,0 +1,486 @@
+/**
+ * @file videotex.c
+ * @brief Decodeur protocole Videotex Teletel/Antiope
+ *
+ * Machine a etats complete pour interpreter le flux Videotex Minitel.
+ * Reference: emulateur JS miedit (protocol.js, decoder.js, constant.js)
+ */
+
+#include <string.h>
+#include "videotex.h"
+
+/* ===================================================================
+ *  Initialisation
+ * =================================================================== */
+
+void vtx_init(vtx_context_t* ctx)
+{
+    memset(ctx, 0, sizeof(vtx_context_t));
+
+    ctx->state = VTX_STATE_NORMAL;
+    ctx->cur_x = 0;
+    ctx->cur_y = 1;    /* Ligne 1 (ligne 0 = statut) */
+    ctx->cur_visible = 1;
+    ctx->charset = CHARSET_G0;
+    ctx->fg_color = COLOR_WHITE;
+    ctx->bg_color = COLOR_BLACK;
+    ctx->attr_flags = 0;
+    ctx->attr_size = SIZE_NORMAL;
+    ctx->pending_bg = COLOR_BLACK;
+    ctx->pending_underline = 0;
+    ctx->has_pending = 0;
+
+    vtx_clear_page(ctx);
+    vtx_clear_status(ctx);
+    ctx->full_refresh = 1;
+}
+
+/* ===================================================================
+ *  Gestion ecran
+ * =================================================================== */
+
+static void clear_row(vtx_context_t* ctx, unsigned char row)
+{
+    unsigned char i;
+    for (i = 0; i < VTX_COLS; ++i) {
+        ctx->screen[row][i].ch = ' ';
+        ctx->screen[row][i].charset = CHARSET_G0;
+        ctx->screen[row][i].fg = COLOR_WHITE;
+        ctx->screen[row][i].bg = COLOR_BLACK;
+        ctx->screen[row][i].flags = 0;
+        ctx->screen[row][i].size = SIZE_NORMAL;
+    }
+    ctx->dirty[row] = 1;
+}
+
+void vtx_clear_page(vtx_context_t* ctx)
+{
+    unsigned char r;
+    for (r = 1; r < VTX_ROWS; ++r) {
+        clear_row(ctx, r);
+    }
+    ctx->cur_x = 0;
+    ctx->cur_y = 1;
+    ctx->charset = CHARSET_G0;
+    ctx->fg_color = COLOR_WHITE;
+    ctx->bg_color = COLOR_BLACK;
+    ctx->attr_flags = 0;
+    ctx->attr_size = SIZE_NORMAL;
+    ctx->pending_bg = COLOR_BLACK;
+    ctx->has_pending = 0;
+}
+
+void vtx_clear_status(vtx_context_t* ctx)
+{
+    clear_row(ctx, 0);
+}
+
+void vtx_set_cursor(vtx_context_t* ctx, unsigned char row, unsigned char col)
+{
+    if (row < VTX_ROWS) {
+        ctx->cur_y = row;
+    }
+    if (col < VTX_COLS) {
+        ctx->cur_x = col;
+    }
+}
+
+/* ===================================================================
+ *  Ecriture d'un caractere a la position curseur
+ * =================================================================== */
+
+static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
+{
+    vtx_cell_t* cell;
+
+    if (ctx->cur_y >= VTX_ROWS || ctx->cur_x >= VTX_COLS) {
+        return;
+    }
+
+    cell = &ctx->screen[ctx->cur_y][ctx->cur_x];
+    cell->ch = ch;
+    cell->charset = cs;
+    cell->fg = ctx->fg_color;
+    cell->bg = ctx->bg_color;
+    cell->flags = ctx->attr_flags;
+    cell->size = ctx->attr_size;
+
+    /* Appliquer les attributs en attente sur un delimiteur (espace G0) */
+    if (ch == 0x20 && cs == CHARSET_G0 && ctx->has_pending) {
+        cell->bg = ctx->pending_bg;
+        if (ctx->pending_underline) {
+            cell->flags |= ATTR_UNDERLINE;
+        }
+        ctx->bg_color = ctx->pending_bg;
+        if (ctx->pending_underline) {
+            ctx->attr_flags |= ATTR_UNDERLINE;
+        } else {
+            ctx->attr_flags &= ~ATTR_UNDERLINE;
+        }
+        ctx->has_pending = 0;
+    }
+
+    ctx->dirty[ctx->cur_y] = 1;
+    ctx->last_char = ch;
+    ctx->last_charset = cs;
+
+    /* Avancer le curseur */
+    ctx->cur_x++;
+    if (ctx->cur_x >= VTX_COLS) {
+        ctx->cur_x = 0;
+        ctx->cur_y++;
+        if (ctx->cur_y >= VTX_ROWS) {
+            ctx->cur_y = VTX_ROWS - 1;
+            /* TODO: scroll en mode rouleau */
+        }
+    }
+}
+
+/* ===================================================================
+ *  Deplacement curseur
+ * =================================================================== */
+
+static void cursor_left(vtx_context_t* ctx)
+{
+    if (ctx->cur_x > 0) {
+        ctx->cur_x--;
+    } else if (ctx->cur_y > 1) {
+        ctx->cur_x = VTX_COLS - 1;
+        ctx->cur_y--;
+    }
+}
+
+static void cursor_right(vtx_context_t* ctx)
+{
+    ctx->cur_x++;
+    if (ctx->cur_x >= VTX_COLS) {
+        ctx->cur_x = 0;
+        ctx->cur_y++;
+        if (ctx->cur_y >= VTX_ROWS) {
+            ctx->cur_y = VTX_ROWS - 1;
+        }
+    }
+}
+
+static void cursor_up(vtx_context_t* ctx)
+{
+    if (ctx->cur_y > 1) {
+        ctx->cur_y--;
+    }
+}
+
+static void cursor_down(vtx_context_t* ctx)
+{
+    if (ctx->cur_y < VTX_ROWS - 1) {
+        ctx->cur_y++;
+    }
+}
+
+/* ===================================================================
+ *  Effacement partiel
+ * =================================================================== */
+
+static void clear_eol(vtx_context_t* ctx)
+{
+    unsigned char i;
+    for (i = ctx->cur_x; i < VTX_COLS; ++i) {
+        ctx->screen[ctx->cur_y][i].ch = ' ';
+        ctx->screen[ctx->cur_y][i].charset = CHARSET_G0;
+        ctx->screen[ctx->cur_y][i].fg = COLOR_WHITE;
+        ctx->screen[ctx->cur_y][i].bg = COLOR_BLACK;
+        ctx->screen[ctx->cur_y][i].flags = 0;
+        ctx->screen[ctx->cur_y][i].size = SIZE_NORMAL;
+    }
+    ctx->dirty[ctx->cur_y] = 1;
+}
+
+static void clear_eos(vtx_context_t* ctx)
+{
+    unsigned char r;
+    clear_eol(ctx);
+    for (r = ctx->cur_y + 1; r < VTX_ROWS; ++r) {
+        clear_row(ctx, r);
+    }
+}
+
+/* ===================================================================
+ *  Traitement ESC sequences
+ * =================================================================== */
+
+static void process_esc(vtx_context_t* ctx, unsigned char byte)
+{
+    /* Couleur encre: ESC $40-$47 */
+    if (byte >= 0x40 && byte <= 0x47) {
+        ctx->fg_color = byte - 0x40;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* Flash on/off: ESC $48/$49 */
+    if (byte == 0x48) {
+        ctx->attr_flags |= ATTR_FLASH;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+    if (byte == 0x49) {
+        ctx->attr_flags &= ~ATTR_FLASH;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* Taille: ESC $4C-$4F */
+    if (byte >= 0x4C && byte <= 0x4F) {
+        ctx->attr_size = byte - 0x4C;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* Couleur fond: ESC $50-$57 */
+    if (byte >= 0x50 && byte <= 0x57) {
+        /* Fond = attribut serie, mis en attente */
+        ctx->pending_bg = byte - 0x50;
+        ctx->has_pending = 1;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* Masquage: ESC $58 */
+    if (byte == 0x58) {
+        ctx->attr_flags |= ATTR_CONCEALED;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* Soulignement: ESC $59=off, $5A=on */
+    if (byte == 0x59) {
+        ctx->pending_underline = 0;
+        ctx->has_pending = 1;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+    if (byte == 0x5A) {
+        ctx->pending_underline = 1;
+        ctx->has_pending = 1;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* CSI: ESC $5B */
+    if (byte == 0x5B) {
+        ctx->state = VTX_STATE_CSI;
+        ctx->csi_len = 0;
+        return;
+    }
+
+    /* Inversion: ESC $5C=on, $5D=off */
+    if (byte == 0x5C) {
+        ctx->attr_flags |= ATTR_INVERT;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+    if (byte == 0x5D) {
+        ctx->attr_flags &= ~ATTR_INVERT;
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* PRO1: ESC $39 */
+    if (byte == 0x39) {
+        ctx->state = VTX_STATE_PRO1;
+        return;
+    }
+
+    /* SS2 (G2 single shift): ESC $19 */
+    if (byte == 0x19) {
+        ctx->state = VTX_STATE_SS2;
+        return;
+    }
+
+    /* Non reconnu: ignorer et revenir a NORMAL */
+    ctx->state = VTX_STATE_NORMAL;
+}
+
+/* ===================================================================
+ *  Traitement CSI sequences (ESC [ params commande)
+ * =================================================================== */
+
+static void process_csi(vtx_context_t* ctx, unsigned char byte)
+{
+    unsigned char param;
+
+    /* Accumuler les parametres (chiffres et ;) */
+    if ((byte >= '0' && byte <= '9') || byte == ';') {
+        if (ctx->csi_len < sizeof(ctx->csi_buf) - 1) {
+            ctx->csi_buf[ctx->csi_len++] = byte;
+        }
+        return;
+    }
+
+    /* Terminer: parser le parametre */
+    ctx->csi_buf[ctx->csi_len] = 0;
+    param = 0;
+    if (ctx->csi_len > 0) {
+        unsigned char i;
+        for (i = 0; i < ctx->csi_len && ctx->csi_buf[i] != ';'; ++i) {
+            param = param * 10 + (ctx->csi_buf[i] - '0');
+        }
+    }
+    if (param == 0) param = 1;
+
+    switch (byte) {
+        case 'A':   /* CUU - curseur haut */
+            while (param-- > 0) cursor_up(ctx);
+            break;
+        case 'B':   /* CUD - curseur bas */
+            while (param-- > 0) cursor_down(ctx);
+            break;
+        case 'C':   /* CUF - curseur droite */
+            while (param-- > 0) cursor_right(ctx);
+            break;
+        case 'D':   /* CUB - curseur gauche */
+            while (param-- > 0) cursor_left(ctx);
+            break;
+        case 'H':   /* CUP - position curseur (row;col) */
+            vtx_set_cursor(ctx, 1, 0);  /* Home par defaut */
+            break;
+        case 'J':   /* ED - effacer ecran */
+            if (param == 2 || ctx->csi_len == 0) {
+                vtx_clear_page(ctx);
+            } else {
+                clear_eos(ctx);
+            }
+            break;
+        case 'K':   /* EL - effacer ligne */
+            clear_eol(ctx);
+            break;
+        case 'h':   /* Mode set (curseur visible, etc.) */
+            ctx->cur_visible = 1;
+            break;
+        case 'l':   /* Mode reset (curseur invisible) */
+            ctx->cur_visible = 0;
+            break;
+        default:
+            break;
+    }
+
+    ctx->state = VTX_STATE_NORMAL;
+}
+
+/* ===================================================================
+ *  Traitement principal - point d'entree par octet
+ * =================================================================== */
+
+void vtx_process(vtx_context_t* ctx, unsigned char byte)
+{
+    /* Masquer bit 7 (7 bits Videotex) */
+    byte &= 0x7F;
+
+    switch (ctx->state) {
+
+    case VTX_STATE_ESC:
+        process_esc(ctx, byte);
+        return;
+
+    case VTX_STATE_CSI:
+        process_csi(ctx, byte);
+        return;
+
+    case VTX_STATE_US_ROW:
+        ctx->us_row = byte - 0x40;
+        ctx->state = VTX_STATE_US_COL;
+        return;
+
+    case VTX_STATE_US_COL:
+        vtx_set_cursor(ctx, ctx->us_row, byte - 0x41);
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+
+    case VTX_STATE_SS2:
+        /* Single shift G2: afficher le caractere en G2 */
+        put_char(ctx, byte, CHARSET_G2);
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+
+    case VTX_STATE_REP:
+        /* Repeter le dernier caractere N fois */
+        {
+            unsigned char count = byte - 0x40;
+            if (count > 40) count = 40;
+            while (count-- > 0) {
+                put_char(ctx, ctx->last_char, ctx->last_charset);
+            }
+        }
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+
+    case VTX_STATE_PRO1:
+        /* PRO1: on ignore pour l'instant, attendre 1 octet */
+        ctx->state = VTX_STATE_PRO2;
+        return;
+
+    case VTX_STATE_PRO2:
+        /* PRO2: terminer la sequence PRO */
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+
+    default:
+        break;
+    }
+
+    /* --- Etat NORMAL --- */
+
+    /* Codes de controle C0 ($00-$1F) */
+    if (byte < 0x20) {
+        switch (byte) {
+            case 0x07:  /* BEL - bip */
+                /* TODO: beep via PSG */
+                break;
+            case 0x08:  /* BS - curseur gauche */
+                cursor_left(ctx);
+                break;
+            case 0x09:  /* HT - curseur droite */
+                cursor_right(ctx);
+                break;
+            case 0x0A:  /* LF - curseur bas */
+                cursor_down(ctx);
+                break;
+            case 0x0B:  /* VT - curseur haut */
+                cursor_up(ctx);
+                break;
+            case 0x0C:  /* FF - effacer ecran + home */
+                vtx_clear_page(ctx);
+                break;
+            case 0x0D:  /* CR - retour chariot */
+                ctx->cur_x = 0;
+                break;
+            case 0x0E:  /* SO - basculer G1 (mosaiques) */
+                ctx->charset = CHARSET_G1;
+                break;
+            case 0x0F:  /* SI - basculer G0 (alphanumerique) */
+                ctx->charset = CHARSET_G0;
+                break;
+            case 0x12:  /* REP - repetition */
+                ctx->state = VTX_STATE_REP;
+                break;
+            case 0x1A:  /* SUB - substitution (affiche espace) */
+                put_char(ctx, ' ', ctx->charset);
+                break;
+            case 0x1B:  /* ESC */
+                ctx->state = VTX_STATE_ESC;
+                break;
+            case 0x1E:  /* RS - home (curseur en 1,0) */
+                ctx->cur_x = 0;
+                ctx->cur_y = 1;
+                break;
+            case 0x1F:  /* US - positionnement curseur */
+                ctx->state = VTX_STATE_US_ROW;
+                break;
+            default:
+                break;
+        }
+        return;
+    }
+
+    /* Caracteres affichables ($20-$7F) */
+    put_char(ctx, byte, ctx->charset);
+}

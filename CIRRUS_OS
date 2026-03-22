@@ -1,0 +1,33 @@
+# CIRRUS_OS - OricTel Build Status
+
+## Plateforme cible
+- MOS 6502 @ 1 MHz (Oric 1 / Oric Atmos)
+- 48 Ko RAM, 16 Ko ROM
+- Mode HIRES: 240x200 pixels, 8 couleurs
+
+## Toolchain
+- cc65 (cl65/ca65/ld65) pour cross-compilation 6502
+- Python 3.8+ pour le bridge WebSocket
+- GNU Make pour le build
+
+## Build status
+
+| Cible           | Plateforme | Status     | Date       |
+|-----------------|------------|------------|------------|
+| orictel.tap     | atmos      | BUILD OK   | 2026-03-22 |
+| bridge          | linux/x64  | OK         | 2026-03-22 |
+| tests-videotex  | host       | PASS       | 2026-03-22 |
+| tests-bridge    | host       | PASS       | 2026-03-22 |
+
+## Configuration memoire (cible Oric)
+- ZP:    $00E2-$00FB (26 octets)
+- Code:  $0501-$9FFF (~39 Ko)
+- HIRES: $A000-$BF3F (8000 octets)
+- Stack: $0100-$01FF (256 octets CPU)
+- BSS:   apres CODE, avant $9800
+
+## Taille programme estimee
+- Code:   ~8 Ko
+- Fonts:  ~2 Ko (G0 + G1 + G2)
+- Data:   ~5 Ko (screen buffer, tables)
+- Total:  ~15 Ko sur 39 Ko disponibles

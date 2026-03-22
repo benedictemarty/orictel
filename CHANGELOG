@@ -1,0 +1,28 @@
+# CHANGELOG - OricTel
+
+## [0.1.0-alpha] - 2026-03-22
+
+### Ajout
+- Structure initiale du projet OricTel
+- Bridge WebSocket-TCP (orictel_bridge.py) pour connexion a ws://3617.fr/ws
+- Driver serie ACIA 6551 en assembleur 6502 (serial_asm.s)
+- Moteur de rendu HIRES 40x25 pour affichage Minitel
+- Decodeur protocole Videotex (machine a etats complète)
+  - Sequences ESC pour attributs (couleur, flash, taille, inversion)
+  - Sequences CSI pour deplacement curseur
+  - Positionnement US (ligne/colonne)
+  - Sequences PRO (protocole)
+- Jeux de caracteres Minitel
+  - G0 : alphanumerique (base ASCII Minitel)
+  - G1 : mosaiques semi-graphiques (2x3 blocs)
+  - G2 : caracteres supplementaires (accents)
+- Module clavier avec mapping touches fonction Minitel
+  - FUNCT+lettre pour Envoi, Retour, Sommaire, Guide, etc.
+- Programme principal avec boucle de traitement
+- Configuration linker cc65 personnalisee (orictel.cfg)
+- Barre de statut sur les 3 lignes texte inferieures
+- Documentation: README, ROADMAP, ARCHITECTURE
+- Plan agile et suivi de version
+- Makefile avec cibles: build, run, clean, test
+- Tests unitaires pour le decodeur Videotex
+- Tests d'integration pour le bridge

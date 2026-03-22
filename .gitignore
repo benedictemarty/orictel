@@ -1,0 +1,23 @@
+# Build artifacts
+build/
+*.tap
+*.map
+*.o
+*.s.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db

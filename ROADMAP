@@ -1,0 +1,49 @@
+# ROADMAP - OricTel
+
+## Vision
+Transformer l'Oric 1/Atmos en terminal Minitel 1B complet et fidele,
+utilisable avec les serveurs Minitel modernes via Internet.
+
+## Sprint 1 - Fondations (v0.1.0) [EN COURS]
+- [x] Structure projet et documentation
+- [x] Bridge WebSocket-TCP
+- [x] Driver ACIA 6551
+- [x] Moteur affichage HIRES basique
+- [x] Decodeur Videotex (etats principaux)
+- [x] Jeu de caracteres G0 (alphanumerique)
+- [x] Clavier basique + touches fonction
+- [x] Programme principal et boucle
+
+## Sprint 2 - Mosaiques et couleurs (v0.2.0) [PLANIFIE]
+- [ ] Rendu complet des mosaiques G1 (semi-graphiques 2x3)
+- [ ] Gestion complete des attributs de couleur (encre/fond)
+- [ ] Double hauteur / double largeur / double taille
+- [ ] Attributs de zone (serial attributes Videotex)
+- [ ] Optimisation dirty-rectangle pour le rendu
+
+## Sprint 3 - Experience utilisateur (v0.3.0) [PLANIFIE]
+- [ ] Jeu de caracteres G2 (supplementaire/accents)
+- [ ] Clignotement (flash) anime
+- [ ] Texte masque (concealed) avec revele au clic
+- [ ] Barre de statut interactive
+- [ ] Gestion des erreurs de connexion et reconnexion
+
+## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
+- [ ] Compatibilite Oric-1 (ROM BASIC 1.0)
+- [ ] Mode Drapeaux francais sur ecran d'accueil
+- [ ] Sauvegarde/restauration de pages ecran
+- [ ] Support Minitel 2 (mode mixte/photo)
+- [ ] Optimisations memoire et vitesse
+
+## Sprint 5 - Distribution (v1.0.0) [PLANIFIE]
+- [ ] Image disque Sedoric avec auto-boot
+- [ ] Documentation utilisateur complete
+- [ ] Tests de compatibilite avec differents serveurs
+- [ ] Packaging et distribution
+- [ ] Support Telestrat natif (ACIA integree)
+
+## Backlog
+- Support d'autres serveurs Minitel (MiniPavi, etc.)
+- Mode hors-ligne avec pages Videotex pre-chargees
+- Impression via port parallele Oric
+- Interface avec stockage cassette pour sauvegarder des pages

@@ -1,0 +1,30 @@
+# VERSION TRACKING - OricTel
+
+## Version actuelle: 0.1.0-alpha
+
+| Composant          | Version   | Date       | Statut      |
+|--------------------|-----------|------------|-------------|
+| orictel.tap        | 0.1.0-a   | 2026-03-22 | En cours    |
+| orictel_bridge.py  | 0.1.0-a   | 2026-03-22 | En cours    |
+| Videotex decoder   | 0.1.0-a   | 2026-03-22 | En cours    |
+| Display engine     | 0.1.0-a   | 2026-03-22 | En cours    |
+| Keyboard module    | 0.1.0-a   | 2026-03-22 | En cours    |
+| Font data (G0)     | 0.1.0-a   | 2026-03-22 | En cours    |
+| Font data (G1)     | 0.1.0-a   | 2026-03-22 | En cours    |
+
+## Historique des versions
+
+### 0.1.0-alpha (2026-03-22)
+- Creation initiale du projet
+- Tous les composants en version alpha
+- Cible: premiere connexion a 3617.fr via bridge
+
+## Dependances externes
+
+| Dependance         | Version min | Utilisation          |
+|--------------------|-------------|----------------------|
+| cc65               | 2.19        | Cross-compilation    |
+| Python 3           | 3.8         | Bridge WebSocket     |
+| websockets (pip)   | 12.0        | Client WebSocket     |
+| Phosphoric         | 1.15.1      | Emulateur Oric       |
+| SDL2               | 2.0         | Affichage emulateur  |
