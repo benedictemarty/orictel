@@ -38,9 +38,9 @@ OUTPUT   = orictel.tap
 MAPFILE  = orictel.map
 
 # Emulateur Phosphoric
-EMU      = /home/bmarty/Oric1/phosphoric
+EMU      = /home/bmarty/Oric1/oric1-emu
 EMU_ROM  = /home/bmarty/Oric1/roms/basic11b.rom
-EMU_OPTS = --serial tcp:127.0.0.1:3615 --serial-v23
+EMU_OPTS = --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
 
 # Flags cc65
 CC65FLAGS = -t $(TARGET) -O --add-source

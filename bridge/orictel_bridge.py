@@ -158,8 +158,9 @@ class Bridge:
     async def _relay_ws_to_tcp(self, ws, writer: asyncio.StreamWriter):
         """Relaie les octets WebSocket (serveur Minitel) vers TCP (Oric).
 
-        PACING: envoie les octets un par un avec un delai de 40ms pour
-        eviter l'overrun du buffer 1-octet de l'ACIA 6551 emule.
+        Avec --serial-buffer 256 dans l'emulateur, plus besoin de pacing.
+        Les octets sont envoyes a pleine vitesse TCP, le FIFO de l'emulateur
+        absorbe les pics pendant les operations longues du 6502.
         """
         try:
             async for message in ws:
@@ -174,16 +175,12 @@ class Bridge:
                     continue
 
                 self.stats_rx += len(data)
-
-                # Pacing: 1 octet toutes les 40ms pour eviter l'overrun ACIA
-                for b in data:
-                    writer.write(bytes([b]))
-                    await writer.drain()
-                    await asyncio.sleep(self.pace_delay)
+                writer.write(data)
+                await writer.drain()
 
                 if log.isEnabledFor(logging.DEBUG):
                     log.debug(
-                        "WS->TCP: %d octets (pace %.0fms)",
+                        "WS->TCP: %d octets",
                         len(data), self.pace_delay * 1000,
                     )
         except asyncio.CancelledError:

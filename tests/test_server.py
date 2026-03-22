@@ -285,7 +285,7 @@ TESTS = {
 }
 
 
-PACE_DELAY = 0.06  # 60ms - compromis vitesse/fiabilite
+PACE_DELAY = 0.008  # 8ms - vitesse Minitel 1200 baud
 
 
 async def send_paced(writer, data):
