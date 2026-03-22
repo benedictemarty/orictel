@@ -158,10 +158,13 @@ class Bridge:
     async def _relay_ws_to_tcp(self, ws, writer: asyncio.StreamWriter):
         """Relaie les octets WebSocket (serveur Minitel) vers TCP (Oric).
 
-        Avec --serial-buffer 256 dans l'emulateur, plus besoin de pacing.
-        Les octets sont envoyes a pleine vitesse TCP, le FIFO de l'emulateur
-        absorbe les pics pendant les operations longues du 6502.
+        Envoie par chunks de 128 octets avec delai entre chaque chunk.
+        Le FIFO emulateur fait 256 octets: on envoie 128 max a la fois
+        pour laisser le 6502 drainer le buffer entre les chunks.
         """
+        CHUNK_SIZE = 128
+        CHUNK_DELAY = 0.08  # 80ms entre chunks (~1500 octets/sec)
+
         try:
             async for message in ws:
                 if isinstance(message, str):
@@ -175,8 +178,14 @@ class Bridge:
                     continue
 
                 self.stats_rx += len(data)
-                writer.write(data)
-                await writer.drain()
+
+                # Envoyer par chunks pour ne pas deborder le FIFO 256
+                for i in range(0, len(data), CHUNK_SIZE):
+                    chunk = data[i:i + CHUNK_SIZE]
+                    writer.write(chunk)
+                    await writer.drain()
+                    if i + CHUNK_SIZE < len(data):
+                        await asyncio.sleep(CHUNK_DELAY)
 
                 if log.isEnabledFor(logging.DEBUG):
                     log.debug(
