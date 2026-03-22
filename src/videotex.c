@@ -22,11 +22,11 @@ void vtx_init(vtx_context_t* ctx)
     ctx->cur_y = 1;    /* Ligne 1 (ligne 0 = statut) */
     ctx->cur_visible = 1;
     ctx->charset = CHARSET_G0;
-    ctx->fg_color = COLOR_WHITE;
-    ctx->bg_color = COLOR_BLACK;
+    ctx->fg_color = VTX_WHITE;
+    ctx->bg_color = VTX_BLACK;
     ctx->attr_flags = 0;
     ctx->attr_size = SIZE_NORMAL;
-    ctx->pending_bg = COLOR_BLACK;
+    ctx->pending_bg = VTX_BLACK;
     ctx->pending_underline = 0;
     ctx->has_pending = 0;
 
@@ -45,8 +45,8 @@ static void clear_row(vtx_context_t* ctx, unsigned char row)
     for (i = 0; i < VTX_COLS; ++i) {
         ctx->screen[row][i].ch = ' ';
         ctx->screen[row][i].charset = CHARSET_G0;
-        ctx->screen[row][i].fg = COLOR_WHITE;
-        ctx->screen[row][i].bg = COLOR_BLACK;
+        ctx->screen[row][i].fg = VTX_WHITE;
+        ctx->screen[row][i].bg = VTX_BLACK;
         ctx->screen[row][i].flags = 0;
         ctx->screen[row][i].size = SIZE_NORMAL;
     }
@@ -62,11 +62,11 @@ void vtx_clear_page(vtx_context_t* ctx)
     ctx->cur_x = 0;
     ctx->cur_y = 1;
     ctx->charset = CHARSET_G0;
-    ctx->fg_color = COLOR_WHITE;
-    ctx->bg_color = COLOR_BLACK;
+    ctx->fg_color = VTX_WHITE;
+    ctx->bg_color = VTX_BLACK;
     ctx->attr_flags = 0;
     ctx->attr_size = SIZE_NORMAL;
-    ctx->pending_bg = COLOR_BLACK;
+    ctx->pending_bg = VTX_BLACK;
     ctx->has_pending = 0;
 }
 
@@ -186,8 +186,8 @@ static void clear_eol(vtx_context_t* ctx)
     for (i = ctx->cur_x; i < VTX_COLS; ++i) {
         ctx->screen[ctx->cur_y][i].ch = ' ';
         ctx->screen[ctx->cur_y][i].charset = CHARSET_G0;
-        ctx->screen[ctx->cur_y][i].fg = COLOR_WHITE;
-        ctx->screen[ctx->cur_y][i].bg = COLOR_BLACK;
+        ctx->screen[ctx->cur_y][i].fg = VTX_WHITE;
+        ctx->screen[ctx->cur_y][i].bg = VTX_BLACK;
         ctx->screen[ctx->cur_y][i].flags = 0;
         ctx->screen[ctx->cur_y][i].size = SIZE_NORMAL;
     }

@@ -51,15 +51,15 @@
 #define ATTR_INVERT     0x04
 #define ATTR_UNDERLINE  0x08
 
-/* Couleurs Minitel (identiques aux couleurs Oric) */
-#define COLOR_BLACK     0
-#define COLOR_RED       1
-#define COLOR_GREEN     2
-#define COLOR_YELLOW    3
-#define COLOR_BLUE      4
-#define COLOR_MAGENTA   5
-#define COLOR_CYAN      6
-#define COLOR_WHITE     7
+/* Couleurs Minitel (identiques aux couleurs Oric, prefixe VTX_) */
+#define VTX_BLACK       0
+#define VTX_RED         1
+#define VTX_GREEN       2
+#define VTX_YELLOW      3
+#define VTX_BLUE        4
+#define VTX_MAGENTA     5
+#define VTX_CYAN        6
+#define VTX_WHITE       7
 
 /* Structure d'une cellule ecran */
 typedef struct {

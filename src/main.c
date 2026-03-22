@@ -37,7 +37,7 @@ static void show_splash(void)
     /* Positionner au centre de l'ecran */
     vtx.cur_y = 8;
     vtx.cur_x = 8;
-    vtx.fg_color = COLOR_CYAN;
+    vtx.fg_color = VTX_CYAN;
     vtx.charset = CHARSET_G0;
 
     /* Ecrire "OricTel v0.1" caractere par caractere */
@@ -47,8 +47,8 @@ static void show_splash(void)
         for (i = 0; title[i]; ++i) {
             vtx.screen[8][(unsigned char)(11 + i)].ch = title[i];
             vtx.screen[8][(unsigned char)(11 + i)].charset = CHARSET_G0;
-            vtx.screen[8][(unsigned char)(11 + i)].fg = COLOR_CYAN;
-            vtx.screen[8][(unsigned char)(11 + i)].bg = COLOR_BLACK;
+            vtx.screen[8][(unsigned char)(11 + i)].fg = VTX_CYAN;
+            vtx.screen[8][(unsigned char)(11 + i)].bg = VTX_BLACK;
             vtx.screen[8][(unsigned char)(11 + i)].flags = 0;
             vtx.screen[8][(unsigned char)(11 + i)].size = SIZE_NORMAL;
         }
@@ -62,8 +62,8 @@ static void show_splash(void)
         for (i = 0; sub[i]; ++i) {
             vtx.screen[10][(unsigned char)(10 + i)].ch = sub[i];
             vtx.screen[10][(unsigned char)(10 + i)].charset = CHARSET_G0;
-            vtx.screen[10][(unsigned char)(10 + i)].fg = COLOR_WHITE;
-            vtx.screen[10][(unsigned char)(10 + i)].bg = COLOR_BLACK;
+            vtx.screen[10][(unsigned char)(10 + i)].fg = VTX_WHITE;
+            vtx.screen[10][(unsigned char)(10 + i)].bg = VTX_BLACK;
             vtx.screen[10][(unsigned char)(10 + i)].flags = 0;
             vtx.screen[10][(unsigned char)(10 + i)].size = SIZE_NORMAL;
         }
@@ -77,8 +77,8 @@ static void show_splash(void)
         for (i = 0; msg[i]; ++i) {
             vtx.screen[14][(unsigned char)(9 + i)].ch = msg[i];
             vtx.screen[14][(unsigned char)(9 + i)].charset = CHARSET_G0;
-            vtx.screen[14][(unsigned char)(9 + i)].fg = COLOR_YELLOW;
-            vtx.screen[14][(unsigned char)(9 + i)].bg = COLOR_BLACK;
+            vtx.screen[14][(unsigned char)(9 + i)].fg = VTX_YELLOW;
+            vtx.screen[14][(unsigned char)(9 + i)].bg = VTX_BLACK;
             vtx.screen[14][(unsigned char)(9 + i)].flags = 0;
             vtx.screen[14][(unsigned char)(9 + i)].size = SIZE_NORMAL;
         }
@@ -106,7 +106,7 @@ int main(void)
     keyboard_init();
 
     /* Barre de statut */
-    display_status("OricTel v0.1 | FUNCT+S=Sommaire");
+    display_status("OricTel v0.1 | CTRL+S=Sommaire");
 
     /* Ecran d'accueil */
     show_splash();

@@ -63,8 +63,8 @@ static void test_init(void)
     ASSERT_EQ("cur_x = 0", 0, ctx.cur_x);
     ASSERT_EQ("cur_y = 1", 1, ctx.cur_y);
     ASSERT_EQ("charset = G0", CHARSET_G0, ctx.charset);
-    ASSERT_EQ("fg = WHITE", COLOR_WHITE, ctx.fg_color);
-    ASSERT_EQ("bg = BLACK", COLOR_BLACK, ctx.bg_color);
+    ASSERT_EQ("fg = WHITE", VTX_WHITE, ctx.fg_color);
+    ASSERT_EQ("bg = BLACK", VTX_BLACK, ctx.bg_color);
     ASSERT_EQ("screen[1][0].ch = espace", ' ', ctx.screen[1][0].ch);
 }
 
@@ -185,7 +185,7 @@ static void test_esc_attributes(void)
     /* ESC $42 = couleur encre verte */
     vtx_process(&ctx, 0x1B);
     vtx_process(&ctx, 0x42);
-    ASSERT_EQ("ESC ink green", COLOR_GREEN, ctx.fg_color);
+    ASSERT_EQ("ESC ink green", VTX_GREEN, ctx.fg_color);
 
     /* ESC $48 = flash on */
     vtx_process(&ctx, 0x1B);
@@ -317,13 +317,13 @@ static void test_background_color(void)
     /* ESC $54 = fond bleu en attente */
     vtx_process(&ctx, 0x1B);
     vtx_process(&ctx, 0x54);
-    ASSERT_EQ("pending_bg = BLUE", COLOR_BLUE, ctx.pending_bg);
+    ASSERT_EQ("pending_bg = BLUE", VTX_BLUE, ctx.pending_bg);
     ASSERT_EQ("has_pending = 1", 1, ctx.has_pending);
 
     /* L'espace (delimiteur) applique l'attribut en attente */
     vtx_process(&ctx, 0x20);
-    ASSERT_EQ("bg_color = BLUE", COLOR_BLUE, ctx.bg_color);
-    ASSERT_EQ("cell bg = BLUE", COLOR_BLUE, ctx.screen[1][0].bg);
+    ASSERT_EQ("bg_color = BLUE", VTX_BLUE, ctx.bg_color);
+    ASSERT_EQ("cell bg = BLUE", VTX_BLUE, ctx.screen[1][0].bg);
 }
 
 /* ===================================================================
