@@ -5,16 +5,21 @@
  * Scanne la matrice clavier 8x8 de l'Oric via le VIA 6522 et le PSG AY.
  * Traduit les touches en codes Videotex pour le Minitel.
  *
- * Touches fonction Minitel via FUNCT (Tab):
- *   FUNCT+R = Retour     (SEP $42)
- *   FUNCT+E = Repetition (SEP $43)
- *   FUNCT+G = Guide      (SEP $44)
- *   FUNCT+A = Annulation (SEP $45)
- *   FUNCT+S = Sommaire   (SEP $46)
- *   FUNCT+C = Connexion  (SEP $49)
- * RETURN    = Envoi      (SEP $41)
- * DELETE    = Correction (SEP $47)
- * DOWN      = Suite      (SEP $48)
+ * Compatible Oric-1 ET Atmos : utilise CTRL+lettre (pas FUNCT).
+ * L'Oric-1 n'a pas de touche FUNCT, mais possede LCTRL et RCTRL.
+ *
+ * Mapping touches fonction Minitel:
+ *   CTRL+R = Retour     (SEP $42)
+ *   CTRL+E = Repetition (SEP $43)
+ *   CTRL+G = Guide      (SEP $44)
+ *   CTRL+A = Annulation (SEP $45)
+ *   CTRL+S = Sommaire   (SEP $46)
+ *   CTRL+N = Suite      (SEP $48) (N = Next)
+ *   CTRL+C = Connexion  (SEP $49)
+ *   RETURN = Envoi      (SEP $41)
+ *   DELETE = Correction (SEP $47)
+ *
+ * Sur Atmos, FUNCT+lettre est aussi supporte en plus de CTRL+lettre.
  */
 
 #ifndef KEYBOARD_H

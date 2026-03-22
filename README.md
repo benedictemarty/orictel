@@ -68,17 +68,20 @@ make run
 
 ## Touches Minitel
 
-| Fonction Minitel  | Touche Oric       | Codes envoyes  |
-|-------------------|-------------------|----------------|
-| Envoi             | RETURN            | SEP $41        |
-| Retour            | FUNCT + R         | SEP $42        |
-| Repetition        | FUNCT + E         | SEP $43        |
-| Guide             | FUNCT + G         | SEP $44        |
-| Annulation        | FUNCT + A         | SEP $45        |
-| Sommaire          | FUNCT + S         | SEP $46        |
-| Correction        | DELETE            | SEP $47        |
-| Suite (page suiv) | Fleche BAS        | SEP $48        |
-| Connexion/Fin     | FUNCT + C         | SEP $49        |
+Compatible Oric-1 (pas de touche FUNCT) et Atmos.
+Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
+
+| Fonction Minitel  | Oric-1 & Atmos    | Atmos seul  | Codes envoyes  |
+|-------------------|-------------------|-------------|----------------|
+| Envoi             | RETURN            |             | SEP $41        |
+| Retour            | CTRL+R ou Fl.HAUT | FUNCT+R     | SEP $42        |
+| Repetition        | CTRL+E            | FUNCT+E     | SEP $43        |
+| Guide             | CTRL+G            | FUNCT+G     | SEP $44        |
+| Annulation        | CTRL+A ou ESC     | FUNCT+A     | SEP $45        |
+| Sommaire          | CTRL+S            | FUNCT+S     | SEP $46        |
+| Correction        | DELETE            |             | SEP $47        |
+| Suite (page suiv) | CTRL+N ou Fl.BAS  | FUNCT+N     | SEP $48        |
+| Connexion/Fin     | CTRL+C            | FUNCT+C     | SEP $49        |
 
 ## Specifications techniques
 

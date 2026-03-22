@@ -1,5 +1,14 @@
 # CHANGELOG - OricTel
 
+## [0.1.1-alpha] - 2026-03-22
+
+### Correction
+- Clavier: remplacement FUNCT+lettre par CTRL+lettre pour compatibilite Oric-1
+  L'Oric-1 n'a pas de touche FUNCT (uniquement sur Atmos).
+  CTRL+lettre fonctionne sur les deux machines (LCTRL/RCTRL presents sur Oric-1).
+- Ajout: fleche HAUT = Retour, fleche BAS = Suite, ESC = Annulation
+- Sur Atmos, FUNCT+lettre reste supporte en plus de CTRL+lettre
+
 ## [0.1.0-alpha] - 2026-03-22
 
 ### Ajout
