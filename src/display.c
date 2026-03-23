@@ -42,8 +42,21 @@ static void hires_on(void)
 
 void display_init(void)
 {
+    unsigned char i;
+    unsigned char* ptr;
+
     hires_on();
-    /* hires_on() efface deja le framebuffer via la ROM */
+
+    /* Cacher les 3 lignes texte en bas (remplir de noir) */
+    /* En HIRES, les lignes texte 25-27 sont a $BF68-$BFDF */
+    ptr = (unsigned char*)0xBF68;
+    for (i = 0; i < 120; ++i) {  /* 3 lignes x 40 octets */
+        ptr[i] = ' ';
+    }
+    /* Premiere colonne de chaque ligne texte: encre noire */
+    *(unsigned char*)0xBF68 = 0x00;  /* Ink black ligne 25 */
+    *(unsigned char*)0xBF90 = 0x00;  /* Ink black ligne 26 */
+    *(unsigned char*)0xBFB8 = 0x00;  /* Ink black ligne 27 */
 }
 
 /* ===================================================================
@@ -77,7 +90,11 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph)
      * bit 2 = milieu-gauche
      * bit 3 = milieu-droit
      * bit 4 = bas-gauche
-     * bit 6 = bas-droit (PAS bit 5 !) */
+     * bit 6 = bas-droit (PAS bit 5 !)
+     *
+     * Bit 5 du code = flag "separated" (pas un bloc).
+     * Les codes $60-$7F sont les memes motifs que $20-$3F
+     * avec le bloc bas-droit EN PLUS (bit 6). */
     pattern = code & 0x1F;  /* Bits 0-4 */
     if (code & 0x40) pattern |= 0x20;  /* Bit 6 -> bit 5 du pattern */
 
@@ -93,10 +110,18 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph)
     line_byte = (left | right) | 0x40;
     for (i = 3; i < 6; ++i) glyph[i] = line_byte;
 
-    /* Lignes 6-7: rangee basse (bits 4=bas-gauche, 5=bas-droit) */
+    /* Lignes 6-7: rangee basse (bits 4=bas-gauche, 5=bas-droit)
+     * IMPORTANT: si UN des deux blocs bas est actif, remplir
+     * les 6 pixels pour creer une LIGNE CONTINUE (pas de gap).
+     * Ref: image Minitel reelle - les separateurs sont continus. */
     left  = (pattern & 0x10) ? 0x38 : 0x00;
     right = (pattern & 0x20) ? 0x07 : 0x00;
-    line_byte = (left | right) | 0x40;
+    if (left || right) {
+        /* Au moins un bloc bas actif: ligne pleine */
+        line_byte = 0x3F | 0x40;  /* Tous les 6 pixels + pixel mode */
+    } else {
+        line_byte = 0x40;  /* Vide */
+    }
     glyph[6] = line_byte;
     glyph[7] = line_byte;
 }
@@ -127,15 +152,28 @@ static void render_cell_hires(const vtx_cell_t* cell,
     if (cell->charset == CHARSET_G1) {
         generate_mosaic(ch, mosaic_buf);
         glyph = mosaic_buf;
+    } else if (cell->charset == CHARSET_G2) {
+        glyph = font_get_g2(ch);
     } else {
         glyph = font_get_g0(ch);
     }
 
     /* Ecrire 8 lignes avec pointeur incremente (+40 par ligne) */
-    /* RAPIDE: pas de multiplication, juste ptr += 40 */
-    for (line = 0; line < CHAR_H; ++line) {
-        *ptr = (glyph[line] ^ xor_mask) | 0x40;
-        ptr += 40;
+    /* Bit 7 de l'ULA Oric = inversion encre/fond pour ce bloc 6x1.
+     * Utiliser bit 7 au lieu de XOR pour l'inversion video:
+     * PAS de colonne perdue, contrairement aux serial attributes ! */
+    if (xor_mask) {
+        /* Mode inverse: bit 7 = 1, pixels normaux */
+        for (line = 0; line < CHAR_H; ++line) {
+            *ptr = glyph[line] | 0xC0;  /* bits 7+6 = inversion + pixel mode */
+            ptr += 40;
+        }
+    } else {
+        /* Mode normal: bit 7 = 0, pixel mode bit 6 */
+        for (line = 0; line < CHAR_H; ++line) {
+            *ptr = glyph[line] | 0x40;
+            ptr += 40;
+        }
     }
 }
 
@@ -177,18 +215,25 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     prev_fg = ctx->screen[row][1].fg;  /* Couleur dominante */
     set_ink_attr(0, row, prev_fg);
 
-    /* Cols 1-39: caracteres avec insertion d'attributs couleur */
+    /* Cols 1-39: caracteres avec insertion d'attributs couleur.
+     * Regle: n'inserer un attribut que si la cellule est un ESPACE.
+     * Si la cellule contient un caractere visible, on le garde
+     * dans la couleur precedente (mieux vaut mauvaise couleur
+     * que caractere perdu). */
     for (col = 1; col < SCREEN_COLS; ++col) {
         cell_fg = ctx->screen[row][col].fg;
 
-        /* Si la couleur change, inserer un attribut encre.
-         * Le caractere a cette colonne est perdu (contrainte Oric).
-         * On ne le fait QUE quand la couleur change reellement. */
         if (cell_fg != prev_fg) {
-            set_ink_attr(col, row, cell_fg);
-            prev_fg = cell_fg;
-            /* La colonne est consommee par l'attribut, pas de caractere */
-            continue;
+            /* Verifier si la cellule est un espace/vide */
+            unsigned char ch = ctx->screen[row][col].ch;
+            if (ch == ' ' || ch == 0x20 || ch == 0) {
+                /* Espace: on peut inserer l'attribut sans perte */
+                set_ink_attr(col, row, cell_fg);
+                prev_fg = cell_fg;
+                continue;
+            }
+            /* Caractere visible: NE PAS inserer l'attribut,
+             * afficher le caractere dans la couleur precedente */
         }
 
         render_cell_hires(&ctx->screen[row][col], col, row);
@@ -220,21 +265,10 @@ void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned cha
     render_cell_hires(cell, col, row);
 }
 
-/* Barre de statut (lignes texte en mode HIRES: $BF68+) */
+/* Barre de statut desactivee (les 3 lignes texte sont cachees) */
 void display_status(const char* msg)
 {
-    unsigned char i;
-    /* En HIRES, les 3 dernieres lignes texte sont a $BF68 */
-    unsigned char* line = (unsigned char*)(0xBF68 + 40);  /* 2eme ligne texte */
-
-    line[0] = 0x03;  /* Ink yellow */
-    for (i = 1; i < 40; ++i) {
-        if (*msg) {
-            line[i] = *msg++;
-        } else {
-            line[i] = ' ';
-        }
-    }
+    (void)msg;  /* Plus de barre de statut visible */
 }
 
 void display_cursor(unsigned char visible, unsigned char col, unsigned char row)

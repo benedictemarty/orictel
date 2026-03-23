@@ -277,16 +277,27 @@ static const unsigned char* generate_g1(unsigned char code)
  *  Les diacritiques specifiques seront ajoutes en v0.2.
  * =================================================================== */
 
-/* Quelques glyphes G2 specifiques (accents, symboles) */
+/* Glyphes G2 specifiques (symboles Videotex CEPT) */
+/* Reference: telenet emulateur.js G2_CHARS */
 static const unsigned char font_g2_extra[][8] = {
-    /* $23 = livre sterling */
+    /* [0] $23 = livre sterling */
     { 0x06, 0x09, 0x08, 0x1C, 0x08, 0x08, 0x1F, 0x00 },
-    /* $27 = section */
+    /* [1] $27 = section */
     { 0x0E, 0x10, 0x0E, 0x11, 0x0E, 0x01, 0x0E, 0x00 },
-    /* $30 = degre */
+    /* [2] $2C = fleche gauche <- */
+    { 0x00, 0x04, 0x08, 0x1F, 0x08, 0x04, 0x00, 0x00 },
+    /* [3] $2D = fleche haut */
+    { 0x04, 0x0E, 0x15, 0x04, 0x04, 0x04, 0x04, 0x00 },
+    /* [4] $2E = fleche droite -> */
+    { 0x00, 0x04, 0x02, 0x1F, 0x02, 0x04, 0x00, 0x00 },
+    /* [5] $2F = fleche bas */
+    { 0x04, 0x04, 0x04, 0x04, 0x15, 0x0E, 0x04, 0x00 },
+    /* [6] $30 = degre ° */
     { 0x04, 0x0A, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00 },
-    /* $31 = plus ou moins */
+    /* [7] $31 = plus ou moins */
     { 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00, 0x1F, 0x00 },
+    /* [8] $38 = division */
+    { 0x00, 0x04, 0x00, 0x1F, 0x00, 0x04, 0x00, 0x00 },
 };
 
 /* ===================================================================
@@ -308,14 +319,17 @@ const unsigned char* font_get_g1(unsigned char ch)
 
 const unsigned char* font_get_g2(unsigned char ch)
 {
-    /* Pour les caracteres speciaux connus */
     switch (ch) {
         case 0x23: return font_g2_extra[0];  /* livre sterling */
         case 0x27: return font_g2_extra[1];  /* section */
-        case 0x30: return font_g2_extra[2];  /* degre */
-        case 0x31: return font_g2_extra[3];  /* plus ou moins */
+        case 0x2C: return font_g2_extra[2];  /* fleche gauche */
+        case 0x2D: return font_g2_extra[3];  /* fleche haut */
+        case 0x2E: return font_g2_extra[4];  /* fleche droite -> */
+        case 0x2F: return font_g2_extra[5];  /* fleche bas */
+        case 0x30: return font_g2_extra[6];  /* degre ° */
+        case 0x31: return font_g2_extra[7];  /* plus ou moins */
+        case 0x38: return font_g2_extra[8];  /* division */
         default:
-            /* Fallback vers G0 */
             return font_get_g0(ch);
     }
 }
