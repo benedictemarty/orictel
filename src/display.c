@@ -111,17 +111,10 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph)
     for (i = 3; i < 6; ++i) glyph[i] = line_byte;
 
     /* Lignes 6-7: rangee basse (bits 4=bas-gauche, 5=bas-droit)
-     * IMPORTANT: si UN des deux blocs bas est actif, remplir
-     * les 6 pixels pour creer une LIGNE CONTINUE (pas de gap).
-     * Ref: image Minitel reelle - les separateurs sont continus. */
+     * Rendu fidele: chaque bloc independant, pas de fusion. */
     left  = (pattern & 0x10) ? 0x38 : 0x00;
     right = (pattern & 0x20) ? 0x07 : 0x00;
-    if (left || right) {
-        /* Au moins un bloc bas actif: ligne pleine */
-        line_byte = 0x3F | 0x40;  /* Tous les 6 pixels + pixel mode */
-    } else {
-        line_byte = 0x40;  /* Vide */
-    }
+    line_byte = (left | right) | 0x40;
     glyph[6] = line_byte;
     glyph[7] = line_byte;
 }
