@@ -95,6 +95,16 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph)
      * Bit 5 du code = flag "separated" (pas un bloc).
      * Les codes $60-$7F sont les memes motifs que $20-$3F
      * avec le bloc bas-droit EN PLUS (bit 6). */
+    /* Cas special: G1 $60 = ligne horizontale bas pleine.
+     * La ROM EF9345 du vrai Minitel a un glyphe specifique pour $60
+     * qui remplit toute la rangee du bas (pas juste le bloc droit).
+     * Ref: capture ecran Minitel reel. */
+    if (code == 0x60) {
+        glyph[0] = 0x3F | 0x40;  /* Haut: 6 pixels pleins */
+        for (i = 1; i < 8; ++i) glyph[i] = 0x40;  /* Reste vide */
+        return;
+    }
+
     pattern = code & 0x1F;  /* Bits 0-4 */
     if (code & 0x40) pattern |= 0x20;  /* Bit 6 -> bit 5 du pattern */
 

@@ -391,6 +391,14 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
 
     case VTX_STATE_US_COL:
         vtx_set_cursor(ctx, ctx->us_row, byte - 0x41);
+        /* US reset tous les attributs (norme STUM p.91)
+         * Ref: telenet emulateur.js lignes 785-795 */
+        ctx->charset = CHARSET_G0;      /* modeG1 = false */
+        ctx->fg_color = VTX_WHITE;      /* fgColor = 7 */
+        ctx->bg_color = VTX_BLACK;      /* bgColor = 0 */
+        ctx->attr_flags = 0;            /* souligne, inversion, clignotement = false */
+        ctx->attr_size = SIZE_NORMAL;   /* taille = 0 */
+        ctx->has_pending = 0;
         ctx->state = VTX_STATE_NORMAL;
         return;
 
