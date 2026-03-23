@@ -224,37 +224,35 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Col 0: rendre le caractere si la couleur est blanche (defaut ULA).
-     * L'ULA Oric demarre chaque ligne pixel avec l'encre heritee
-     * du contexte precedent. Apres HIRES init, c'est blanc.
-     * Si la couleur est blanche, on peut rendre le caractere directement.
-     * Sinon, on insere un attribut (perte du caractere col 0). */
+    /* Col 0: rendre le caractere si la couleur est blanche (defaut ULA). */
     prev_fg = ctx->screen[row][0].fg;
     if (prev_fg == VTX_WHITE) {
-        /* Couleur par defaut: rendre le caractere, pas d'attribut */
         render_cell_hires(&ctx->screen[row][0], 0, row);
     } else {
-        /* Couleur non-defaut: attribut obligatoire */
         set_ink_attr(0, row, prev_fg);
+        /* Double hauteur: poser aussi l'attribut sur la ligne au-dessus */
+        if (row > 0 && (ctx->screen[row][0].size == SIZE_DOUBLE_HEIGHT ||
+                        ctx->screen[row][0].size == SIZE_DOUBLE_SIZE)) {
+            set_ink_attr(0, row - 1, prev_fg);
+        }
     }
 
-    /* Cols 1-39: caracteres avec insertion d'attributs couleur.
-     * Regle: n'inserer un attribut que si la cellule est un ESPACE.
-     * Caractere visible = garder dans la couleur precedente. */
+    /* Cols 1-39 */
     for (col = 1; col < SCREEN_COLS; ++col) {
         cell_fg = ctx->screen[row][col].fg;
 
         if (cell_fg != prev_fg) {
-            /* Verifier si la cellule est un espace/vide */
             unsigned char ch = ctx->screen[row][col].ch;
             if (ch == ' ' || ch == 0x20 || ch == 0) {
-                /* Espace: on peut inserer l'attribut sans perte */
                 set_ink_attr(col, row, cell_fg);
+                /* Double hauteur: attribut aussi sur la ligne au-dessus */
+                if (row > 0 && (ctx->screen[row][col].size == SIZE_DOUBLE_HEIGHT ||
+                                ctx->screen[row][col].size == SIZE_DOUBLE_SIZE)) {
+                    set_ink_attr(col, row - 1, cell_fg);
+                }
                 prev_fg = cell_fg;
                 continue;
             }
-            /* Caractere visible: NE PAS inserer l'attribut,
-             * afficher le caractere dans la couleur precedente */
         }
 
         render_cell_hires(&ctx->screen[row][col], col, row);
