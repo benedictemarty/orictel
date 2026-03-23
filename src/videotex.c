@@ -41,19 +41,37 @@ void vtx_init(vtx_context_t* ctx)
 
 static void clear_row(vtx_context_t* ctx, unsigned char row)
 {
-    /* memset a 0: ch=0 (rendu comme espace), fg=0 (pas utilise en v0.1) */
+    unsigned char i;
+    unsigned char* p;
     memset(&ctx->screen[row][0], 0, sizeof(vtx_cell_t) * VTX_COLS);
+    /* Corriger fg=WHITE (sinon encre noire = invisible) */
+    p = (unsigned char*)&ctx->screen[row][0];
+    for (i = 0; i < VTX_COLS; ++i) {
+        p[2] = VTX_WHITE;
+        p += sizeof(vtx_cell_t);
+    }
     ctx->dirty[row] = 1;
 }
 
 void vtx_clear_page(vtx_context_t* ctx)
 {
-    /* RAPIDE: memset de tout le buffer ecran (lignes 1-24) a zero.
-     * ~5 cycles/octet * 5760 octets = ~29000 cycles (~29ms)
-     * au lieu de ~50000 cycles avec la boucle C.
-     * ch=0 sera rendu comme espace par vtx_to_oric_char (ch < $20 -> ' ') */
+    /* Clear rapide: memset a zero puis corriger fg=WHITE.
+     * memset(0) met fg=VTX_BLACK (0) ce qui rend les cellules
+     * invisibles (encre noire sur fond noir). Il FAUT mettre
+     * fg=VTX_WHITE pour que le renderer utilise l'encre blanche. */
     memset(&ctx->screen[1][0], 0,
            sizeof(vtx_cell_t) * VTX_COLS * (VTX_ROWS - 1));
+
+    /* Corriger fg=WHITE pour toutes les cellules effacees.
+     * vtx_cell_t = {ch, charset, fg, bg, flags, size} → fg a offset 2 */
+    {
+        unsigned char* p = (unsigned char*)&ctx->screen[1][0];
+        unsigned int i;
+        for (i = 0; i < VTX_COLS * (VTX_ROWS - 1); ++i) {
+            p[2] = VTX_WHITE;  /* fg = blanc */
+            p += sizeof(vtx_cell_t);
+        }
+    }
 
     /* Marquer toutes les lignes comme modifiees */
     memset(&ctx->dirty[1], 1, VTX_ROWS - 1);
