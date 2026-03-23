@@ -62,18 +62,8 @@ class Bridge:
         self.tcp_writer = writer
 
         try:
-            # Attendre le signal "ready" de l'Oric (premier octet recu)
-            # Le programme OricTel envoie 0x13 0x49 (SEP+Connexion) au demarrage
-            log.info("En attente du signal ready de l'Oric...")
-            first_data = await reader.read(1024)
-            if not first_data:
-                log.warning("TCP ferme avant signal ready")
-                writer.close()
-                return
-            log.info("Signal ready recu: %s (%d octets)",
-                     " ".join(f"{b:02X}" for b in first_data[:8]), len(first_data))
-
-            # Connexion au serveur Minitel via WebSocket
+            # Connexion immediate au serveur Minitel via WebSocket
+            # (pas de signal ready, compatible Digitelec et bridge)
             log.info("Connexion WebSocket vers %s ...", self.ws_url)
             async with websockets.connect(
                 self.ws_url,
@@ -158,8 +148,9 @@ class Bridge:
     async def _relay_ws_to_tcp(self, ws, writer: asyncio.StreamWriter):
         """Relaie les octets WebSocket (serveur Minitel) vers TCP (Oric).
 
-        Pacing octet par octet a vitesse Minitel 1200 baud (8ms/octet).
-        Le FIFO emulateur (256 octets) + ISR absorbent les petites variations.
+        Envoi a pleine vitesse TCP. Le FIFO emulateur (--serial-buffer 256)
+        et l'ISR cote Oric absorbent le flux. Le main loop controle la
+        vitesse d'affichage en lisant le buffer a rythme Minitel.
         """
         try:
             async for message in ws:
@@ -174,12 +165,8 @@ class Bridge:
                     continue
 
                 self.stats_rx += len(data)
-
-                # Pacing byte par byte a vitesse Minitel (8ms = 1200 baud)
-                for b in data:
-                    writer.write(bytes([b]))
-                    await writer.drain()
-                    await asyncio.sleep(self.pace_delay)
+                writer.write(data)
+                await writer.drain()
 
                 if log.isEnabledFor(logging.DEBUG):
                     log.debug(

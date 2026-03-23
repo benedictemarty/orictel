@@ -41,25 +41,22 @@ int main(void)
     /* Serial EN DERNIER: DTR active la connexion modem */
     serial_init();
 
-    /* Vider le buffer ACIA (donnees arrivees pendant l'init) */
-    while (serial_poll()) {
-        serial_recv();
-    }
-
-    /* Signal ready: declenche la connexion WebSocket du bridge.
-     * Avec Digitelec: le modem l'envoie au serveur (inoffensif).
-     * Avec bridge: c'est ce qui ouvre la connexion WebSocket. */
-    serial_send(0x13);
+    /* Pas de signal ready: le serveur envoie automatiquement
+     * la page d'accueil apres connexion (Digitelec ou bridge). */
 
     /* Attendre la connexion (DCD)
      * Avec Digitelec: DTR est deja set par serial_init, le modem
      * se connecte automatiquement. DCD passe a 0 quand connecte.
      * Avec TCP direct: DCD est toujours actif. */
 
-    /* --- Boucle principale --- */
+    /* --- Boucle principale ---
+     * FIFO 4096 absorbe le burst TCP a pleine vitesse.
+     * ACIA 1200 baud delivre a l'ISR a 120 oct/sec (Minitel).
+     * Ring buffer 256 ne deborde jamais (max 2 oct entre renders).
+     * Affichage progressif authentique Minitel 1200 baud. */
     for (;;) {
 
-        /* 1. Drainer le buffer ISR */
+        /* 1. Drainer le ring buffer ISR (1-2 octets a 1200 baud) */
         while (serial_poll()) {
             byte = serial_recv();
             if (byte != 0xFF) {
@@ -67,7 +64,7 @@ int main(void)
             }
         }
 
-        /* 2. Rendre toutes les lignes modifiees */
+        /* 2. Rendre les lignes modifiees */
         display_render(&vtx);
 
         /* 3. Clavier */
