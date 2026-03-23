@@ -422,10 +422,9 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
 
     case VTX_STATE_SS2:
         /* Single shift G2: diacritiques ou caractere G2 standalone */
-        /* $41-$4F = code accent -> sequence 3 octets ($16 + accent + base) */
-        /* Autres = caractere G2 standalone -> sequence 2 octets ($16 + char) */
         if (byte >= 0x41 && byte <= 0x4F) {
-            /* Code accent: ignorer l'accent, attendre le caractere base */
+            /* Code accent: sauver et attendre le caractere base */
+            ctx->ss2_accent = byte;
             ctx->state = VTX_STATE_SS2_ACC;
             return;
         }
@@ -435,9 +434,44 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         return;
 
     case VTX_STATE_SS2_ACC:
-        /* Caractere base apres un code accent: afficher le caractere tel quel */
-        /* (on perd l'accent en mode texte, ex: e au lieu de e') */
-        put_char(ctx, byte, CHARSET_G0);
+        /* Caractere base apres un code accent.
+         * Combiner accent + base pour un glyphe accentue.
+         * Les glyphes sont dans font_g2_extra[9..20].
+         * On utilise CHARSET_G2 avec un code interne $80+. */
+        {
+            unsigned char acc_ch = 0;
+            /* Mapper (accent, base) -> code interne G2 accentue */
+            switch (ctx->ss2_accent) {
+                case 0x42: /* aigu */
+                    if (byte == 0x65) acc_ch = 0x80; /* e' */
+                    break;
+                case 0x41: /* grave */
+                    if (byte == 0x65) acc_ch = 0x81; /* e` */
+                    else if (byte == 0x61) acc_ch = 0x83; /* a` */
+                    else if (byte == 0x75) acc_ch = 0x84; /* u` */
+                    break;
+                case 0x43: /* circonflexe */
+                    if (byte == 0x65) acc_ch = 0x82; /* e^ */
+                    else if (byte == 0x61) acc_ch = 0x86; /* a^ */
+                    else if (byte == 0x69) acc_ch = 0x87; /* i^ */
+                    else if (byte == 0x6F) acc_ch = 0x88; /* o^ */
+                    else if (byte == 0x75) acc_ch = 0x89; /* u^ */
+                    break;
+                case 0x48: /* trema */
+                    if (byte == 0x65) acc_ch = 0x8A; /* e" */
+                    else if (byte == 0x69) acc_ch = 0x8B; /* i" */
+                    break;
+                case 0x4B: /* cedille */
+                    if (byte == 0x63) acc_ch = 0x85; /* c, */
+                    break;
+            }
+            if (acc_ch) {
+                put_char(ctx, acc_ch, CHARSET_G2);
+            } else {
+                /* Combinaison inconnue: afficher la lettre de base */
+                put_char(ctx, byte, CHARSET_G0);
+            }
+        }
         ctx->state = VTX_STATE_NORMAL;
         return;
 

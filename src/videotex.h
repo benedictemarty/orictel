@@ -107,6 +107,9 @@ typedef struct {
     unsigned char last_char;
     unsigned char last_charset;
 
+    /* Code accent SS2 en cours ($41=grave, $42=aigu, $43=circ, $48=trema, $4B=cedille) */
+    unsigned char ss2_accent;
+
     /* Buffer ecran (40x25 cellules) */
     vtx_cell_t screen[VTX_ROWS][VTX_COLS];
 

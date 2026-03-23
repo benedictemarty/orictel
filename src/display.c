@@ -139,17 +139,15 @@ static void render_cell_hires(const vtx_cell_t* cell,
     unsigned char* ptr;
     const unsigned char* glyph;
     unsigned char mosaic_buf[8];
-    unsigned char line, pixel_byte;
+    unsigned char line;
     unsigned char ch;
-    unsigned char xor_mask;
-
-    /* Adresse de base: premiere ligne pixel de cette cellule */
-    ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+    unsigned char inv_bit;
 
     ch = cell->ch;
-    xor_mask = (cell->flags & ATTR_INVERT) ? 0x3F : 0x00;
-
     if (cell->flags & ATTR_CONCEALED) ch = ' ';
+
+    /* Bit 7 ULA = inversion encre/fond (pas de colonne perdue) */
+    inv_bit = (cell->flags & ATTR_INVERT) ? 0xC0 : 0x40;
 
     /* Selectionner le glyphe */
     if (cell->charset == CHARSET_G1) {
@@ -161,20 +159,34 @@ static void render_cell_hires(const vtx_cell_t* cell,
         glyph = font_get_g0(ch);
     }
 
-    /* Ecrire 8 lignes avec pointeur incremente (+40 par ligne) */
-    /* Bit 7 de l'ULA Oric = inversion encre/fond pour ce bloc 6x1.
-     * Utiliser bit 7 au lieu de XOR pour l'inversion video:
-     * PAS de colonne perdue, contrairement aux serial attributes ! */
-    if (xor_mask) {
-        /* Mode inverse: bit 7 = 1, pixels normaux */
-        for (line = 0; line < CHAR_H; ++line) {
-            *ptr = glyph[line] | 0xC0;  /* bits 7+6 = inversion + pixel mode */
-            ptr += 40;
+    if (cell->size == SIZE_DOUBLE_HEIGHT || cell->size == SIZE_DOUBLE_SIZE) {
+        /* DOUBLE HAUTEUR: la moitie basse du glyphe (lignes 4-7)
+         * est etiree sur 8 lignes pixel de la ligne courante.
+         * La moitie haute (lignes 0-3) est etiree sur la ligne AU-DESSUS.
+         * Chaque ligne source produit 2 lignes pixel. */
+
+        /* Moitie basse (lignes 4-7 du glyphe) sur la ligne courante */
+        ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+        for (line = 0; line < 4; ++line) {
+            unsigned char px = glyph[line + 4] | inv_bit;
+            *ptr = px; ptr += 40;
+            *ptr = px; ptr += 40;  /* Doubler chaque ligne */
+        }
+
+        /* Moitie haute (lignes 0-3 du glyphe) sur la ligne au-dessus */
+        if (char_row > 0) {
+            ptr = HIRES_ADDR((unsigned int)(char_row - 1) * CHAR_H, col);
+            for (line = 0; line < 4; ++line) {
+                unsigned char px = glyph[line] | inv_bit;
+                *ptr = px; ptr += 40;
+                *ptr = px; ptr += 40;
+            }
         }
     } else {
-        /* Mode normal: bit 7 = 0, pixel mode bit 6 */
+        /* TAILLE NORMALE: 8 lignes pixel directes */
+        ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
         for (line = 0; line < CHAR_H; ++line) {
-            *ptr = glyph[line] | 0x40;
+            *ptr = glyph[line] | inv_bit;
             ptr += 40;
         }
     }

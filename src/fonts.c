@@ -298,6 +298,31 @@ static const unsigned char font_g2_extra[][8] = {
     { 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00, 0x1F, 0x00 },
     /* [8] $38 = division */
     { 0x00, 0x04, 0x00, 0x1F, 0x00, 0x04, 0x00, 0x00 },
+    /* Accents SS2 - glyphes pre-composes */
+    /* [9]  e accent aigu (e') */
+    { 0x02, 0x04, 0x0E, 0x11, 0x1F, 0x10, 0x0E, 0x00 },
+    /* [10] e accent grave (e`) */
+    { 0x08, 0x04, 0x0E, 0x11, 0x1F, 0x10, 0x0E, 0x00 },
+    /* [11] e accent circ (e^) */
+    { 0x04, 0x0A, 0x0E, 0x11, 0x1F, 0x10, 0x0E, 0x00 },
+    /* [12] a accent grave (a`) */
+    { 0x08, 0x04, 0x0E, 0x01, 0x0F, 0x11, 0x0F, 0x00 },
+    /* [13] u accent grave (u`) */
+    { 0x08, 0x04, 0x11, 0x11, 0x11, 0x11, 0x0F, 0x00 },
+    /* [14] c cedille (c,) */
+    { 0x00, 0x00, 0x0E, 0x10, 0x10, 0x0E, 0x04, 0x0C },
+    /* [15] a accent circ (a^) */
+    { 0x04, 0x0A, 0x0E, 0x01, 0x0F, 0x11, 0x0F, 0x00 },
+    /* [16] i accent circ (i^) */
+    { 0x04, 0x0A, 0x00, 0x0C, 0x04, 0x04, 0x0E, 0x00 },
+    /* [17] o accent circ (o^) */
+    { 0x04, 0x0A, 0x0E, 0x11, 0x11, 0x11, 0x0E, 0x00 },
+    /* [18] u accent circ (u^) */
+    { 0x04, 0x0A, 0x11, 0x11, 0x11, 0x11, 0x0F, 0x00 },
+    /* [19] e trema (e") */
+    { 0x0A, 0x00, 0x0E, 0x11, 0x1F, 0x10, 0x0E, 0x00 },
+    /* [20] i trema (i") */
+    { 0x0A, 0x00, 0x0C, 0x04, 0x04, 0x04, 0x0E, 0x00 },
 };
 
 /* ===================================================================
@@ -329,6 +354,19 @@ const unsigned char* font_get_g2(unsigned char ch)
         case 0x30: return font_g2_extra[6];  /* degre ° */
         case 0x31: return font_g2_extra[7];  /* plus ou moins */
         case 0x38: return font_g2_extra[8];  /* division */
+        /* Accents SS2 pre-composes (codes internes $80+) */
+        case 0x80: return font_g2_extra[9];  /* e accent aigu */
+        case 0x81: return font_g2_extra[10]; /* e accent grave */
+        case 0x82: return font_g2_extra[11]; /* e accent circ */
+        case 0x83: return font_g2_extra[12]; /* a accent grave */
+        case 0x84: return font_g2_extra[13]; /* u accent grave */
+        case 0x85: return font_g2_extra[14]; /* c cedille */
+        case 0x86: return font_g2_extra[15]; /* a accent circ */
+        case 0x87: return font_g2_extra[16]; /* i accent circ */
+        case 0x88: return font_g2_extra[17]; /* o accent circ */
+        case 0x89: return font_g2_extra[18]; /* u accent circ */
+        case 0x8A: return font_g2_extra[19]; /* e trema */
+        case 0x8B: return font_g2_extra[20]; /* i trema */
         default:
             return font_get_g0(ch);
     }
