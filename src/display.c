@@ -130,7 +130,33 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph)
 }
 
 /* ===================================================================
+ *  Tables de dithering pour mosaiques G1
+ *  Chaque couleur a 8 masques (1 par ligne pixel).
+ *  Le masque AND avec les pixels du glyphe simule la couleur.
+ * =================================================================== */
+static const unsigned char g1_dither[8][8] = {
+    /* 0: Noir */
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    /* 1: Rouge - lignes alternees */
+    { 0x3F, 0x00, 0x3F, 0x00, 0x3F, 0x00, 0x3F, 0x00 },
+    /* 2: Vert - damier */
+    { 0x2A, 0x15, 0x2A, 0x15, 0x2A, 0x15, 0x2A, 0x15 },
+    /* 3: Jaune - dense 3/4 */
+    { 0x3F, 0x2A, 0x3F, 0x15, 0x3F, 0x2A, 0x3F, 0x15 },
+    /* 4: Bleu - sparse */
+    { 0x24, 0x09, 0x12, 0x24, 0x09, 0x12, 0x24, 0x09 },
+    /* 5: Magenta - diagonale */
+    { 0x21, 0x12, 0x04, 0x08, 0x21, 0x12, 0x04, 0x08 },
+    /* 6: Cyan - dense 5/6 */
+    { 0x3F, 0x1B, 0x3F, 0x36, 0x3F, 0x1B, 0x3F, 0x36 },
+    /* 7: Blanc - plein */
+    { 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F },
+};
+
+/* ===================================================================
  *  Rendu d'une cellule en HIRES
+ *  G0/G2: pixels pleins (couleur via serial attributes)
+ *  G1: dithering par couleur (pas de colonne perdue)
  * =================================================================== */
 
 static void render_cell_hires(const vtx_cell_t* cell,
@@ -142,12 +168,15 @@ static void render_cell_hires(const vtx_cell_t* cell,
     unsigned char line;
     unsigned char ch;
     unsigned char inv_bit;
+    unsigned char use_dither;
 
     ch = cell->ch;
     if (cell->flags & ATTR_CONCEALED) ch = ' ';
 
-    /* Bit 7 ULA = inversion encre/fond (pas de colonne perdue) */
     inv_bit = (cell->flags & ATTR_INVERT) ? 0xC0 : 0x40;
+
+    /* G1 = dithering, G0/G2 = pixels pleins */
+    use_dither = (cell->charset == CHARSET_G1) ? 1 : 0;
 
     /* Selectionner le glyphe */
     if (cell->charset == CHARSET_G1) {
@@ -168,25 +197,29 @@ static void render_cell_hires(const vtx_cell_t* cell,
         /* Moitie basse (lignes 4-7 du glyphe) sur la ligne courante */
         ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
         for (line = 0; line < 4; ++line) {
-            unsigned char px = glyph[line + 4] | inv_bit;
-            *ptr = px; ptr += 40;
-            *ptr = px; ptr += 40;  /* Doubler chaque ligne */
+            unsigned char g = glyph[line + 4];
+            if (use_dither) g &= g1_dither[cell->fg & 7][line + 4];
+            *ptr = g | inv_bit; ptr += 40;
+            *ptr = g | inv_bit; ptr += 40;
         }
 
-        /* Moitie haute (lignes 0-3 du glyphe) sur la ligne au-dessus */
+        /* Moitie haute (lignes 0-3) sur la ligne au-dessus */
         if (char_row > 0) {
             ptr = HIRES_ADDR((unsigned int)(char_row - 1) * CHAR_H, col);
             for (line = 0; line < 4; ++line) {
-                unsigned char px = glyph[line] | inv_bit;
-                *ptr = px; ptr += 40;
-                *ptr = px; ptr += 40;
+                unsigned char g = glyph[line];
+                if (use_dither) g &= g1_dither[cell->fg & 7][line];
+                *ptr = g | inv_bit; ptr += 40;
+                *ptr = g | inv_bit; ptr += 40;
             }
         }
     } else {
-        /* TAILLE NORMALE: 8 lignes pixel directes */
+        /* TAILLE NORMALE */
         ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
         for (line = 0; line < CHAR_H; ++line) {
-            *ptr = glyph[line] | inv_bit;
+            unsigned char g = glyph[line];
+            if (use_dither) g &= g1_dither[cell->fg & 7][line];
+            *ptr = g | inv_bit;
             ptr += 40;
         }
     }
