@@ -44,16 +44,22 @@ int main(void)
     keyboard_init();
     display_status("OricTel v0.1 | CTRL+S=Sommaire");
 
+    /* Message de connexion sur l'ecran HIRES */
+    {
+        static const char msg1[] = "OricTel v0.2";
+        static const char msg2[] = "Connexion en cours...";
+        unsigned char i;
+        for (i = 0; msg1[i]; ++i)
+            vtx.screen[10][14 + i].ch = msg1[i];
+        vtx.dirty[10] = 1;
+        for (i = 0; msg2[i]; ++i)
+            vtx.screen[12][10 + i].ch = msg2[i];
+        vtx.dirty[12] = 1;
+        display_render(&vtx);
+    }
+
     /* Serial EN DERNIER: DTR active la connexion modem */
     serial_init();
-
-    /* Pas de signal ready: le serveur envoie automatiquement
-     * la page d'accueil apres connexion (Digitelec ou bridge). */
-
-    /* Attendre la connexion (DCD)
-     * Avec Digitelec: DTR est deja set par serial_init, le modem
-     * se connecte automatiquement. DCD passe a 0 quand connecte.
-     * Avec TCP direct: DCD est toujours actif. */
 
     /* --- Boucle principale ---
      * FIFO 4096 absorbe le burst TCP a pleine vitesse.

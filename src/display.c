@@ -400,21 +400,12 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Col 0: rendre le caractere si la couleur est blanche (defaut ULA). */
-    prev_fg = ctx->screen[row][0].fg;
-    prev_bg = ctx->screen[row][0].bg;
-    if (prev_fg == VTX_WHITE && prev_bg == VTX_BLACK) {
-        render_cell_hires(&ctx->screen[row][0], 0, row);
-    } else if (prev_fg != VTX_WHITE) {
-        set_ink_attr(0, row, prev_fg);
-        if (row > 0 && (ctx->screen[row][0].size == SIZE_DOUBLE_HEIGHT ||
-                        ctx->screen[row][0].size == SIZE_DOUBLE_SIZE)) {
-            set_ink_attr(0, row - 1, prev_fg);
-        }
-    } else {
-        /* bg != BLACK, insert PAPER attribute at col 0 */
-        set_paper_attr(0, row, prev_bg);
-    }
+    /* Col 0: TOUJOURS rendre le caractere (jamais d'attribut).
+     * Regle: mieux vaut une mauvaise couleur qu'un caractere perdu.
+     * L'ULA herite l'encre blanche du contexte HIRES init. */
+    render_cell_hires(&ctx->screen[row][0], 0, row);
+    prev_fg = VTX_WHITE;  /* Couleur ULA heritee (pas d'attribut pose) */
+    prev_bg = VTX_BLACK;
 
     /* Cols 1-39 */
     for (col = 1; col < SCREEN_COLS; ++col) {

@@ -304,14 +304,15 @@ static void process_esc(vtx_context_t* ctx, unsigned char byte)
         return;
     }
 
-    /* Inversion: ESC $5C=on, $5D=off */
+    /* Inversion: ESC $5C=OFF (fond normal), $5D=ON (fond inverse)
+     * Ref: telenet emulateur.js, miedit directStream */
     if (byte == 0x5C) {
-        ctx->attr_flags |= ATTR_INVERT;
+        ctx->attr_flags &= ~ATTR_INVERT;
         ctx->state = VTX_STATE_NORMAL;
         return;
     }
     if (byte == 0x5D) {
-        ctx->attr_flags &= ~ATTR_INVERT;
+        ctx->attr_flags |= ATTR_INVERT;
         ctx->state = VTX_STATE_NORMAL;
         return;
     }
@@ -423,7 +424,10 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         return;
 
     case VTX_STATE_US_COL:
-        vtx_set_cursor(ctx, ctx->us_row, byte - 0x41);
+        /* Col = byte - $41. Si byte=$40, col=0 (pas -1).
+         * Le Minitel utilise $40 pour col 0. */
+        vtx_set_cursor(ctx, ctx->us_row,
+                        (byte >= 0x41) ? (byte - 0x41) : 0);
         /* US reset tous les attributs (norme STUM p.91)
          * Ref: telenet emulateur.js lignes 785-795 */
         ctx->charset = CHARSET_G0;      /* modeG1 = false */
