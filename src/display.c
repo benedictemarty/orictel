@@ -152,33 +152,45 @@ static void render_cell_hires(const vtx_cell_t* cell,
  *  - Quand la couleur change, on insere un attribut a cette colonne
  * =================================================================== */
 
+/* Ecrit un attribut serial encre sur les 8 lignes pixel d'une colonne */
+static void set_ink_attr(unsigned char col, unsigned char char_row, unsigned char ink)
+{
+    unsigned char* ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+    unsigned char line;
+    for (line = 0; line < CHAR_H; ++line) {
+        *ptr = ink & 0x07;  /* Attribut encre: $00-$07 */
+        ptr += 40;
+    }
+}
+
 static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 {
     unsigned char col;
-    unsigned char* ptr;
+    unsigned char prev_fg;
+    unsigned char cell_fg;
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Rendre TOUTES les 40 colonnes comme des caracteres.
-     * Pas d'attribut serial = pas de colonne mangee.
-     * Col 0: attribut encre blanche (obligatoire pour l'ULA Oric).
-     * Cols 1-39: pixels des caracteres.
-     *
-     * Note: on perd col 0 du contenu (remplacee par l'attribut).
-     * C'est le minimum requis par l'ULA. Le Minitel utilise souvent
-     * col 0 pour des mosaiques decoratives, donc c'est acceptable.
-     */
-    ptr = HIRES_ADDR((unsigned int)row * CHAR_H, 0);
-    {
-        unsigned char line;
-        for (line = 0; line < CHAR_H; ++line) {
-            *ptr = 0x07;  /* Ink white - obligatoire pour l'ULA */
-            ptr += 40;
-        }
-    }
+    /* Col 0: attribut encre = couleur de la premiere cellule.
+     * L'ULA Oric EXIGE un attribut en col 0 pour definir l'encre.
+     * On perd le caractere col 0 mais c'est le minimum requis. */
+    prev_fg = ctx->screen[row][1].fg;  /* Couleur dominante */
+    set_ink_attr(0, row, prev_fg);
 
-    /* Cols 1-39: rendu direct des cellules sans attribut intermediaire */
+    /* Cols 1-39: caracteres avec insertion d'attributs couleur */
     for (col = 1; col < SCREEN_COLS; ++col) {
+        cell_fg = ctx->screen[row][col].fg;
+
+        /* Si la couleur change, inserer un attribut encre.
+         * Le caractere a cette colonne est perdu (contrainte Oric).
+         * On ne le fait QUE quand la couleur change reellement. */
+        if (cell_fg != prev_fg) {
+            set_ink_attr(col, row, cell_fg);
+            prev_fg = cell_fg;
+            /* La colonne est consommee par l'attribut, pas de caractere */
+            continue;
+        }
+
         render_cell_hires(&ctx->screen[row][col], col, row);
     }
 }
