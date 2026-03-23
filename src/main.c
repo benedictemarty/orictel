@@ -71,6 +71,7 @@ int main(void)
         key = keyboard_scan();
         if (key != KEY_NONE) {
             keyboard_process(key);
+
         }
     }
 

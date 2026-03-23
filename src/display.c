@@ -212,17 +212,23 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Col 0: attribut encre = couleur de la premiere cellule.
-     * L'ULA Oric EXIGE un attribut en col 0 pour definir l'encre.
-     * On perd le caractere col 0 mais c'est le minimum requis. */
-    prev_fg = ctx->screen[row][1].fg;  /* Couleur dominante */
-    set_ink_attr(0, row, prev_fg);
+    /* Col 0: rendre le caractere si la couleur est blanche (defaut ULA).
+     * L'ULA Oric demarre chaque ligne pixel avec l'encre heritee
+     * du contexte precedent. Apres HIRES init, c'est blanc.
+     * Si la couleur est blanche, on peut rendre le caractere directement.
+     * Sinon, on insere un attribut (perte du caractere col 0). */
+    prev_fg = ctx->screen[row][0].fg;
+    if (prev_fg == VTX_WHITE) {
+        /* Couleur par defaut: rendre le caractere, pas d'attribut */
+        render_cell_hires(&ctx->screen[row][0], 0, row);
+    } else {
+        /* Couleur non-defaut: attribut obligatoire */
+        set_ink_attr(0, row, prev_fg);
+    }
 
     /* Cols 1-39: caracteres avec insertion d'attributs couleur.
      * Regle: n'inserer un attribut que si la cellule est un ESPACE.
-     * Si la cellule contient un caractere visible, on le garde
-     * dans la couleur precedente (mieux vaut mauvaise couleur
-     * que caractere perdu). */
+     * Caractere visible = garder dans la couleur precedente. */
     for (col = 1; col < SCREEN_COLS; ++col) {
         cell_fg = ctx->screen[row][col].fg;
 

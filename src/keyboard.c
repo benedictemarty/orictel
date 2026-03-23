@@ -129,39 +129,25 @@ unsigned char keyboard_scan(void)
         /* Pas une combinaison reconnue: traiter normalement */
     }
 
-    /* --- CTRL+lettre (Oric-1 ET Atmos) --- */
-    /* Les codes $01-$1A sont generes par CTRL+A a CTRL+Z */
-    if (ch >= 0x01 && ch <= 0x1A) {
-        func_key = map_ctrl_to_func(ch);
-        if (func_key != KEY_NONE) {
-            return func_key;
-        }
-        /* CTRL+lettre non mappee: ignorer */
-        return KEY_NONE;
-    }
-
-    /* --- Touches speciales --- */
+    /* --- Touches speciales (AVANT le handler CTRL !) ---
+     * $08, $0A, $0B, $0D sont dans la range $01-$1A mais ne sont
+     * PAS des CTRL+lettre : ce sont des touches speciales. */
     switch (ch) {
-        case 0x0D:  /* RETURN = Envoi */
+        case 0x0D:  /* RETURN (CR) = Envoi */
+        case 0x0A:  /* RETURN (LF) ou Fleche BAS = Envoi */
             return KEY_FUNC_FLAG | KEY_ENVOI;
 
-        case 0x7F:  /* DELETE = Correction */
-            return KEY_FUNC_FLAG | KEY_CORRECTION;
-
-        case 0x0B:  /* Fleche HAUT (VT) = Retour (page precedente) */
+        case 0x0B:  /* Fleche HAUT (VT) = Retour */
             return KEY_FUNC_FLAG | KEY_RETOUR;
 
-        case 0x0A:  /* Fleche BAS (LF) = Suite (page suivante) */
-            return KEY_FUNC_FLAG | KEY_SUITE;
-
-        case 0x08:  /* Fleche GAUCHE (BS) = curseur gauche Minitel */
+        case 0x08:  /* Fleche GAUCHE (BS) */
             serial_send(0x1B);
             serial_send(0x5B);
             serial_send(0x44);
-            return KEY_NONE;  /* Deja envoye */
-
-        case 0x09:  /* Deja gere plus haut (FUNCT/Tab) */
             return KEY_NONE;
+
+        case 0x7F:  /* DELETE = Correction */
+            return KEY_FUNC_FLAG | KEY_CORRECTION;
 
         case 0x1B:  /* ESC = Annulation */
             return KEY_FUNC_FLAG | KEY_ANNULATION;
@@ -170,7 +156,17 @@ unsigned char keyboard_scan(void)
             break;
     }
 
-    /* Fleche DROITE (Ctrl-U = $15 sur certains Oric, ou Right=$09) */
+    /* --- CTRL+lettre (Oric-1 ET Atmos) ---
+     * APRES les touches speciales pour ne pas les avaler. */
+    if (ch >= 0x01 && ch <= 0x1A) {
+        func_key = map_ctrl_to_func(ch);
+        if (func_key != KEY_NONE) {
+            return func_key;
+        }
+        return KEY_NONE;
+    }
+
+    /* Fleche DROITE */
     if (ch == 0x15) {
         serial_send(0x1B);
         serial_send(0x5B);
