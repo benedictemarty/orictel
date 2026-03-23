@@ -141,8 +141,13 @@ static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
     ctx->last_char = ch;
     ctx->last_charset = cs;
 
-    /* Avancer le curseur */
-    ctx->cur_x++;
+    /* Avancer le curseur (2 colonnes pour double largeur/taille) */
+    if (ctx->attr_size == SIZE_DOUBLE_WIDTH ||
+        ctx->attr_size == SIZE_DOUBLE_SIZE) {
+        ctx->cur_x += 2;
+    } else {
+        ctx->cur_x++;
+    }
     if (ctx->cur_x >= VTX_COLS) {
         ctx->cur_x = 0;
         ctx->cur_y++;
@@ -268,16 +273,26 @@ static void process_esc(vtx_context_t* ctx, unsigned char byte)
         return;
     }
 
-    /* Soulignement: ESC $59=off, $5A=on */
+    /* Soulignement (G0) / Mosaique separee (G1): ESC $59=off, $5A=on */
     if (byte == 0x59) {
-        ctx->pending_underline = 0;
-        ctx->has_pending = 1;
+        if (ctx->charset == CHARSET_G1) {
+            /* Clear separated mosaic mode */
+            ctx->attr_flags &= ~ATTR_SEPARATED;
+        } else {
+            ctx->pending_underline = 0;
+            ctx->has_pending = 1;
+        }
         ctx->state = VTX_STATE_NORMAL;
         return;
     }
     if (byte == 0x5A) {
-        ctx->pending_underline = 1;
-        ctx->has_pending = 1;
+        if (ctx->charset == CHARSET_G1) {
+            /* Set separated mosaic mode */
+            ctx->attr_flags |= ATTR_SEPARATED;
+        } else {
+            ctx->pending_underline = 1;
+            ctx->has_pending = 1;
+        }
         ctx->state = VTX_STATE_NORMAL;
         return;
     }

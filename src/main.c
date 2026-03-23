@@ -21,6 +21,12 @@
 /* Contexte Videotex global */
 static vtx_context_t vtx;
 
+/* Compteur blink: bascule blink_phase toutes les ~25 frames (50Hz -> ~500ms) */
+static unsigned char blink_counter;
+
+/* Variable globale blink_phase accessible depuis display.c */
+unsigned char g_blink_phase;
+
 /* Declaration serial_dcd (assembleur) */
 unsigned char __fastcall__ serial_dcd(void);
 
@@ -67,7 +73,15 @@ int main(void)
         /* 2. Rendre les lignes modifiees */
         display_render(&vtx);
 
-        /* 3. Clavier */
+        /* 3. Blink: basculer la phase (basse priorite, pas de full_refresh) */
+        ++blink_counter;
+        if (blink_counter >= 250) {
+            blink_counter = 0;
+            vtx.blink_phase ^= 1;
+            g_blink_phase = vtx.blink_phase;
+        }
+
+        /* 4. Clavier */
         key = keyboard_scan();
         if (key != KEY_NONE) {
             keyboard_process(key);

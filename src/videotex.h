@@ -51,6 +51,7 @@
 #define ATTR_CONCEALED  0x02
 #define ATTR_INVERT     0x04
 #define ATTR_UNDERLINE  0x08
+#define ATTR_SEPARATED  0x10
 
 /* Couleurs Minitel (identiques aux couleurs Oric, prefixe VTX_) */
 #define VTX_BLACK       0
@@ -117,6 +118,7 @@ typedef struct {
     unsigned char dirty[VTX_ROWS];      /* 1 = ligne modifiee, a re-rendre */
     unsigned char row_cleared[VTX_ROWS]; /* 1 = ligne logiquement vide (lazy) */
     unsigned char full_refresh;         /* 1 = tout redessiner */
+    unsigned char blink_phase;          /* 0 ou 1, bascule toutes les ~500ms */
 } vtx_context_t;
 
 /**
