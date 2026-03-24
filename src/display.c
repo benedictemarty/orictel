@@ -405,6 +405,7 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     unsigned char prev_bg;
     unsigned char cell_fg;
     unsigned char cell_bg;
+    unsigned char is_empty;
 
     if (row >= SCREEN_ROWS) return;
 
@@ -421,35 +422,59 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         return;
     }
 
-    /* Mode hybride: PAPER/INK reset en cols 0-1 */
+    /* Mode hybride: col 0 = PAPER, col 1 = INK si ces cellules
+     * sont vides (delimiteurs Videotex). Sinon, rendre le contenu. */
+    prev_bg = VTX_BLACK;
+    prev_fg = VTX_WHITE;
     {
         unsigned char ch0 = ctx->screen[row][0].ch;
         unsigned char ch1 = ctx->screen[row][1].ch;
-        if (ch0 == ' ' || ch0 == 0x20 || ch0 == 0) {
-            set_paper_attr(0, row, VTX_BLACK);
+        unsigned char empty0 = (ch0 == ' ' || ch0 == 0x20 || ch0 == 0);
+        unsigned char empty1 = (ch1 == ' ' || ch1 == 0x20 || ch1 == 0);
+
+        if (empty0) {
+            prev_bg = ctx->screen[row][0].bg;
+            set_paper_attr(0, row, prev_bg);
+            /* Propager PAPER sur ligne au-dessus pour double hauteur */
+            if (row > 0 && prev_bg != VTX_BLACK) {
+                set_paper_attr(0, row - 1, prev_bg);
+            }
         } else {
+            set_paper_attr(0, row, VTX_BLACK);
             render_cell_hires(&ctx->screen[row][0], 0, row);
         }
-        if (ch1 == ' ' || ch1 == 0x20 || ch1 == 0) {
-            set_ink_attr(1, row, VTX_WHITE);
+
+        if (empty1) {
+            prev_fg = ctx->screen[row][1].fg;
+            set_ink_attr(1, row, prev_fg);
         } else {
+            set_ink_attr(1, row, VTX_WHITE);
             render_cell_hires(&ctx->screen[row][1], 1, row);
         }
     }
-    prev_fg = VTX_WHITE;
-    prev_bg = VTX_BLACK;
 
-    /* Cols 2-39 (cols 0-1 deja traitees pour PAPER/INK reset) */
     for (col = 2; col < SCREEN_COLS; ++col) {
         vtx_cell_t* cell = &ctx->screen[row][col];
         cell_fg = cell->fg;
         cell_bg = cell->bg;
+        is_empty = (cell->ch == ' ' || cell->ch == 0x20 || cell->ch == 0);
 
-        /* INK prioritaire sur PAPER pour les cellules inversees
-         * (ENVOI jaune inverse: on veut INK=jaune, pas PAPER) */
+        /* Changement de PAPER: toujours prioritaire.
+         * Sur l'Oric, PAPER est un attribut serial qui prend une colonne.
+         * En Videotex, les changements de fond arrivent sur des cellules vides. */
+        if (cell_bg != prev_bg) {
+            set_paper_attr(col, row, cell_bg);
+            if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
+                            cell->size == SIZE_DOUBLE_SIZE)) {
+                set_paper_attr(col, row - 1, cell_bg);
+            }
+            prev_bg = cell_bg;
+            if (is_empty) continue;
+        }
+
+        /* Changement de INK */
         if (cell_fg != prev_fg) {
-            unsigned char ch = cell->ch;
-            if (ch == ' ' || ch == 0x20 || ch == 0) {
+            if (is_empty) {
                 set_ink_attr(col, row, cell_fg);
                 if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
                                 cell->size == SIZE_DOUBLE_SIZE)) {
@@ -460,23 +485,13 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
             }
         }
 
-        /* PAPER: insertion apres INK (priorite moindre) */
-        if (cell_bg != prev_bg) {
-            unsigned char ch = cell->ch;
-            if (ch == ' ' || ch == 0x20 || ch == 0) {
-                set_paper_attr(col, row, cell_bg);
-                prev_bg = cell_bg;
-                continue;
-            }
-        }
-
         render_cell_hires(cell, col, row);
 
         /* Double largeur/taille: sauter la colonne suivante
          * (le rendu a deja ecrit dans col+1) */
         if (cell->size == SIZE_DOUBLE_WIDTH ||
             cell->size == SIZE_DOUBLE_SIZE) {
-            ++col;  /* Skip next column */
+            ++col;
         }
     }
 }
