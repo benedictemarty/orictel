@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include "videotex.h"
+#include "display.h"
 
 /* ===================================================================
  *  Initialisation
@@ -526,7 +527,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
     if (byte < 0x20) {
         switch (byte) {
             case 0x07:  /* BEL - bip */
-                /* TODO: beep via PSG */
+                display_beep();
                 break;
             case 0x08:  /* BS - curseur gauche */
                 cursor_left(ctx);

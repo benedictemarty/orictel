@@ -57,6 +57,11 @@ void display_status(const char* msg);
 void display_cursor(unsigned char visible, unsigned char col, unsigned char row);
 
 /**
+ * Beep via PSG AY-3-8912 (~1kHz, ~100ms).
+ */
+void display_beep(void);
+
+/**
  * Rend une cellule unique (pour compatibilite).
  */
 void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned char row);

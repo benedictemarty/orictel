@@ -20,6 +20,9 @@
 #include "display.h"
 #include "fonts.h"
 
+/* Blink phase accessible depuis main.c */
+extern unsigned char g_blink_phase;
+
 /* Pointeur HIRES */
 #define HIRES ((unsigned char*)0xA000)
 
@@ -480,6 +483,16 @@ void display_render(vtx_context_t* ctx)
         ctx->dirty[row] = 0;
     }
     ctx->full_refresh = 0;
+
+    /* Curseur visible: inverser la derniere ligne pixel
+     * a la position du curseur (clignotement via blink_phase) */
+    if (ctx->cur_visible && (g_blink_phase == 0)) {
+        unsigned char* base;
+        if (ctx->cur_y < SCREEN_ROWS && ctx->cur_x < SCREEN_COLS) {
+            base = HIRES_ADDR((unsigned int)ctx->cur_y * CHAR_H + 7, ctx->cur_x);
+            *base = 0x7F;  /* Barre blanche sous le caractere */
+        }
+    }
 }
 
 void display_render_cell_row(vtx_context_t* ctx, unsigned char row)
@@ -496,6 +509,13 @@ void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned cha
 void display_status(const char* msg)
 {
     (void)msg;  /* Plus de barre de statut visible */
+}
+
+/* Beep via ROM Atmos - utilise la routine PING ($FA9F)
+ * qui fait un bip court via le PSG AY-3-8912 */
+void display_beep(void)
+{
+    __asm__("jsr $FA9F");
 }
 
 void display_cursor(unsigned char visible, unsigned char col, unsigned char row)
