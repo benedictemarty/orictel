@@ -159,6 +159,7 @@ unsigned char keyboard_scan(void)
     /* --- CTRL+lettre (Oric-1 ET Atmos) ---
      * APRES les touches speciales pour ne pas les avaler. */
     if (ch >= 0x01 && ch <= 0x1A) {
+        if (ch == 0x04) return KEY_TOGGLE_RENDER;  /* CTRL+D */
         func_key = map_ctrl_to_func(ch);
         if (func_key != KEY_NONE) {
             return func_key;

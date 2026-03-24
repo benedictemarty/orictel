@@ -23,6 +23,9 @@
 /* Blink phase accessible depuis main.c */
 extern unsigned char g_blink_phase;
 
+/* Mode rendu: 0=hybride (G0 serial + G1 dithering), 1=tout dithering */
+unsigned char g_render_mode;
+
 /* Pointeur HIRES */
 #define HIRES ((unsigned char*)0xA000)
 
@@ -227,7 +230,9 @@ static void render_cell_hires(const vtx_cell_t* cell,
     inv_bit = (cell->flags & ATTR_INVERT) ? 0xC0 : 0x40;
 
     /* G1 = dithering, G0/G2 = pixels pleins */
-    use_dither = (cell->charset == CHARSET_G1) ? 1 : 0;
+    /* Mode 0=hybride (G1 dither), 1=tout dither, 2=brut (tout blanc) */
+    use_dither = (g_render_mode == 1 ||
+                  (g_render_mode == 0 && cell->charset == CHARSET_G1)) ? 1 : 0;
 
     /* Selectionner le glyphe */
     if (cell->charset == CHARSET_G1) {
@@ -403,14 +408,20 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Col 0: si c'est un espace, poser INK blanc pour reinitialiser.
-     * Si c'est un caractere visible, le rendre (pas d'attribut).
-     * Sans INK en col 0, l'encre de la ligne precedente persiste
-     * et corrompt les couleurs de toute la ligne. */
-    /* Col 0-1: reinitialiser INK et PAPER pour chaque ligne.
-     * Sans reset, les couleurs de la ligne precedente persistent.
-     * Col 0 = PAPER BLACK (reset fond), Col 1 = INK WHITE (reset encre).
-     * Si col 0 ou 1 ont du contenu visible, rendre le caractere a la place. */
+    /* Mode 1 (tout-dithering) ou 2 (brut): pas d'attributs serial */
+    if (g_render_mode >= 1) {
+        set_ink_attr(0, row, VTX_WHITE);
+        for (col = 0; col < SCREEN_COLS; ++col) {
+            render_cell_hires(&ctx->screen[row][col], col, row);
+            if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
+                ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
+                ++col;
+            }
+        }
+        return;
+    }
+
+    /* Mode hybride: PAPER/INK reset en cols 0-1 */
     {
         unsigned char ch0 = ctx->screen[row][0].ch;
         unsigned char ch1 = ctx->screen[row][1].ch;

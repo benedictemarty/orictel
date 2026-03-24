@@ -46,6 +46,7 @@
 /* Resultat du scan clavier */
 #define KEY_NONE        0x00    /* Aucune touche */
 #define KEY_FUNC_FLAG   0x80    /* Bit 7 = touche fonction Minitel */
+#define KEY_TOGGLE_RENDER 0xFE  /* CTRL+D = basculer mode rendu */
 
 /**
  * Initialise le module clavier.

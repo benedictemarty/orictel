@@ -328,7 +328,12 @@ int main(void)
 
         /* 5. Clavier */
         key = keyboard_scan();
-        if (key != KEY_NONE) {
+        if (key == KEY_TOGGLE_RENDER) {
+            extern unsigned char g_render_mode;
+            g_render_mode++;
+            if (g_render_mode > 2) g_render_mode = 0;
+            vtx.full_refresh = 1;
+        } else if (key != KEY_NONE) {
             keyboard_process(key);
         }
     }
