@@ -41,12 +41,17 @@ MAPFILE  = orictel.map
 EMU      = /home/bmarty/Oric1/oric1-emu
 EMU_ROM  = /home/bmarty/Oric1/roms/basic11b.rom
 
-# Option A: Backend Digitelec (recommande - pas de bridge)
+# Serveur Minitel par defaut
 MINITEL_SERVER = pavi.3617.fr:3617
-EMU_OPTS = --serial digitelec:$(MINITEL_SERVER)
 
-# Option B: TCP + bridge (decommenter si WebSocket necessaire)
-#EMU_OPTS = --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
+# Option A: TCP direct + V23 (recommande)
+EMU_OPTS = --serial tcp:$(MINITEL_SERVER) --serial-v23 --serial-buffer 4096
+
+# Option B: Modem AT (le programme OricTel fait ATD)
+EMU_OPTS_MODEM = --serial modem --serial-buffer 4096
+
+# Option C: TCP + bridge WebSocket (decommenter si necessaire)
+#EMU_OPTS = --serial tcp:127.0.0.1:3615 --serial-v23 --serial-buffer 4096
 
 # Flags cc65
 CC65FLAGS = -t $(TARGET) -O --add-source
@@ -93,8 +98,12 @@ $(BLDDIR):
 # ============================================================================
 
 run: $(OUTPUT)
-	@echo "=== OricTel -> $(MINITEL_SERVER) (Digitelec) ==="
+	@echo "=== OricTel -> $(MINITEL_SERVER) (TCP direct V23) ==="
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS)
+
+run-modem: $(OUTPUT)
+	@echo "=== OricTel -> modem AT ==="
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_MODEM)
 
 # Lancer avec le bridge WebSocket (pour ws://3617.fr)
 run-ws: $(OUTPUT)

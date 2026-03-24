@@ -15,6 +15,8 @@
 | Cible           | Plateforme | Status     | Date       |
 |-----------------|------------|------------|------------|
 | orictel.tap     | atmos      | BUILD OK   | 2026-03-24 |
+| mode direct TCP | host       | OK         | 2026-03-24 |
+| mode modem AT   | host       | OK         | 2026-03-24 |
 | bridge          | linux/x64  | OK         | 2026-03-24 |
 | tests-videotex  | host       | PASS       | 2026-03-24 |
 | tests-bridge    | host       | PASS       | 2026-03-24 |

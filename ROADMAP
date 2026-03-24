@@ -21,7 +21,8 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [x] Attributs de zone (serial attributes Videotex)
 - [x] Optimisation dirty-rectangle pour le rendu
 - [x] 3 modes de rendu (hybride, dithering, brut)
-- [x] Fast path G0 et boucles deroulees (v0.2.1)
+- [x] Menu mode connexion (Modem AT / Direct TCP V23)
+- [x] Support backend modem Hayes + TCP direct V23
 
 ## Sprint 3 - Experience utilisateur (v0.3.0) [PLANIFIE]
 - [ ] Jeu de caracteres G2 (supplementaire/accents)

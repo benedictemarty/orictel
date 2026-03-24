@@ -35,14 +35,16 @@ DCD_BIT      = $20
 ; Command: DTR on, RX IRQ OFF, RTS low, no parity = $0B
 ; ===========================================================================
 _serial_init:
-        sta     ACIA_STATUS     ; Reset
+        lda     #$00
+        sta     ACIA_STATUS     ; Programmed reset (efface OVRN, TDRE=1)
 
-        lda     #$18            ; 1200 baud, 8N1
+        lda     #$1F            ; 19200 baud, 8N1, clock interne
         sta     ACIA_CONTROL
 
-        lda     #$0B            ; DTR on, IRQ off
+        lda     #$03            ; DTR on, IRQ RX off
         sta     ACIA_COMMAND
 
+        lda     ACIA_STATUS     ; Lire status pour effacer IRQ pending
         lda     ACIA_DATA       ; Clear RDR
         rts
 

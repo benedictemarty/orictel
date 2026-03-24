@@ -251,6 +251,51 @@ static void splash_screen(vtx_context_t* ctx)
  *  Timeout rapide: si pas de "OK" en ~2s, on passe en mode direct.
  * =================================================================== */
 
+/* Mode de connexion */
+#define MODE_MODEM  0
+#define MODE_DIRECT 1
+
+/* Menu selection du mode de connexion.
+ * Retourne MODE_MODEM ou MODE_DIRECT. */
+static unsigned char select_mode(vtx_context_t* ctx)
+{
+    unsigned char i;
+    const char* p;
+
+    vtx_clear_page(ctx);
+
+    p = "Mode de connexion:";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[10][10 + i].ch = p[i];
+        ctx->screen[10][10 + i].fg = VTX_WHITE;
+    }
+    ctx->dirty[10] = 1;
+
+    p = "1 - Modem AT";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[13][12 + i].ch = p[i];
+        ctx->screen[13][12 + i].fg = VTX_YELLOW;
+    }
+    ctx->screen[13][12].fg = VTX_CYAN;
+    ctx->dirty[13] = 1;
+
+    p = "2 - Direct (TCP/Digitelec)";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[15][12 + i].ch = p[i];
+        ctx->screen[15][12 + i].fg = VTX_YELLOW;
+    }
+    ctx->screen[15][12].fg = VTX_CYAN;
+    ctx->dirty[15] = 1;
+
+    display_render(ctx);
+
+    for (;;) {
+        unsigned char key = keyboard_scan();
+        if (key == '1') return MODE_MODEM;
+        if (key == '2') return MODE_DIRECT;
+    }
+}
+
 /* Serveurs disponibles */
 static const char* servers[] = {
     "pavi.3617.fr:3617",
@@ -542,22 +587,27 @@ int main(void)
     /* Ecran splash avec jingle */
     splash_screen(&vtx);
 
-    /* Serial init + delai pour laisser le modem s'initialiser */
-    serial_init();
-    delay_ms(500);
-
-    /* Menu selection serveur */
     {
-        unsigned char srv_idx = select_server(&vtx);
-        unsigned char at_ok;
+        unsigned char mode = select_mode(&vtx);
+        unsigned char srv_idx;
 
         vtx_clear_page(&vtx);
-
-        /* Tenter connexion modem AT */
-        at_ok = modem_connect(&vtx, srv_idx);
-
-        /* Effacer l'ecran et passer directement au mode terminal */
+        srv_idx = select_server(&vtx);
         vtx_clear_page(&vtx);
+
+        if (mode == MODE_MODEM) {
+            /* Mode modem AT: 19200 baud pour commandes AT */
+            serial_init();
+            delay_ms(500);
+            modem_connect(&vtx, srv_idx);
+            vtx_clear_page(&vtx);
+        } else {
+            /* Mode direct (TCP + V23): connexion immediate.
+             * Drainer les eventuelles donnees arrivees pendant les menus. */
+            serial_init();
+            while (serial_poll()) serial_recv();
+            vtx_clear_page(&vtx);
+        }
     }
 
     /* Indicateur initial: F */

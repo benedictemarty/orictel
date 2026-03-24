@@ -11,6 +11,13 @@
 
 ### Correction
 - Revert optimisation display.c (fast path/boucles deroulees) qui cassait le rendu
+- ACIA: init $1F/$03 (19200 baud, DTR on) conforme au guide Phosphoric
+- Backend Digitelec ecarte (bug DCD OFF apres ~1.3s) au profit de TCP direct + V23
+
+### Ajout
+- Menu mode de connexion: 1-Modem AT, 2-Direct (TCP/V23)
+- Makefile: cibles run (TCP direct) et run-modem (modem AT Hayes)
+- serial_asm.s: reset ACIA propre (lda #$00 + clear status/data)
 
 ## [0.1.1-alpha] - 2026-03-22
 
