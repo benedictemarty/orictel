@@ -251,10 +251,10 @@ static void splash_screen(vtx_context_t* ctx)
  *  Timeout rapide: si pas de "OK" en ~2s, on passe en mode direct.
  * =================================================================== */
 
-/* Serveurs disponibles (IP directe pour compat Oricutron modem) */
+/* Serveurs disponibles */
 static const char* servers[] = {
-    "192.99.103.232:3617",
-    "145.239.71.221:516",
+    "pavi.3617.fr:3617",
+    "go.minipavi.fr:516",
 };
 static const char* server_names[] = {
     "PAVI 3617",
