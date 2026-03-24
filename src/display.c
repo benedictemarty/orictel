@@ -400,15 +400,33 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Col 0: TOUJOURS rendre le caractere (jamais d'attribut).
-     * Regle: mieux vaut une mauvaise couleur qu'un caractere perdu.
-     * L'ULA herite l'encre blanche du contexte HIRES init. */
-    render_cell_hires(&ctx->screen[row][0], 0, row);
-    prev_fg = VTX_WHITE;  /* Couleur ULA heritee (pas d'attribut pose) */
+    /* Col 0: si c'est un espace, poser INK blanc pour reinitialiser.
+     * Si c'est un caractere visible, le rendre (pas d'attribut).
+     * Sans INK en col 0, l'encre de la ligne precedente persiste
+     * et corrompt les couleurs de toute la ligne. */
+    /* Col 0-1: reinitialiser INK et PAPER pour chaque ligne.
+     * Sans reset, les couleurs de la ligne precedente persistent.
+     * Col 0 = PAPER BLACK (reset fond), Col 1 = INK WHITE (reset encre).
+     * Si col 0 ou 1 ont du contenu visible, rendre le caractere a la place. */
+    {
+        unsigned char ch0 = ctx->screen[row][0].ch;
+        unsigned char ch1 = ctx->screen[row][1].ch;
+        if (ch0 == ' ' || ch0 == 0x20 || ch0 == 0) {
+            set_paper_attr(0, row, VTX_BLACK);
+        } else {
+            render_cell_hires(&ctx->screen[row][0], 0, row);
+        }
+        if (ch1 == ' ' || ch1 == 0x20 || ch1 == 0) {
+            set_ink_attr(1, row, VTX_WHITE);
+        } else {
+            render_cell_hires(&ctx->screen[row][1], 1, row);
+        }
+    }
+    prev_fg = VTX_WHITE;
     prev_bg = VTX_BLACK;
 
-    /* Cols 1-39 */
-    for (col = 1; col < SCREEN_COLS; ++col) {
+    /* Cols 2-39 (cols 0-1 deja traitees pour PAPER/INK reset) */
+    for (col = 2; col < SCREEN_COLS; ++col) {
         vtx_cell_t* cell = &ctx->screen[row][col];
         cell_fg = cell->fg;
         cell_bg = cell->bg;
