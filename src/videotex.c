@@ -75,8 +75,10 @@ void vtx_clear_page(vtx_context_t* ctx)
         }
     }
 
-    /* Marquer toutes les lignes comme modifiees */
-    memset(&ctx->dirty[1], 1, VTX_ROWS - 1);
+    /* Effacer le framebuffer HIRES d'un coup (8000 octets = $40)
+     * au lieu de marquer dirty et re-rendre 1000 cellules vides */
+    display_clear();
+    memset(&ctx->dirty[1], 0, VTX_ROWS - 1);
 
     ctx->cur_x = 0;
     ctx->cur_y = 1;
