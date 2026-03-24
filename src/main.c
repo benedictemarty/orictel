@@ -340,7 +340,11 @@ static unsigned char at_wait_response(const char* keyword, unsigned int timeout_
     return 0;
 }
 
-/* Menu de selection serveur */
+/* Buffer pour saisie libre du serveur */
+static char custom_server[40];
+
+/* Menu de selection serveur.
+ * Retourne 0-1 pour les predefinis, 255 pour saisie libre. */
 static unsigned char select_server(vtx_context_t* ctx)
 {
     unsigned char i, j, sel;
@@ -365,13 +369,67 @@ static unsigned char select_server(vtx_context_t* ctx)
         }
         ctx->dirty[12 + sel * 2] = 1;
     }
+
+    /* Option 3: saisie libre */
+    {
+        unsigned char row = 12 + NUM_SERVERS * 2;
+        ctx->screen[row][5].ch = '3';
+        ctx->screen[row][5].fg = VTX_CYAN;
+        ctx->screen[row][7].ch = '-';
+        ctx->screen[row][7].fg = VTX_WHITE;
+        p = "Autre (host:port)";
+        for (j = 0; p[j]; ++j) {
+            ctx->screen[row][9 + j].ch = p[j];
+            ctx->screen[row][9 + j].fg = VTX_YELLOW;
+        }
+        ctx->dirty[row] = 1;
+    }
     display_render(ctx);
 
-    /* Attendre touche 1 ou 2 */
+    /* Attendre touche 1, 2 ou 3 */
     for (;;) {
         unsigned char key = keyboard_scan();
         if (key >= '1' && key < '1' + NUM_SERVERS) {
             return key - '1';
+        }
+        if (key == '3') {
+            /* Saisie libre du serveur */
+            unsigned char row = 12 + NUM_SERVERS * 2 + 2;
+            unsigned char pos = 0;
+            p = "host:port> ";
+            for (j = 0; p[j]; ++j) {
+                ctx->screen[row][3 + j].ch = p[j];
+                ctx->screen[row][3 + j].fg = VTX_WHITE;
+            }
+            ctx->dirty[row] = 1;
+            display_render(ctx);
+
+            /* Boucle de saisie */
+            for (;;) {
+                key = keyboard_scan();
+                if (key == KEY_NONE) continue;
+                if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ENVOI) {
+                    /* RETURN = valider */
+                    custom_server[pos] = 0;
+                    if (pos > 0) return 255;
+                } else if (key == 0x7F || key == 0x08) {
+                    /* DELETE/BS = effacer */
+                    if (pos > 0) {
+                        --pos;
+                        ctx->screen[row][14 + pos].ch = ' ';
+                        ctx->dirty[row] = 1;
+                        display_render(ctx);
+                    }
+                } else if (key >= 0x20 && key < 0x7F && pos < 38) {
+                    /* Caractere normal */
+                    custom_server[pos] = key;
+                    ctx->screen[row][14 + pos].ch = key;
+                    ctx->screen[row][14 + pos].fg = VTX_GREEN;
+                    ctx->dirty[row] = 1;
+                    display_render(ctx);
+                    ++pos;
+                }
+            }
         }
     }
 }
@@ -400,27 +458,33 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
         return 0;  /* Pas de modem (mode TCP direct) */
     }
 
-    /* Afficher "ATD serveur..." */
-    vtx_clear_page(ctx);
-    msg = "ATD ";
-    for (i = 0; msg[i]; ++i) {
-        ctx->screen[10][5 + i].ch = msg[i];
-        ctx->screen[10][5 + i].fg = VTX_WHITE;
-    }
+    /* Determiner le serveur */
     {
-        const char* srv = servers[server_idx];
+        const char* srv;
         unsigned char j;
+
+        if (server_idx == 255) {
+            srv = custom_server;
+        } else {
+            srv = servers[server_idx];
+        }
+
+        /* Afficher "ATD serveur..." */
+        vtx_clear_page(ctx);
+        msg = "ATD ";
+        for (i = 0; msg[i]; ++i) {
+            ctx->screen[10][5 + i].ch = msg[i];
+            ctx->screen[10][5 + i].fg = VTX_WHITE;
+        }
         for (j = 0; srv[j]; ++j) {
             ctx->screen[10][9 + j].ch = srv[j];
             ctx->screen[10][9 + j].fg = VTX_CYAN;
         }
-    }
-    ctx->dirty[10] = 1;
-    display_render(ctx);
+        ctx->dirty[10] = 1;
+        display_render(ctx);
 
-    /* ATD serveur:port */
-    {
-        const char* srv = servers[server_idx];
+        /* ATD serveur:port */
+        dbg_init(12);
         serial_send('A'); serial_send('T'); serial_send('D');
         while (*srv) { serial_send(*srv); ++srv; }
         serial_send(0x0D);
@@ -428,9 +492,23 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
 
     /* Attendre CONNECT (~10s timeout) */
     if (at_wait_response("CONNECT", 10000)) {
-        /* Drainer le reste de la ligne */
-        delay_ms(500);
-        while (serial_poll()) serial_recv();
+        /* Drainer UNIQUEMENT le \r\n apres CONNECT (pas les donnees Videotex) */
+        {
+            unsigned char drain = 0;
+            while (drain < 5) {
+                if (serial_poll()) {
+                    unsigned char b = serial_recv();
+                    if (b == 0x0D || b == 0x0A) {
+                        ++drain;
+                        continue;
+                    }
+                    /* Premier octet non-CRLF = debut Videotex, on arrete */
+                    break;
+                }
+                delay_ms(10);
+                ++drain;
+            }
+        }
         return 1;
     }
     return 0;
@@ -478,22 +556,8 @@ int main(void)
         /* Tenter connexion modem AT */
         at_ok = modem_connect(&vtx, srv_idx);
 
+        /* Effacer l'ecran et passer directement au mode terminal */
         vtx_clear_page(&vtx);
-        if (at_ok) {
-            /* Modem connecte (Oricutron) */
-            static const char m[] = "Modem connecte!";
-            unsigned char i;
-            for (i = 0; m[i]; ++i)
-                vtx.screen[12][12 + i].ch = m[i];
-            vtx.dirty[12] = 1;
-        } else {
-            /* Pas de modem (TCP direct Phosphoric) */
-            static const char m[] = "Mode TCP direct";
-            unsigned char i;
-            for (i = 0; m[i]; ++i)
-                vtx.screen[12][12 + i].ch = m[i];
-            vtx.dirty[12] = 1;
-        }
     }
 
     /* Indicateur initial: F */
