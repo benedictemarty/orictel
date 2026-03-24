@@ -18,6 +18,10 @@
 - Menu mode de connexion: 1-Modem AT, 2-Direct (TCP/V23)
 - Makefile: cibles run (TCP direct) et run-modem (modem AT Hayes)
 - serial_asm.s: reset ACIA propre (lda #$00 + clear status/data)
+- Display: rendu PAPER/fond pour backgrounds non-noirs (cartes poker)
+- Display: propagation attributs double-hauteur sur ligne du dessus
+- Display: regle caractere prioritaire sur couleur (jamais sacrifier du texte)
+- Perf: display_clear() dans vtx_clear_page (clear instantane)
 
 ## [0.1.1-alpha] - 2026-03-22
 

@@ -458,9 +458,34 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
                 render_cell_hires(cell, col, row);
             }
         } else {
-            /* Cellule avec contenu: TOUJOURS rendre le caractere.
-             * La couleur INK courante s'applique (peut etre fausse). */
+            /* Cellule avec contenu: TOUJOURS rendre le caractere. */
             render_cell_hires(cell, col, row);
+
+            /* Double hauteur/taille: la moitie haute est ecrite sur row-1.
+             * Il faut que row-1 ait les memes attributs PAPER/INK pour que
+             * les pixels de la moitie haute soient visibles correctement. */
+            if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
+                            cell->size == SIZE_DOUBLE_SIZE)) {
+                /* Chercher la cellule correspondante sur row-1 pour
+                 * determiner si on peut y poser un attribut */
+                vtx_cell_t* above = &ctx->screen[row - 1][col];
+                unsigned char ab_empty = (above->ch == ' ' ||
+                                          above->ch == 0x20 ||
+                                          above->ch == 0);
+                /* Si la cellule du dessus est vide, poser PAPER+INK */
+                if (ab_empty && col > 0) {
+                    /* Chercher une colonne vide a gauche pour l'attribut */
+                    unsigned char ac;
+                    for (ac = col; ac > 0; --ac) {
+                        vtx_cell_t* left = &ctx->screen[row - 1][ac - 1];
+                        if (left->ch == ' ' || left->ch == 0x20 ||
+                            left->ch == 0) {
+                            set_paper_attr(ac - 1, row - 1, cell_bg);
+                            break;
+                        }
+                    }
+                }
+            }
 
             if (cell->size == SIZE_DOUBLE_WIDTH ||
                 cell->size == SIZE_DOUBLE_SIZE) {
