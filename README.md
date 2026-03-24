@@ -1,7 +1,7 @@
 # OricTel - Emulateur Minitel 1B pour Oric 1/Atmos
 
-**Version:** 0.1.0-alpha
-**Date:** 2026-03-22
+**Version:** 0.2.1
+**Date:** 2026-03-24
 **Auteur:** bmarty <bmarty@mailo.com>
 
 ## Description
@@ -9,43 +9,72 @@
 OricTel transforme votre Oric 1 ou Oric Atmos en terminal Minitel 1B complet,
 capable de se connecter aux serveurs Minitel encore en activite sur Internet.
 
-Le logiciel fonctionne avec l'emulateur **Phosphoric** et utilise son interface
-serie ACIA 6551 (backend TCP) pour communiquer via un bridge WebSocket avec
-le serveur `ws://3617.fr/ws`.
+Le logiciel supporte deux modes de connexion :
+
+1. **Backend Digitelec** (recommande) : connexion TCP directe via l'emulateur
+   Phosphoric, sans bridge intermediaire.
+2. **Backend TCP + bridge WebSocket** : relais Python asyncio entre l'emulateur
+   et un serveur Minitel WebSocket.
 
 ## Architecture
 
 ```
-[Programme Oric]  <--ACIA 6551 @ $031C-->  [Phosphoric TCP backend]
-                  <--TCP socket-->          [orictel-bridge]
-                  <--WebSocket-->           ws://3617.fr/ws
+Serveur Minitel (ex: pavi.3617.fr:3617)
+         |
+         | TCP direct (Digitelec)     ou     WebSocket (ws://3617.fr/ws)
+         |                                        |
+         v                               [orictel_bridge.py]
+[Phosphoric / Oricutron]                         |
+  ACIA 6551 @ $031C                      TCP :3615
+         |                                        |
+         +----------------------------------------+
+         |
+         v
+  [Programme OricTel sur Oric]
+    +-- serial_asm.s   (driver ACIA 6551, polling)
+    +-- videotex.c     (decodeur protocole Videotex)
+    +-- display.c      (rendu HIRES 240x200)
+    +-- keyboard.c     (clavier + mapping Minitel)
+    +-- fonts.c        (G0, G1, G2)
+    +-- main.c         (boucle principale, menus, modem AT)
 ```
 
 ### Composants
 
 1. **Programme Oric** (`orictel.tap`) - Terminal Minitel en 6502 (C + ASM via cc65)
-   - Decodeur protocole Videotex (Teletel/Antiope)
-   - Rendu HIRES 40x25 avec mosaiques G1
-   - Jeux de caracteres G0 (alphanum), G1 (mosaiques), G2 (supplementaire)
-   - Mapping clavier Oric -> touches fonction Minitel
+   - Decodeur protocole Videotex complet (Teletel/Antiope)
+   - Machine a etats : ESC, CSI, US, SS2, REP, PRO
+   - Rendu HIRES 40x25 avec optimisation dirty-rectangle
+   - Jeux de caracteres G0 (alphanum + accents), G1 (mosaiques 2x3), G2 (supplementaire)
+   - 3 modes de rendu commutables (CTRL+D) : hybride, dithering, brut
+   - Attributs complets : couleurs (encre/fond), flash, inversion, soulignement, masque, separe
+   - Double hauteur, double largeur, double taille
+   - 12 combinaisons d'accents via SS2
+   - Identification terminal ENQ (Minitel 1B)
+   - Splash screen avec jingle AY-3-8912 style GameCube
+   - Menu de selection de serveur (predefinis + saisie libre)
+   - Support modem AT (compatibilite Oricutron)
+   - Mode rouleau, curseur visible clignotant, beep PSG
 
 2. **Bridge WebSocket-TCP** (`orictel_bridge.py`) - Proxy Python asyncio
    - Ecoute TCP sur port 3615 (emulateur)
    - Connexion WebSocket vers 3617.fr
    - Relais bidirectionnel transparent
+   - Statistiques de transfert et mode verbose
 
 ## Pre-requis
 
 - **cc65** (cross-compilateur 6502) >= 2.19
-- **Python 3.8+** avec module `websockets`
-- **Emulateur Phosphoric** (avec support ACIA + backend TCP)
+- **Python 3.8+** avec module `websockets` >= 12.0
+- **Emulateur Phosphoric** (avec support ACIA + backend Digitelec ou TCP)
+  - Ou **Oricutron** (avec support modem AT)
 - ROMs Oric (basic11b.rom pour Atmos, basic10.rom pour Oric-1)
 
 ## Compilation
 
 ```bash
 # Compiler le programme Oric
-make orictel.tap
+make
 
 # Installer les dependances du bridge
 pip3 install -r bridge/requirements.txt
@@ -53,18 +82,32 @@ pip3 install -r bridge/requirements.txt
 
 ## Utilisation
 
+### Mode Digitelec (recommande, sans bridge)
+
 ```bash
-# 1. Lancer le bridge WebSocket
-python3 bridge/orictel_bridge.py &
-
-# 2. Lancer l'emulateur avec OricTel
 make run
-
-# Ou manuellement:
-/home/bmarty/Oric1/phosphoric --rom basic11b.rom \
-    --tape orictel.tap --fastload \
-    --serial tcp:127.0.0.1:3615 --serial-v23
+# Equivalent a:
+# phosphoric --rom basic11b.rom --tape orictel.tap --fastload \
+#     --serial digitelec:pavi.3617.fr:3617
 ```
+
+### Mode WebSocket (avec bridge)
+
+```bash
+# 1. Lancer le bridge
+make bridge
+# Ou: python3 bridge/orictel_bridge.py [--tcp-port 3615] [--ws-url ws://3617.fr/ws] [-v]
+
+# 2. Lancer l'emulateur
+make run-ws
+```
+
+### Serveurs Minitel disponibles
+
+Le menu de selection integre propose plusieurs serveurs :
+- `pavi.3617.fr:3617` - Pavi (recommande)
+- `minitel.3614.fr:516` - 3614
+- Saisie libre pour tout autre serveur (hostname:port)
 
 ## Touches Minitel
 
@@ -82,14 +125,26 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 | Correction        | DELETE            |             | SEP $47        |
 | Suite (page suiv) | CTRL+N ou Fl.BAS  | FUNCT+N     | SEP $48        |
 | Connexion/Fin     | CTRL+C            | FUNCT+C     | SEP $49        |
+| Mode rendu        | CTRL+D            |             | (local)        |
 
 ## Specifications techniques
 
 - **Affichage:** Mode HIRES 240x200, 40x25 caracteres (6x8 pixels/car)
 - **Serie:** ACIA 6551 mode V23 - 1200 baud RX / 75 baud TX, 7 bits, parite paire
-- **Memoire:** Code $0501-$9FFF (~39 Ko), HIRES $A000-$BF3F
+- **Memoire:** Code $0501-$97FF (~37 Ko), BSS $9800-$9FFF, HIRES $A000-$BF3F
 - **Protocole:** Videotex Teletel/Antiope (norme francaise Minitel)
+- **Rendu:** 3 modes (hybride G0+G1 dithering, tout dithering, brut)
+- **Optimisation:** Dirty-rectangle (seules les lignes modifiees sont re-rendues)
 - **Reference:** Emulateur JS miedit/telenet pour validite du protocole
+
+## Documentation
+
+- `docs/ARCHITECTURE.md` - Architecture technique detaillee, carte memoire, registres ACIA
+- `docs/AGILE_PLAN.md` - Plan agile et suivi des sprints
+- `ROADMAP` - Vision et planification des versions
+- `CHANGELOG` - Historique des modifications
+- `VERSION_TRACKING` - Suivi des versions par composant
+- `CIRRUS_OS` - Statut de build et plateforme cible
 
 ## Licence
 

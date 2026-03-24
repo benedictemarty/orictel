@@ -1,5 +1,15 @@
 # CHANGELOG - OricTel
 
+## [0.2.1] - 2026-03-24
+
+### Amelioration
+- Display: optimisation render_cell_hires() avec fast path G0 et boucles deroulees
+- Display: elimination des boucles for au profit d'acces directs indexés (8 lignes)
+- README: mise a jour complete pour refleter l'etat v0.2.x du projet
+- README: documentation des deux modes de connexion (Digitelec + bridge)
+- README: ajout menu serveur, modem AT, modes de rendu, splash screen
+- Ajout CLAUDE.md pour integration Claude Code
+
 ## [0.1.1-alpha] - 2026-03-22
 
 ### Correction

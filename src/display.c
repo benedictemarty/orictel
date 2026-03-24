@@ -215,26 +215,41 @@ static void render_cell_hires(const vtx_cell_t* cell,
     unsigned char use_dither;
 
     ch = cell->ch;
+
+    /* === FAST PATH: G0 normal, pas de flags speciaux ===
+     * 90% des cellules passent par ici. Evite tous les tests. */
+    if (cell->charset == CHARSET_G0 &&
+        cell->size == SIZE_NORMAL &&
+        cell->flags == 0 &&
+        g_render_mode != 1) {
+        glyph = font_get_g0(ch);
+        ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+        ptr[0]   = glyph[0] | 0x40;
+        ptr[40]  = glyph[1] | 0x40;
+        ptr[80]  = glyph[2] | 0x40;
+        ptr[120] = glyph[3] | 0x40;
+        ptr[160] = glyph[4] | 0x40;
+        ptr[200] = glyph[5] | 0x40;
+        ptr[240] = glyph[6] | 0x40;
+        ptr[280] = glyph[7] | 0x40;
+        return;
+    }
+
+    /* === SLOW PATH: cas speciaux === */
     if (cell->flags & ATTR_CONCEALED) ch = ' ';
 
-    /* Feature 4: Clignotement - si blink_phase=1 et ATTR_FLASH, rendre vide */
     if ((cell->flags & ATTR_FLASH) && g_blink_phase) {
         ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
-        for (line = 0; line < CHAR_H; ++line) {
-            *ptr = 0x40;
-            ptr += 40;
-        }
+        ptr[0] = 0x40; ptr[40] = 0x40; ptr[80] = 0x40; ptr[120] = 0x40;
+        ptr[160] = 0x40; ptr[200] = 0x40; ptr[240] = 0x40; ptr[280] = 0x40;
         return;
     }
 
     inv_bit = (cell->flags & ATTR_INVERT) ? 0xC0 : 0x40;
 
-    /* G1 = dithering, G0/G2 = pixels pleins */
-    /* Mode 0=hybride (G1 dither), 1=tout dither, 2=brut (tout blanc) */
     use_dither = (g_render_mode == 1 ||
                   (g_render_mode == 0 && cell->charset == CHARSET_G1)) ? 1 : 0;
 
-    /* Selectionner le glyphe */
     if (cell->charset == CHARSET_G1) {
         generate_mosaic(ch, mosaic_buf,
                         (cell->flags & ATTR_SEPARATED) ? 1 : 0);
@@ -346,19 +361,28 @@ static void render_cell_hires(const vtx_cell_t* cell,
             ptr += 40;
         }
     } else {
-        /* TAILLE NORMALE */
+        /* TAILLE NORMALE - boucle deroulee pour vitesse */
+        const unsigned char* dt = use_dither ? g1_dither[cell->fg & 7] : NULL;
+        unsigned char ul = (cell->flags & ATTR_UNDERLINE) ? 1 : 0;
         ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
-        for (line = 0; line < CHAR_H; ++line) {
-            unsigned char g = glyph[line];
-            if (use_dither) g &= g1_dither[cell->fg & 7][line];
-
-            /* Feature 3: Underline - derniere ligne pixel = tous pixels on */
-            if ((cell->flags & ATTR_UNDERLINE) && line == 7) {
-                g = 0x3F;
-            }
-
-            *ptr = g | inv_bit;
-            ptr += 40;
+        if (dt) {
+            ptr[0]   = (glyph[0] & dt[0]) | inv_bit;
+            ptr[40]  = (glyph[1] & dt[1]) | inv_bit;
+            ptr[80]  = (glyph[2] & dt[2]) | inv_bit;
+            ptr[120] = (glyph[3] & dt[3]) | inv_bit;
+            ptr[160] = (glyph[4] & dt[4]) | inv_bit;
+            ptr[200] = (glyph[5] & dt[5]) | inv_bit;
+            ptr[240] = (glyph[6] & dt[6]) | inv_bit;
+            ptr[280] = (ul ? 0x3F : (glyph[7] & dt[7])) | inv_bit;
+        } else {
+            ptr[0]   = glyph[0] | inv_bit;
+            ptr[40]  = glyph[1] | inv_bit;
+            ptr[80]  = glyph[2] | inv_bit;
+            ptr[120] = glyph[3] | inv_bit;
+            ptr[160] = glyph[4] | inv_bit;
+            ptr[200] = glyph[5] | inv_bit;
+            ptr[240] = glyph[6] | inv_bit;
+            ptr[280] = (ul ? 0x3F : glyph[7]) | inv_bit;
         }
     }
 }

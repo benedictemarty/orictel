@@ -4,7 +4,7 @@
 Transformer l'Oric 1/Atmos en terminal Minitel 1B complet et fidele,
 utilisable avec les serveurs Minitel modernes via Internet.
 
-## Sprint 1 - Fondations (v0.1.0) [EN COURS]
+## Sprint 1 - Fondations (v0.1.0) [TERMINE]
 - [x] Structure projet et documentation
 - [x] Bridge WebSocket-TCP
 - [x] Driver ACIA 6551
@@ -14,12 +14,14 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [x] Clavier basique + touches fonction
 - [x] Programme principal et boucle
 
-## Sprint 2 - Mosaiques et couleurs (v0.2.0) [PLANIFIE]
-- [ ] Rendu complet des mosaiques G1 (semi-graphiques 2x3)
-- [ ] Gestion complete des attributs de couleur (encre/fond)
-- [ ] Double hauteur / double largeur / double taille
-- [ ] Attributs de zone (serial attributes Videotex)
-- [ ] Optimisation dirty-rectangle pour le rendu
+## Sprint 2 - Mosaiques et couleurs (v0.2.x) [EN COURS]
+- [x] Rendu complet des mosaiques G1 (semi-graphiques 2x3)
+- [x] Gestion complete des attributs de couleur (encre/fond)
+- [x] Double hauteur / double largeur / double taille
+- [x] Attributs de zone (serial attributes Videotex)
+- [x] Optimisation dirty-rectangle pour le rendu
+- [x] 3 modes de rendu (hybride, dithering, brut)
+- [x] Fast path G0 et boucles deroulees (v0.2.1)
 
 ## Sprint 3 - Experience utilisateur (v0.3.0) [PLANIFIE]
 - [ ] Jeu de caracteres G2 (supplementaire/accents)
