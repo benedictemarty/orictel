@@ -131,8 +131,11 @@ static void play_jingle(void)
     ay_write(8, 3);   ay_write(9, 2);  ay_write(10, 1);
     delay_ms(150);
 
-    /* Silence */
+    /* Silence + restaurer l'AY pour le scan clavier.
+     * Register 7 bit 6 = 1 (Port A = input pour clavier Oric).
+     * Sans ca, kbhit()/cgetc() ne fonctionnent plus. */
     ay_write(8, 0);  ay_write(9, 0);  ay_write(10, 0);
+    ay_write(7, 0x7F);  /* Mixer: tout off, Port A input */
 }
 
 /* Ecran splash: titre, auteur, licence, email, jingle */
@@ -239,6 +242,200 @@ static void splash_screen(vtx_context_t* ctx)
     display_render(ctx);
 }
 
+/* ===================================================================
+ *  Initialisation modem AT (pour Oricutron --serial modem)
+ *
+ *  Envoie ATZ puis ATD pour se connecter au serveur.
+ *  Si pas de modem (TCP direct Phosphoric), les commandes AT
+ *  sont ignorees par le serveur Videotex (pas de reponse "OK").
+ *  Timeout rapide: si pas de "OK" en ~2s, on passe en mode direct.
+ * =================================================================== */
+
+/* Serveurs disponibles (IP directe pour compat Oricutron modem) */
+static const char* servers[] = {
+    "192.99.103.232:3617",
+    "145.239.71.221:516",
+};
+static const char* server_names[] = {
+    "PAVI 3617",
+    "MiniPavi",
+};
+#define NUM_SERVERS 2
+
+/* Envoyer une chaine AT via serie (pas de drain echo) */
+static void at_send(const char* str)
+{
+    while (*str) {
+        serial_send(*str);
+        ++str;
+    }
+    serial_send(0x0D);  /* CR */
+}
+
+/* Debug: position ecran pour afficher les octets recus */
+static unsigned char dbg_col;
+static unsigned char dbg_row;
+
+static void dbg_init(unsigned char row)
+{
+    dbg_col = 1;
+    dbg_row = row;
+}
+
+/* Afficher un octet en hex + ASCII sur l'ecran */
+static void dbg_byte(vtx_context_t* ctx, unsigned char b)
+{
+    static const char hex[] = "0123456789ABCDEF";
+
+    if (dbg_col >= 38) {
+        dbg_col = 1;
+        dbg_row++;
+        if (dbg_row >= 24) dbg_row = 20;
+    }
+
+    /* Afficher en ASCII si imprimable, sinon en hex */
+    if (b >= 0x20 && b < 0x7F) {
+        ctx->screen[dbg_row][dbg_col].ch = b;
+        ctx->screen[dbg_row][dbg_col].fg = VTX_GREEN;
+        dbg_col++;
+    } else {
+        ctx->screen[dbg_row][dbg_col].ch = hex[b >> 4];
+        ctx->screen[dbg_row][dbg_col].fg = VTX_RED;
+        dbg_col++;
+        ctx->screen[dbg_row][dbg_col].ch = hex[b & 0x0F];
+        ctx->screen[dbg_row][dbg_col].fg = VTX_RED;
+        dbg_col++;
+    }
+    ctx->dirty[dbg_row] = 1;
+    display_render(ctx);
+}
+
+/* Contexte global pour debug (accessible depuis at_wait_response) */
+static vtx_context_t* dbg_ctx;
+
+/* Attendre une reponse contenant un mot-cle dans le flux.
+ * Affiche chaque octet recu sur l'ecran pour debug. */
+static unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms)
+{
+    unsigned int elapsed = 0;
+    unsigned char ki = 0;
+
+    while (elapsed < timeout_ms) {
+        if (serial_poll()) {
+            unsigned char b = serial_recv();
+            dbg_byte(dbg_ctx, b);  /* Afficher l'octet */
+            if (b == keyword[ki]) {
+                ++ki;
+                if (keyword[ki] == 0) return 1;
+            } else if (b == keyword[0]) {
+                ki = 1;
+            } else {
+                ki = 0;
+            }
+        } else {
+            delay_ms(10);
+            elapsed += 10;
+        }
+    }
+    return 0;
+}
+
+/* Menu de selection serveur */
+static unsigned char select_server(vtx_context_t* ctx)
+{
+    unsigned char i, j, sel;
+    const char* title = "Serveur:";
+    const char* p;
+
+    for (i = 0; title[i]; ++i) {
+        ctx->screen[10][5 + i].ch = title[i];
+        ctx->screen[10][5 + i].fg = VTX_WHITE;
+    }
+    ctx->dirty[10] = 1;
+
+    for (sel = 0; sel < NUM_SERVERS; ++sel) {
+        ctx->screen[12 + sel * 2][5].ch = '1' + sel;
+        ctx->screen[12 + sel * 2][5].fg = VTX_CYAN;
+        ctx->screen[12 + sel * 2][7].ch = '-';
+        ctx->screen[12 + sel * 2][7].fg = VTX_WHITE;
+        p = server_names[sel];
+        for (j = 0; p[j]; ++j) {
+            ctx->screen[12 + sel * 2][9 + j].ch = p[j];
+            ctx->screen[12 + sel * 2][9 + j].fg = VTX_YELLOW;
+        }
+        ctx->dirty[12 + sel * 2] = 1;
+    }
+    display_render(ctx);
+
+    /* Attendre touche 1 ou 2 */
+    for (;;) {
+        unsigned char key = keyboard_scan();
+        if (key >= '1' && key < '1' + NUM_SERVERS) {
+            return key - '1';
+        }
+    }
+}
+
+/* Tenter la connexion modem AT. Retourne 1 si connecte. */
+static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
+{
+    unsigned char i;
+    const char* msg;
+
+    /* Afficher "Connexion..." */
+    vtx_clear_page(ctx);
+    msg = "ATZ...";
+    for (i = 0; msg[i]; ++i) {
+        ctx->screen[10][17 + i].ch = msg[i];
+        ctx->screen[10][17 + i].fg = VTX_WHITE;
+    }
+    ctx->dirty[10] = 1;
+    display_render(ctx);
+
+    /* ATZ - reset modem */
+    dbg_ctx = ctx;
+    dbg_init(12);
+    at_send("ATZ");
+    if (!at_wait_response("OK", 3000)) {
+        return 0;  /* Pas de modem (mode TCP direct) */
+    }
+
+    /* Afficher "ATD serveur..." */
+    vtx_clear_page(ctx);
+    msg = "ATD ";
+    for (i = 0; msg[i]; ++i) {
+        ctx->screen[10][5 + i].ch = msg[i];
+        ctx->screen[10][5 + i].fg = VTX_WHITE;
+    }
+    {
+        const char* srv = servers[server_idx];
+        unsigned char j;
+        for (j = 0; srv[j]; ++j) {
+            ctx->screen[10][9 + j].ch = srv[j];
+            ctx->screen[10][9 + j].fg = VTX_CYAN;
+        }
+    }
+    ctx->dirty[10] = 1;
+    display_render(ctx);
+
+    /* ATD serveur:port */
+    {
+        const char* srv = servers[server_idx];
+        serial_send('A'); serial_send('T'); serial_send('D');
+        while (*srv) { serial_send(*srv); ++srv; }
+        serial_send(0x0D);
+    }
+
+    /* Attendre CONNECT (~10s timeout) */
+    if (at_wait_response("CONNECT", 10000)) {
+        /* Drainer le reste de la ligne */
+        delay_ms(500);
+        while (serial_poll()) serial_recv();
+        return 1;
+    }
+    return 0;
+}
+
 /* Indicateur connexion sur ligne 0, col 38:
  * 'C' inverse = connecte, 'F' inverse = deconnecte */
 static void set_connexion_indicator(vtx_context_t* ctx, unsigned char ch)
@@ -267,23 +464,43 @@ int main(void)
     /* Ecran splash avec jingle */
     splash_screen(&vtx);
 
-    /* Message de connexion */
+    /* Serial init + delai pour laisser le modem s'initialiser */
+    serial_init();
+    delay_ms(500);
+
+    /* Menu selection serveur */
     {
-        static const char msg[] = "Connexion en cours...";
-        unsigned char i;
-        for (i = 0; msg[i]; ++i)
-            vtx.screen[12][10 + i].ch = msg[i];
-        vtx.dirty[12] = 1;
+        unsigned char srv_idx = select_server(&vtx);
+        unsigned char at_ok;
+
+        vtx_clear_page(&vtx);
+
+        /* Tenter connexion modem AT */
+        at_ok = modem_connect(&vtx, srv_idx);
+
+        vtx_clear_page(&vtx);
+        if (at_ok) {
+            /* Modem connecte (Oricutron) */
+            static const char m[] = "Modem connecte!";
+            unsigned char i;
+            for (i = 0; m[i]; ++i)
+                vtx.screen[12][12 + i].ch = m[i];
+            vtx.dirty[12] = 1;
+        } else {
+            /* Pas de modem (TCP direct Phosphoric) */
+            static const char m[] = "Mode TCP direct";
+            unsigned char i;
+            for (i = 0; m[i]; ++i)
+                vtx.screen[12][12 + i].ch = m[i];
+            vtx.dirty[12] = 1;
+        }
     }
 
-    /* Indicateur initial: F (pas encore connecte) */
+    /* Indicateur initial: F */
     connected = 0;
     idle_counter = 0;
     set_connexion_indicator(&vtx, 'F');
     display_render(&vtx);
-
-    /* Serial EN DERNIER */
-    serial_init();
 
     for (;;) {
 
