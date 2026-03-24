@@ -24,7 +24,7 @@
 extern unsigned char g_blink_phase;
 
 /* Mode rendu: 0=hybride (G0 serial + G1 dithering), 1=tout dithering */
-unsigned char g_render_mode;
+unsigned char g_render_mode = 2;  /* 0=hybride, 1=dithering, 2=brut (defaut) */
 
 /* Pointeur HIRES */
 #define HIRES ((unsigned char*)0xA000)
