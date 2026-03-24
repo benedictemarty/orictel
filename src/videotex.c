@@ -153,19 +153,8 @@ static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
         ctx->cur_x = 0;
         ctx->cur_y++;
         if (ctx->cur_y >= VTX_ROWS) {
-            /* Mode rouleau: decaler lignes 1-24 vers le haut.
-             * Ligne 0 (status) n'est pas affectee. */
-            {
-                unsigned char r;
-                for (r = 1; r < VTX_ROWS - 1; ++r) {
-                    memcpy(&ctx->screen[r][0], &ctx->screen[r + 1][0],
-                           sizeof(vtx_cell_t) * VTX_COLS);
-                    ctx->dirty[r] = 1;
-                }
-                /* Vider la derniere ligne */
-                clear_row(ctx, VTX_ROWS - 1);
-            }
-            ctx->cur_y = VTX_ROWS - 1;
+            /* Mode page (defaut): retour en ligne 1 (pas 0 = status) */
+            ctx->cur_y = 1;
         }
     }
 }
@@ -207,16 +196,8 @@ static void cursor_down(vtx_context_t* ctx)
 {
     if (ctx->cur_y < VTX_ROWS - 1) {
         ctx->cur_y++;
-    } else {
-        /* Scroll: decaler lignes 1-24 vers le haut */
-        unsigned char r;
-        for (r = 1; r < VTX_ROWS - 1; ++r) {
-            memcpy(&ctx->screen[r][0], &ctx->screen[r + 1][0],
-                   sizeof(vtx_cell_t) * VTX_COLS);
-            ctx->dirty[r] = 1;
-        }
-        clear_row(ctx, VTX_ROWS - 1);
     }
+    /* Mode page: pas de scroll, curseur reste en ligne 24 */
 }
 
 /* ===================================================================
