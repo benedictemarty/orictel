@@ -422,76 +422,50 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         return;
     }
 
-    /* Mode hybride: col 0 = PAPER, col 1 = INK si ces cellules
-     * sont vides (delimiteurs Videotex). Sinon, rendre le contenu. */
+    /* Mode hybride: le caractere est TOUJOURS prioritaire sur la couleur.
+     * On n'insere un attribut (INK/PAPER) que sur les cellules vides.
+     * Une cellule avec contenu est toujours rendue, meme si la couleur
+     * est fausse — mieux vaut un texte visible en mauvaise couleur
+     * qu'un texte invisible. */
     prev_bg = VTX_BLACK;
     prev_fg = VTX_WHITE;
-    {
-        unsigned char ch0 = ctx->screen[row][0].ch;
-        unsigned char ch1 = ctx->screen[row][1].ch;
-        unsigned char empty0 = (ch0 == ' ' || ch0 == 0x20 || ch0 == 0);
-        unsigned char empty1 = (ch1 == ' ' || ch1 == 0x20 || ch1 == 0);
 
-        if (empty0) {
-            prev_bg = ctx->screen[row][0].bg;
-            set_paper_attr(0, row, prev_bg);
-            /* Propager PAPER sur ligne au-dessus pour double hauteur */
-            if (row > 0 && prev_bg != VTX_BLACK) {
-                set_paper_attr(0, row - 1, prev_bg);
-            }
-        } else {
-            set_paper_attr(0, row, VTX_BLACK);
-            render_cell_hires(&ctx->screen[row][0], 0, row);
-        }
-
-        if (empty1) {
-            prev_fg = ctx->screen[row][1].fg;
-            set_ink_attr(1, row, prev_fg);
-        } else {
-            set_ink_attr(1, row, VTX_WHITE);
-            render_cell_hires(&ctx->screen[row][1], 1, row);
-        }
-    }
-
-    for (col = 2; col < SCREEN_COLS; ++col) {
+    for (col = 0; col < SCREEN_COLS; ++col) {
         vtx_cell_t* cell = &ctx->screen[row][col];
         cell_fg = cell->fg;
         cell_bg = cell->bg;
         is_empty = (cell->ch == ' ' || cell->ch == 0x20 || cell->ch == 0);
 
-        /* Changement de PAPER: toujours prioritaire.
-         * Sur l'Oric, PAPER est un attribut serial qui prend une colonne.
-         * En Videotex, les changements de fond arrivent sur des cellules vides. */
-        if (cell_bg != prev_bg) {
-            set_paper_attr(col, row, cell_bg);
-            if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
-                            cell->size == SIZE_DOUBLE_SIZE)) {
-                set_paper_attr(col, row - 1, cell_bg);
-            }
-            prev_bg = cell_bg;
-            if (is_empty) continue;
-        }
-
-        /* Changement de INK */
-        if (cell_fg != prev_fg) {
-            if (is_empty) {
+        if (is_empty) {
+            /* Cellule vide: utiliser pour un attribut si couleur change.
+             * PAPER prioritaire, puis INK. */
+            if (cell_bg != prev_bg) {
+                set_paper_attr(col, row, cell_bg);
+                if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
+                                cell->size == SIZE_DOUBLE_SIZE)) {
+                    set_paper_attr(col, row - 1, cell_bg);
+                }
+                prev_bg = cell_bg;
+            } else if (cell_fg != prev_fg) {
                 set_ink_attr(col, row, cell_fg);
                 if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
                                 cell->size == SIZE_DOUBLE_SIZE)) {
                     set_ink_attr(col, row - 1, cell_fg);
                 }
                 prev_fg = cell_fg;
-                continue;
+            } else {
+                /* Vide, pas de changement: rendre espace (fond courant) */
+                render_cell_hires(cell, col, row);
             }
-        }
+        } else {
+            /* Cellule avec contenu: TOUJOURS rendre le caractere.
+             * La couleur INK courante s'applique (peut etre fausse). */
+            render_cell_hires(cell, col, row);
 
-        render_cell_hires(cell, col, row);
-
-        /* Double largeur/taille: sauter la colonne suivante
-         * (le rendu a deja ecrit dans col+1) */
-        if (cell->size == SIZE_DOUBLE_WIDTH ||
-            cell->size == SIZE_DOUBLE_SIZE) {
-            ++col;
+            if (cell->size == SIZE_DOUBLE_WIDTH ||
+                cell->size == SIZE_DOUBLE_SIZE) {
+                ++col;
+            }
         }
     }
 }
