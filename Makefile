@@ -94,14 +94,14 @@ $(BLDDIR):
 
 run: $(OUTPUT)
 	@echo "=== OricTel -> $(MINITEL_SERVER) (Digitelec) ==="
-	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) --fastload $(EMU_OPTS)
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS)
 
 # Lancer avec le bridge WebSocket (pour ws://3617.fr)
 run-ws: $(OUTPUT)
 	@echo "=== Lancement du bridge WebSocket ==="
 	python3 $(BRDIR)/orictel_bridge.py &
 	@sleep 2
-	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) --fastload \
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f \
 		--serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
 	-kill %1 2>/dev/null
 
