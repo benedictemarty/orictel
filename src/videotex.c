@@ -9,6 +9,7 @@
 #include <string.h>
 #include "videotex.h"
 #include "display.h"
+#include "serial.h"
 
 /* ===================================================================
  *  Initialisation
@@ -527,6 +528,13 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
     /* Codes de controle C0 ($00-$1F) */
     if (byte < 0x20) {
         switch (byte) {
+            case 0x05:  /* ENQ - identification terminal */
+                serial_send(0x01);  /* SOH */
+                serial_send(0x7B);  /* Constructeur (Matra) */
+                serial_send(0x74);  /* Type (Minitel 1B) */
+                serial_send(0x63);  /* Version */
+                serial_send(0x04);  /* EOT */
+                break;
             case 0x07:  /* BEL - bip */
                 display_beep();
                 break;
