@@ -406,11 +406,27 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     unsigned char cell_fg;
     unsigned char cell_bg;
     unsigned char is_empty;
+    unsigned char use_attrs;  /* 1=hybride (couleurs), 0=brut (blanc/noir) */
+    unsigned char has_colors;
+    unsigned char has_empty;
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Mode 1 (tout-dithering) ou 2 (brut): pas d'attributs serial */
-    if (g_render_mode >= 1) {
+    /* Mode force par l'utilisateur (CTRL+D) */
+    if (g_render_mode == 2) {
+        /* Brut force: tout blanc, aucun attribut */
+        set_ink_attr(0, row, VTX_WHITE);
+        for (col = 0; col < SCREEN_COLS; ++col) {
+            render_cell_hires(&ctx->screen[row][col], col, row);
+            if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
+                ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
+                ++col;
+            }
+        }
+        return;
+    }
+    if (g_render_mode == 1) {
+        /* Dithering force: tout dithering, INK blanc */
         set_ink_attr(0, row, VTX_WHITE);
         for (col = 0; col < SCREEN_COLS; ++col) {
             render_cell_hires(&ctx->screen[row][col], col, row);
@@ -422,11 +438,35 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         return;
     }
 
-    /* Mode hybride: le caractere est TOUJOURS prioritaire sur la couleur.
-     * On n'insere un attribut (INK/PAPER) que sur les cellules vides.
-     * Une cellule avec contenu est toujours rendue, meme si la couleur
-     * est fausse — mieux vaut un texte visible en mauvaise couleur
-     * qu'un texte invisible. */
+    /* Mode 0 = AUTO: decider par ligne si on utilise les attributs.
+     * Regle: couleurs SI la ligne a des changements de couleur
+     * ET des cellules vides pour poser les attributs.
+     * Sinon: brut (caractere prioritaire, blanc sur noir). */
+    has_colors = 0;
+    has_empty = 0;
+    for (col = 0; col < SCREEN_COLS; ++col) {
+        vtx_cell_t* c = &ctx->screen[row][col];
+        if (c->fg != VTX_WHITE || c->bg != VTX_BLACK) has_colors = 1;
+        if (c->ch == ' ' || c->ch == 0x20 || c->ch == 0) has_empty = 1;
+        if (has_colors && has_empty) break;
+    }
+    use_attrs = (has_colors && has_empty) ? 1 : 0;
+
+    if (!use_attrs) {
+        /* Brut: tout rendre en blanc, pas d'attributs */
+        set_ink_attr(0, row, VTX_WHITE);
+        for (col = 0; col < SCREEN_COLS; ++col) {
+            render_cell_hires(&ctx->screen[row][col], col, row);
+            if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
+                ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
+                ++col;
+            }
+        }
+        return;
+    }
+
+    /* Hybride: attributs INK/PAPER sur cellules vides,
+     * caractere TOUJOURS prioritaire. */
     prev_bg = VTX_BLACK;
     prev_fg = VTX_WHITE;
 
@@ -437,56 +477,17 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         is_empty = (cell->ch == ' ' || cell->ch == 0x20 || cell->ch == 0);
 
         if (is_empty) {
-            /* Cellule vide: utiliser pour un attribut si couleur change.
-             * PAPER prioritaire, puis INK. */
             if (cell_bg != prev_bg) {
                 set_paper_attr(col, row, cell_bg);
-                if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
-                                cell->size == SIZE_DOUBLE_SIZE)) {
-                    set_paper_attr(col, row - 1, cell_bg);
-                }
                 prev_bg = cell_bg;
             } else if (cell_fg != prev_fg) {
                 set_ink_attr(col, row, cell_fg);
-                if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
-                                cell->size == SIZE_DOUBLE_SIZE)) {
-                    set_ink_attr(col, row - 1, cell_fg);
-                }
                 prev_fg = cell_fg;
             } else {
-                /* Vide, pas de changement: rendre espace (fond courant) */
                 render_cell_hires(cell, col, row);
             }
         } else {
-            /* Cellule avec contenu: TOUJOURS rendre le caractere. */
             render_cell_hires(cell, col, row);
-
-            /* Double hauteur/taille: la moitie haute est ecrite sur row-1.
-             * Il faut que row-1 ait les memes attributs PAPER/INK pour que
-             * les pixels de la moitie haute soient visibles correctement. */
-            if (row > 0 && (cell->size == SIZE_DOUBLE_HEIGHT ||
-                            cell->size == SIZE_DOUBLE_SIZE)) {
-                /* Chercher la cellule correspondante sur row-1 pour
-                 * determiner si on peut y poser un attribut */
-                vtx_cell_t* above = &ctx->screen[row - 1][col];
-                unsigned char ab_empty = (above->ch == ' ' ||
-                                          above->ch == 0x20 ||
-                                          above->ch == 0);
-                /* Si la cellule du dessus est vide, poser PAPER+INK */
-                if (ab_empty && col > 0) {
-                    /* Chercher une colonne vide a gauche pour l'attribut */
-                    unsigned char ac;
-                    for (ac = col; ac > 0; --ac) {
-                        vtx_cell_t* left = &ctx->screen[row - 1][ac - 1];
-                        if (left->ch == ' ' || left->ch == 0x20 ||
-                            left->ch == 0) {
-                            set_paper_attr(ac - 1, row - 1, cell_bg);
-                            break;
-                        }
-                    }
-                }
-            }
-
             if (cell->size == SIZE_DOUBLE_WIDTH ||
                 cell->size == SIZE_DOUBLE_SIZE) {
                 ++col;

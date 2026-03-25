@@ -484,6 +484,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                 case 0x48: /* trema */
                     if (byte == 0x65) acc_ch = 0x8A; /* e" */
                     else if (byte == 0x69) acc_ch = 0x8B; /* i" */
+                    else if (byte == 0x75) acc_ch = 0x8C; /* u" */
                     break;
                 case 0x4B: /* cedille */
                     if (byte == 0x63) acc_ch = 0x85; /* c, */
