@@ -110,9 +110,14 @@ typedef struct {
     /* Code accent SS2 en cours ($41=grave, $42=aigu, $43=circ, $48=trema, $4B=cedille) */
     unsigned char ss2_accent;
 
-    /* Sequence PRO en cours: nombre d'octets restant a consommer.
-     * PRO1 (ESC $39) = 1 octet, PRO2 (ESC $3A) = 2 octets, PRO3 (ESC $3B) = 3 */
-    unsigned char pro_remaining;
+    /* Sequence PRO en cours.
+     * pro_kind: 1, 2 ou 3 (nombre total d'octets attendus apres ESC $39/$3A/$3B)
+     * pro_idx: index du prochain octet a recevoir (0..pro_kind-1)
+     * pro_buf: octets PRO accumules pour dispatch a la fin (ENQROM, AIGUILLAGE...)
+     * Quand pro_idx == pro_kind, la sequence est complete. */
+    unsigned char pro_kind;
+    unsigned char pro_idx;
+    unsigned char pro_buf[3];
 
     /* Buffer ecran (40x25 cellules) */
     vtx_cell_t screen[VTX_ROWS][VTX_COLS];

@@ -328,19 +328,10 @@ static void process_esc(vtx_context_t* ctx, unsigned char byte)
      * PRO2: ESC $3A + 2 octets (commande + parametre)
      * PRO3: ESC $3B + 3 octets (commande + 2 parametres)
      * Reference: STUM 1B (specification technique du Minitel) */
-    if (byte == 0x39) {
+    if (byte >= 0x39 && byte <= 0x3B) {
         ctx->state = VTX_STATE_PRO;
-        ctx->pro_remaining = 1;
-        return;
-    }
-    if (byte == 0x3A) {
-        ctx->state = VTX_STATE_PRO;
-        ctx->pro_remaining = 2;
-        return;
-    }
-    if (byte == 0x3B) {
-        ctx->state = VTX_STATE_PRO;
-        ctx->pro_remaining = 3;
+        ctx->pro_kind = byte - 0x38;  /* $39->1, $3A->2, $3B->3 */
+        ctx->pro_idx = 0;
         return;
     }
 
@@ -418,6 +409,38 @@ static void process_csi(vtx_context_t* ctx, unsigned char byte)
     }
 
     ctx->state = VTX_STATE_NORMAL;
+}
+
+/* ===================================================================
+ *  Dispatch d'une sequence PRO complete (PRO1/PRO2/PRO3)
+ *
+ *  Appele quand pro_idx == pro_kind. pro_buf[0..pro_kind-1] contient
+ *  les octets de la sequence. Reagit aux commandes connues, ignore
+ *  les autres en preservant le sync.
+ * =================================================================== */
+
+static void dispatch_pro(vtx_context_t* ctx)
+{
+    /* PRO1: 1 octet de commande */
+    if (ctx->pro_kind == 1) {
+        switch (ctx->pro_buf[0]) {
+            case 0x7B:  /* ENQROM - identification du Minitel.
+                         * Reponse: SOH + 3 octets identifiant + EOT.
+                         * Codes alignes sur ENQ ($05) traite plus bas. */
+                serial_send(0x01);  /* SOH */
+                serial_send(0x7B);  /* Constructeur (Matra) */
+                serial_send(0x74);  /* Type (Minitel 1B) */
+                serial_send(0x63);  /* Version */
+                serial_send(0x04);  /* EOT */
+                break;
+            default:
+                /* SEP fonction et autres PRO1 inconnus: ignore */
+                break;
+        }
+        return;
+    }
+    /* PRO2/PRO3: pour l'instant ignores - seul le sync est preserve.
+     * TODO: rolling mode, lowercase, AIGUILLAGE, mode mixte/videotex. */
 }
 
 /* ===================================================================
@@ -540,13 +563,12 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         return;
 
     case VTX_STATE_PRO:
-        /* Consomme un octet de payload PRO (commande ou parametre).
-         * Pour l'instant on ignore le contenu - juste maintenir le sync.
-         * TODO: traiter ENQROM, ECHO ON/OFF, AIGUILLAGE, etc. */
-        if (ctx->pro_remaining > 0) {
-            --ctx->pro_remaining;
+        /* Accumule un octet de payload PRO. */
+        if (ctx->pro_idx < 3) {
+            ctx->pro_buf[ctx->pro_idx++] = byte;
         }
-        if (ctx->pro_remaining == 0) {
+        if (ctx->pro_idx >= ctx->pro_kind) {
+            dispatch_pro(ctx);
             ctx->state = VTX_STATE_NORMAL;
         }
         return;
@@ -605,7 +627,8 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                  * En reception, on l'ignore (c'est le serveur qui envoie).
                  * Reutilise le mecanisme PRO pour consommer 1 octet. */
                 ctx->state = VTX_STATE_PRO;
-                ctx->pro_remaining = 1;
+                ctx->pro_kind = 1;
+                ctx->pro_idx = 0;
                 break;
             case 0x14:  /* DC4/COFF - curseur invisible */
                 ctx->cur_visible = 0;

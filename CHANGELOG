@@ -1,5 +1,17 @@
 # CHANGELOG - OricTel
 
+## [0.2.7] - 2026-05-07
+
+### Ajout
+- videotex.c: ENQROM implementee (PRO1 + $7B).
+  Le serveur peut maintenant interroger l'identite du terminal via la
+  sequence ESC $39 $7B et OricTel repond SOH+$7B+$74+$63+EOT (Matra,
+  Minitel 1B, version), comme deja fait pour ENQ ($05).
+- Refactor PRO: pro_buf[3] + pro_kind/pro_idx pour stocker la sequence
+  complete et dispatcher a la fin (extensible aux PRO2/PRO3).
+- 8 nouveaux tests (ENQROM emis correctement, PRO1 inconnu sans emission).
+  79/79 tests Videotex.
+
 ## [0.2.6] - 2026-05-07
 
 ### Correction

@@ -12,9 +12,16 @@
 #include <string.h>
 #include "videotex.h"
 
-/* Stubs des dependances HW non disponibles en mode TEST_HOST */
+/* Stubs des dependances HW non disponibles en mode TEST_HOST.
+ * serial_send capture les octets envoyes pour pouvoir les inspecter
+ * dans les tests d'identification (ENQ, ENQROM). */
 #ifdef TEST_HOST
-void serial_send(unsigned char byte) { (void)byte; }
+static unsigned char tx_buf[64];
+static int tx_len = 0;
+static void tx_reset(void) { tx_len = 0; }
+void serial_send(unsigned char byte) {
+    if (tx_len < (int)sizeof(tx_buf)) tx_buf[tx_len++] = byte;
+}
 void serial_send_buf(const unsigned char* buf, unsigned char len) { (void)buf; (void)len; }
 unsigned char serial_recv(void) { return 0xFF; }
 unsigned char serial_poll(void) { return 0; }
@@ -427,7 +434,7 @@ static void test_pro_sequences(void)
     vtx_process(&ctx, 0x1B);
     vtx_process(&ctx, 0x39);
     ASSERT_EQ("PRO1: state=PRO apres ESC $39", VTX_STATE_PRO, ctx.state);
-    ASSERT_EQ("PRO1: 1 octet a consommer", 1, ctx.pro_remaining);
+    ASSERT_EQ("PRO1: 1 octet a consommer", 1, (ctx.pro_kind - ctx.pro_idx));
     vtx_process(&ctx, 0x41);  /* commande quelconque */
     ASSERT_EQ("PRO1: state=NORMAL apres 1 octet", VTX_STATE_NORMAL, ctx.state);
 
@@ -439,9 +446,9 @@ static void test_pro_sequences(void)
     vtx_init(&ctx);
     vtx_process(&ctx, 0x1B);
     vtx_process(&ctx, 0x3A);
-    ASSERT_EQ("PRO2: 2 octets a consommer", 2, ctx.pro_remaining);
+    ASSERT_EQ("PRO2: 2 octets a consommer", 2, (ctx.pro_kind - ctx.pro_idx));
     vtx_process(&ctx, 0x69);  /* commande AIGUILLAGE */
-    ASSERT_EQ("PRO2: 1 octet restant", 1, ctx.pro_remaining);
+    ASSERT_EQ("PRO2: 1 octet restant", 1, (ctx.pro_kind - ctx.pro_idx));
     ASSERT_EQ("PRO2: state=PRO encore", VTX_STATE_PRO, ctx.state);
     vtx_process(&ctx, 0x43);  /* parametre */
     ASSERT_EQ("PRO2: state=NORMAL apres 2 octets", VTX_STATE_NORMAL, ctx.state);
@@ -452,13 +459,43 @@ static void test_pro_sequences(void)
     vtx_init(&ctx);
     vtx_process(&ctx, 0x1B);
     vtx_process(&ctx, 0x3B);
-    ASSERT_EQ("PRO3: 3 octets a consommer", 3, ctx.pro_remaining);
+    ASSERT_EQ("PRO3: 3 octets a consommer", 3, (ctx.pro_kind - ctx.pro_idx));
     vtx_process(&ctx, 0x69);
     vtx_process(&ctx, 0x50);
     vtx_process(&ctx, 0x52);
     ASSERT_EQ("PRO3: state=NORMAL apres 3 octets", VTX_STATE_NORMAL, ctx.state);
     vtx_process(&ctx, 'C');
     ASSERT_EQ("PRO3: C affiche apres sequence", 'C', ctx.screen[1][0].ch);
+}
+
+/* ===================================================================
+ *  Test: ENQROM (PRO1 + $7B = identification terminal)
+ * =================================================================== */
+static void test_enqrom(void)
+{
+    vtx_context_t ctx;
+    printf("Test: ENQROM (PRO1 + $7B)\n");
+    vtx_init(&ctx);
+
+    tx_reset();
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x39);
+    vtx_process(&ctx, 0x7B);  /* ENQROM */
+
+    ASSERT_EQ("ENQROM: 5 octets emis", 5, tx_len);
+    ASSERT_EQ("ENQROM: SOH", 0x01, tx_buf[0]);
+    ASSERT_EQ("ENQROM: constructeur Matra", 0x7B, tx_buf[1]);
+    ASSERT_EQ("ENQROM: type Minitel 1B", 0x74, tx_buf[2]);
+    ASSERT_EQ("ENQROM: version", 0x63, tx_buf[3]);
+    ASSERT_EQ("ENQROM: EOT", 0x04, tx_buf[4]);
+    ASSERT_EQ("ENQROM: state retombe NORMAL", VTX_STATE_NORMAL, ctx.state);
+
+    /* PRO1 inconnu: aucune emission */
+    tx_reset();
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x39);
+    vtx_process(&ctx, 0x41);  /* code arbitraire non gere */
+    ASSERT_EQ("PRO1 inconnu: 0 octet emis", 0, tx_len);
 }
 
 /* ===================================================================
@@ -483,6 +520,7 @@ int main(void)
     test_g1_mosaics();
     test_esc_resync();
     test_pro_sequences();
+    test_enqrom();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {
