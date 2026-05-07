@@ -11,6 +11,10 @@
 #include "display.h"
 #include "serial.h"
 
+/* Mask global Videotex (defini dans main.c, lu par display.c).
+ * 1 = cacher cellules ATTR_CONCEALED, 0 = les rendre visibles. */
+extern unsigned char g_global_mask;
+
 /* ===================================================================
  *  Initialisation
  * =================================================================== */
@@ -38,6 +42,7 @@ void vtx_init(vtx_context_t* ctx)
     ctx->aiguillages = AIG_MDM_TO_SCR | AIG_KBD_TO_MDM;
     ctx->kbd_extended = 0;
     ctx->kbd_cursor = 0;
+    ctx->global_mask = 1;  /* defaut: cellules concealed cachees */
 
     vtx_clear_page(ctx);
     vtx_clear_status(ctx);
@@ -337,6 +342,13 @@ static void process_esc(vtx_context_t* ctx, unsigned char byte)
             ctx->has_pending = 1;
         }
         ctx->state = VTX_STATE_NORMAL;
+        return;
+    }
+
+    /* Mask global: ESC $23 $20 $58/$5F (set/reset)
+     * Reference: miedit (constant.js mask-global) */
+    if (byte == 0x23) {
+        ctx->state = VTX_STATE_MASK_SP;
         return;
     }
 
@@ -734,6 +746,25 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                 put_char(ctx, ctx->last_char, ctx->last_charset);
             }
         }
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+
+    case VTX_STATE_MASK_SP:
+        /* Mask global: attend $20 (espace) apres ESC #. */
+        ctx->state = (byte == 0x20) ? VTX_STATE_MASK_END : VTX_STATE_NORMAL;
+        return;
+
+    case VTX_STATE_MASK_END:
+        /* Mask global: $58 = masquer (cacher concealed),
+         *              $5F = demasquer (rendre concealed visible). */
+        if (byte == 0x58) {
+            ctx->global_mask = 1;
+            g_global_mask = 1;
+        } else if (byte == 0x5F) {
+            ctx->global_mask = 0;
+            g_global_mask = 0;
+        }
+        ctx->full_refresh = 1;
         ctx->state = VTX_STATE_NORMAL;
         return;
 

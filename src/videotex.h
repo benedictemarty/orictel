@@ -33,6 +33,8 @@
 #define VTX_STATE_REP       6
 #define VTX_STATE_PRO       7   /* Sequence PRO en cours (cf. pro_remaining) */
 #define VTX_STATE_SS2_ACC   9   /* SS2 accent: attente du caractere base */
+#define VTX_STATE_MASK_SP   10  /* Mask global: attend $20 apres ESC # */
+#define VTX_STATE_MASK_END  11  /* Mask global: attend $58 (set) ou $5F (reset) */
 
 /* Jeux de caracteres */
 #define CHARSET_G0  0       /* Alphanumerique */
@@ -133,6 +135,12 @@ typedef struct {
     /* Modes clavier (PRO3 START/STOP). Tous OFF par defaut sur Minitel 1B. */
     unsigned char kbd_extended;  /* 1 = clavier etendu actif (touches alt) */
     unsigned char kbd_cursor;    /* 1 = touches curseur (fleches) actives */
+
+    /* Mask global (ESC # $20 $58/$5F). 1 = cellules ATTR_CONCEALED cachees
+     * (defaut), 0 = demasquees (rendues visibles malgre ATTR_CONCEALED).
+     * Permet a l'utilisateur de reveler le texte cache via une commande
+     * serveur. */
+    unsigned char global_mask;
 
     /* Sequence PRO en cours.
      * pro_kind: 1, 2 ou 3 (nombre total d'octets attendus apres ESC $39/$3A/$3B)

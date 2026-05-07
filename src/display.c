@@ -22,6 +22,7 @@
 
 /* Blink phase accessible depuis main.c */
 extern unsigned char g_blink_phase;
+extern unsigned char g_global_mask;
 
 /* Mode rendu: 0=hybride (G0 serial + G1 dithering), 1=tout dithering */
 unsigned char g_render_mode = 0;  /* 0=hybride (defaut), 1=dithering, 2=brut */
@@ -202,6 +203,7 @@ static const unsigned char g1_dither[8][8] = {
 
 /* Variable globale blink_phase accessible depuis main.c */
 extern unsigned char g_blink_phase;
+extern unsigned char g_global_mask;
 
 static void render_cell_hires(const vtx_cell_t* cell,
                                unsigned char col, unsigned char char_row)
@@ -215,7 +217,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
     unsigned char use_dither;
 
     ch = cell->ch;
-    if (cell->flags & ATTR_CONCEALED) ch = ' ';
+    if ((cell->flags & ATTR_CONCEALED) && g_global_mask) ch = ' ';
 
     /* Feature 4: Clignotement - si blink_phase=1 et ATTR_FLASH, rendre vide */
     if ((cell->flags & ATTR_FLASH) && g_blink_phase) {

@@ -27,6 +27,9 @@ static unsigned char blink_counter;
 /* Variable globale blink_phase accessible depuis display.c */
 unsigned char g_blink_phase;
 
+/* Mask global Videotex (ESC # $20 $58/$5F). 1 = cacher cellules concealed. */
+unsigned char g_global_mask = 1;
+
 /* Declaration serial_dcd (assembleur) */
 unsigned char __fastcall__ serial_dcd(void);
 

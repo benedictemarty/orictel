@@ -1,5 +1,18 @@
 # CHANGELOG - OricTel
 
+## [0.2.15] - 2026-05-07
+
+### Ajout
+- videotex.c: Mask global (ESC # $20 $58/$5F).
+  Le serveur peut maintenant cacher (SET, $58) ou reveler (RESET, $5F)
+  toutes les cellules marquees ATTR_CONCEALED simultanement, comme
+  une touche "Demasquage" sur un vrai Minitel.
+  Implementation: 2 nouveaux etats VTX_STATE_MASK_SP/MASK_END,
+  variable globale g_global_mask synchronisee avec ctx.global_mask,
+  display.c lit g_global_mask pour decider d'afficher ou cacher.
+  Conformite: miedit (constant.js mask-global / mask-global-set).
+- 12 nouveaux tests. 180/180.
+
 ## [0.2.14] - 2026-05-07
 
 ### Ajout

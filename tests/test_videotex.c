@@ -16,6 +16,7 @@
  * serial_send capture les octets envoyes pour pouvoir les inspecter
  * dans les tests d'identification (ENQ, ENQROM). */
 #ifdef TEST_HOST
+unsigned char g_global_mask = 1;  /* defaut: cellules concealed cachees */
 static unsigned char tx_buf[64];
 static int tx_len = 0;
 static void tx_reset(void) { tx_len = 0; }
@@ -873,6 +874,55 @@ static void test_g2_extended(void)
 }
 
 /* ===================================================================
+ *  Test: Mask global (ESC # $20 $58/$5F)
+ * =================================================================== */
+static void test_mask_global(void)
+{
+    vtx_context_t ctx;
+    printf("Test: Mask global\n");
+    vtx_init(&ctx);
+
+    ASSERT_EQ("defaut: global_mask = 1 (cache)", 1, ctx.global_mask);
+    ASSERT_EQ("defaut: g_global_mask = 1", 1, g_global_mask);
+
+    /* SET (ESC # $20 $58) - reste a 1 */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x23);
+    vtx_process(&ctx, 0x20); vtx_process(&ctx, 0x58);
+    ASSERT_EQ("apres SET: global_mask = 1", 1, ctx.global_mask);
+    ASSERT_EQ("apres SET: state = NORMAL", VTX_STATE_NORMAL, ctx.state);
+
+    /* RESET (ESC # $20 $5F) - bascule a 0 */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x23);
+    vtx_process(&ctx, 0x20); vtx_process(&ctx, 0x5F);
+    ASSERT_EQ("apres RESET: global_mask = 0", 0, ctx.global_mask);
+    ASSERT_EQ("apres RESET: g_global_mask = 0", 0, g_global_mask);
+
+    /* SET de nouveau - bascule a 1 */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x23);
+    vtx_process(&ctx, 0x20); vtx_process(&ctx, 0x58);
+    ASSERT_EQ("re-SET: global_mask = 1", 1, ctx.global_mask);
+
+    /* Sequence mal formee: ESC # mais sans $20 -> retour NORMAL */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x23);
+    vtx_process(&ctx, 0x41);  /* pas $20 */
+    ASSERT_EQ("ESC # sans $20: state = NORMAL", VTX_STATE_NORMAL, ctx.state);
+    ASSERT_EQ("ESC # mal forme: global_mask inchange", 1, ctx.global_mask);
+
+    /* Sync OK apres */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 'M');
+    ASSERT_EQ("M affiche apres mask global", 'M', ctx.screen[5][0].ch);
+
+    /* Sequence inconnue dans MASK_END (ni $58 ni $5F): retour NORMAL,
+     * global_mask inchange */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x23);
+    vtx_process(&ctx, 0x20); vtx_process(&ctx, 0x42);
+    ASSERT_EQ("MASK_END inconnu: state = NORMAL", VTX_STATE_NORMAL, ctx.state);
+    ASSERT_EQ("MASK_END inconnu: global_mask = 1 (toujours)",
+              1, ctx.global_mask);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -903,6 +953,7 @@ int main(void)
     test_pro3_start_stop_module();
     test_pro3_switch_ack();
     test_g2_extended();
+    test_mask_global();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {
