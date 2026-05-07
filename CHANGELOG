@@ -1,5 +1,18 @@
 # CHANGELOG - OricTel
 
+## [0.2.12] - 2026-05-07
+
+### Ajout
+- videotex.c: PRO3 START/STOP module (ESC $3B $69/$6A + module + sub-cmd).
+  Pour module $59 (KEYBOARD_IN):
+    sub-cmd $41 = clavier etendu (touches alt) ON/OFF
+    sub-cmd $43 = clavier curseur (fleches actives) ON/OFF
+  Spec selon miedit (constant.js pro3Start/Stop -> startKeyboardFunction).
+  Note: eMinitel ne traite pas ce sous-cas (s'arrete a SWITCH ON/OFF).
+  Les flags kbd_extended et kbd_cursor sont stockes mais sans effet
+  immediat sur keyboard.c (TODO si besoin).
+- 12 nouveaux tests. 133/133.
+
 ## [0.2.11] - 2026-05-07
 
 ### Ajout

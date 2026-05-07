@@ -130,6 +130,10 @@ typedef struct {
 #define AIG_KBD_TO_MDM  0x04
 #define AIG_SCR_TO_MDM  0x08
 
+    /* Modes clavier (PRO3 START/STOP). Tous OFF par defaut sur Minitel 1B. */
+    unsigned char kbd_extended;  /* 1 = clavier etendu actif (touches alt) */
+    unsigned char kbd_cursor;    /* 1 = touches curseur (fleches) actives */
+
     /* Sequence PRO en cours.
      * pro_kind: 1, 2 ou 3 (nombre total d'octets attendus apres ESC $39/$3A/$3B)
      * pro_idx: index du prochain octet a recevoir (0..pro_kind-1)

@@ -36,6 +36,8 @@ void vtx_init(vtx_context_t* ctx)
     ctx->terminal_mode = TERM_MODE_VIDEOTEX;
     /* Aiguillages defaut Minitel 1B: MODEM->ECRAN et CLAVIER->MODEM */
     ctx->aiguillages = AIG_MDM_TO_SCR | AIG_KBD_TO_MDM;
+    ctx->kbd_extended = 0;
+    ctx->kbd_cursor = 0;
 
     vtx_clear_page(ctx);
     vtx_clear_status(ctx);
@@ -552,9 +554,24 @@ static void dispatch_pro(vtx_context_t* ctx)
     if (ctx->pro_kind == 3) {
         unsigned char on;
         unsigned char dest, src, mask;
+        /* PRO3 START/STOP module: $69/$6A + $59 (KEYBOARD_IN) + sub-cmd
+         *   sub-cmd $41 = clavier etendu (touches alt)
+         *   sub-cmd $43 = clavier curseur (fleches actives)
+         * Reference: miedit pro3Start/Stop -> startKeyboardFunction. */
+        if ((ctx->pro_buf[0] == 0x69 || ctx->pro_buf[0] == 0x6A)
+            && ctx->pro_buf[1] == 0x59) {
+            unsigned char on2 = (ctx->pro_buf[0] == 0x69);
+            switch (ctx->pro_buf[2]) {
+                case 0x41: ctx->kbd_extended = on2; break;
+                case 0x43: ctx->kbd_cursor   = on2; break;
+                default: break;
+            }
+            return;
+        }
+
         if (ctx->pro_buf[0] == 0x61)      on = 1;  /* SWITCH ON */
         else if (ctx->pro_buf[0] == 0x60) on = 0;  /* SWITCH OFF */
-        else return;  /* START/STOP module: TODO */
+        else return;  /* autres START/STOP: ignore */
 
         dest = ctx->pro_buf[1];
         src  = ctx->pro_buf[2];

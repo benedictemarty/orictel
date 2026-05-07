@@ -711,6 +711,55 @@ static void test_pro2_status_keyboard(void)
 }
 
 /* ===================================================================
+ *  Test: PRO3 START/STOP module ($3B $69/$6A $59 $41/$43)
+ * =================================================================== */
+static void test_pro3_start_stop_module(void)
+{
+    vtx_context_t ctx;
+    printf("Test: PRO3 START/STOP module\n");
+    vtx_init(&ctx);
+
+    ASSERT_EQ("defaut: kbd_extended OFF", 0, ctx.kbd_extended);
+    ASSERT_EQ("defaut: kbd_cursor OFF",   0, ctx.kbd_cursor);
+
+    /* START extended keyboard: ESC $3B $69 $59 $41 */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x59); vtx_process(&ctx, 0x41);
+    ASSERT_EQ("apres START extended: kbd_extended ON", 1, ctx.kbd_extended);
+    ASSERT_EQ("apres START extended: kbd_cursor inchange", 0, ctx.kbd_cursor);
+
+    /* START cursor keyboard: ESC $3B $69 $59 $43 */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x59); vtx_process(&ctx, 0x43);
+    ASSERT_EQ("apres START cursor: kbd_cursor ON", 1, ctx.kbd_cursor);
+    ASSERT_EQ("apres START cursor: kbd_extended inchange", 1, ctx.kbd_extended);
+
+    /* STOP extended: ESC $3B $6A $59 $41 */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x6A); vtx_process(&ctx, 0x59); vtx_process(&ctx, 0x41);
+    ASSERT_EQ("apres STOP extended: kbd_extended OFF", 0, ctx.kbd_extended);
+
+    /* Module non gere ($50 PRISE au lieu de $59 KEYBOARD_IN): ignore */
+    unsigned char before_ext = ctx.kbd_extended;
+    unsigned char before_cur = ctx.kbd_cursor;
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x50); vtx_process(&ctx, 0x41);
+    ASSERT_EQ("module $50 ignore: kbd_extended inchange", before_ext, ctx.kbd_extended);
+    ASSERT_EQ("module $50 ignore: kbd_cursor inchange",   before_cur, ctx.kbd_cursor);
+
+    /* Sub-cmd inconnue ($42): pas d'effet */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x59); vtx_process(&ctx, 0x42);
+    ASSERT_EQ("sub-cmd $42 inconnue: kbd_extended inchange", before_ext, ctx.kbd_extended);
+    ASSERT_EQ("sub-cmd $42 inconnue: kbd_cursor inchange",   before_cur, ctx.kbd_cursor);
+
+    /* Sync OK */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 'P');
+    ASSERT_EQ("P affiche apres PRO3 START/STOP", 'P', ctx.screen[5][0].ch);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -738,6 +787,7 @@ int main(void)
     test_pro3_aiguillage();
     test_pro2_mode_protocole();
     test_pro2_status_keyboard();
+    test_pro3_start_stop_module();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {
