@@ -324,9 +324,23 @@ static void process_esc(vtx_context_t* ctx, unsigned char byte)
         return;
     }
 
-    /* PRO1: ESC $39 */
+    /* PRO1: ESC $39 + 1 octet (commande)
+     * PRO2: ESC $3A + 2 octets (commande + parametre)
+     * PRO3: ESC $3B + 3 octets (commande + 2 parametres)
+     * Reference: STUM 1B (specification technique du Minitel) */
     if (byte == 0x39) {
-        ctx->state = VTX_STATE_PRO1;
+        ctx->state = VTX_STATE_PRO;
+        ctx->pro_remaining = 1;
+        return;
+    }
+    if (byte == 0x3A) {
+        ctx->state = VTX_STATE_PRO;
+        ctx->pro_remaining = 2;
+        return;
+    }
+    if (byte == 0x3B) {
+        ctx->state = VTX_STATE_PRO;
+        ctx->pro_remaining = 3;
         return;
     }
 
@@ -525,14 +539,16 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         ctx->state = VTX_STATE_NORMAL;
         return;
 
-    case VTX_STATE_PRO1:
-        /* PRO1: on ignore pour l'instant, attendre 1 octet */
-        ctx->state = VTX_STATE_PRO2;
-        return;
-
-    case VTX_STATE_PRO2:
-        /* PRO2: terminer la sequence PRO */
-        ctx->state = VTX_STATE_NORMAL;
+    case VTX_STATE_PRO:
+        /* Consomme un octet de payload PRO (commande ou parametre).
+         * Pour l'instant on ignore le contenu - juste maintenir le sync.
+         * TODO: traiter ENQROM, ECHO ON/OFF, AIGUILLAGE, etc. */
+        if (ctx->pro_remaining > 0) {
+            --ctx->pro_remaining;
+        }
+        if (ctx->pro_remaining == 0) {
+            ctx->state = VTX_STATE_NORMAL;
+        }
         return;
 
     default:
@@ -585,10 +601,11 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                 ctx->state = VTX_STATE_REP;
                 break;
             case 0x13:  /* SEP - separateur (touches fonction Minitel) */
-                /* Le prochain octet est le code fonction ($41-$49) */
-                /* En reception, on l'ignore (c'est le serveur qui envoie) */
-                /* En emission, c'est keyboard_process qui l'envoie */
-                ctx->state = VTX_STATE_PRO1;  /* Consommer 1 octet */
+                /* Le prochain octet est le code fonction ($41-$49).
+                 * En reception, on l'ignore (c'est le serveur qui envoie).
+                 * Reutilise le mecanisme PRO pour consommer 1 octet. */
+                ctx->state = VTX_STATE_PRO;
+                ctx->pro_remaining = 1;
                 break;
             case 0x14:  /* DC4/COFF - curseur invisible */
                 ctx->cur_visible = 0;

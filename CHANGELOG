@@ -1,5 +1,18 @@
 # CHANGELOG - OricTel
 
+## [0.2.6] - 2026-05-07
+
+### Correction
+- videotex.c: sequences PRO1/PRO2/PRO3 conformes STUM 1B.
+  Avant: ESC $39 consommait 2 octets, $3A et $3B non geres.
+  Apres: ESC $39 = 1 octet, ESC $3A = 2 octets, ESC $3B = 3 octets,
+  via un compteur unique pro_remaining et un seul etat VTX_STATE_PRO.
+  Conforme miedit (reference projet) et eMinitel.
+  Le contenu PRO est ignore mais le sync est preserve, ce qui permet
+  aux serveurs modernes utilisant PRO2 (rolling mode, lowercase, etc.)
+  de ne plus desynchroniser le decodeur.
+- 12 nouveaux tests (PRO1/PRO2/PRO3 + sync apres sequence). 71/71.
+
 ## [0.2.5] - 2026-05-07
 
 ### Correction

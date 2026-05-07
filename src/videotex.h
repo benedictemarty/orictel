@@ -31,8 +31,7 @@
 #define VTX_STATE_US_COL    4
 #define VTX_STATE_SS2       5
 #define VTX_STATE_REP       6
-#define VTX_STATE_PRO1      7
-#define VTX_STATE_PRO2      8
+#define VTX_STATE_PRO       7   /* Sequence PRO en cours (cf. pro_remaining) */
 #define VTX_STATE_SS2_ACC   9   /* SS2 accent: attente du caractere base */
 
 /* Jeux de caracteres */
@@ -110,6 +109,10 @@ typedef struct {
 
     /* Code accent SS2 en cours ($41=grave, $42=aigu, $43=circ, $48=trema, $4B=cedille) */
     unsigned char ss2_accent;
+
+    /* Sequence PRO en cours: nombre d'octets restant a consommer.
+     * PRO1 (ESC $39) = 1 octet, PRO2 (ESC $3A) = 2 octets, PRO3 (ESC $3B) = 3 */
+    unsigned char pro_remaining;
 
     /* Buffer ecran (40x25 cellules) */
     vtx_cell_t screen[VTX_ROWS][VTX_COLS];

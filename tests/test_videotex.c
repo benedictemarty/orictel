@@ -415,6 +415,53 @@ static void test_esc_resync(void)
 }
 
 /* ===================================================================
+ *  Test: sequences PRO1 / PRO2 / PRO3 (STUM 1B)
+ * =================================================================== */
+static void test_pro_sequences(void)
+{
+    vtx_context_t ctx;
+    printf("Test: Sequences PRO1/PRO2/PRO3\n");
+
+    /* PRO1 = ESC $39 + 1 octet. Apres 1 octet de payload, NORMAL. */
+    vtx_init(&ctx);
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x39);
+    ASSERT_EQ("PRO1: state=PRO apres ESC $39", VTX_STATE_PRO, ctx.state);
+    ASSERT_EQ("PRO1: 1 octet a consommer", 1, ctx.pro_remaining);
+    vtx_process(&ctx, 0x41);  /* commande quelconque */
+    ASSERT_EQ("PRO1: state=NORMAL apres 1 octet", VTX_STATE_NORMAL, ctx.state);
+
+    /* Apres PRO1, un caractere normal doit s'afficher (sync OK) */
+    vtx_process(&ctx, 'A');
+    ASSERT_EQ("PRO1: A affiche apres sequence", 'A', ctx.screen[1][0].ch);
+
+    /* PRO2 = ESC $3A + 2 octets */
+    vtx_init(&ctx);
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x3A);
+    ASSERT_EQ("PRO2: 2 octets a consommer", 2, ctx.pro_remaining);
+    vtx_process(&ctx, 0x69);  /* commande AIGUILLAGE */
+    ASSERT_EQ("PRO2: 1 octet restant", 1, ctx.pro_remaining);
+    ASSERT_EQ("PRO2: state=PRO encore", VTX_STATE_PRO, ctx.state);
+    vtx_process(&ctx, 0x43);  /* parametre */
+    ASSERT_EQ("PRO2: state=NORMAL apres 2 octets", VTX_STATE_NORMAL, ctx.state);
+    vtx_process(&ctx, 'B');
+    ASSERT_EQ("PRO2: B affiche apres sequence", 'B', ctx.screen[1][0].ch);
+
+    /* PRO3 = ESC $3B + 3 octets */
+    vtx_init(&ctx);
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x3B);
+    ASSERT_EQ("PRO3: 3 octets a consommer", 3, ctx.pro_remaining);
+    vtx_process(&ctx, 0x69);
+    vtx_process(&ctx, 0x50);
+    vtx_process(&ctx, 0x52);
+    ASSERT_EQ("PRO3: state=NORMAL apres 3 octets", VTX_STATE_NORMAL, ctx.state);
+    vtx_process(&ctx, 'C');
+    ASSERT_EQ("PRO3: C affiche apres sequence", 'C', ctx.screen[1][0].ch);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -435,6 +482,7 @@ int main(void)
     test_line_wrapping();
     test_g1_mosaics();
     test_esc_resync();
+    test_pro_sequences();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {
