@@ -113,6 +113,9 @@ typedef struct {
     /* Modes terminal (PRO2). 0 = etat par defaut Minitel 1B. */
     unsigned char rolling_mode;    /* 1 = scroll en bas d'ecran, 0 = mode page */
     unsigned char lowercase_mode;  /* 1 = minuscules autorisees, 0 = forcer majuscule */
+    unsigned char terminal_mode;   /* 0 = VIDEOTEX (defaut), 1 = MIXED (non gere) */
+#define TERM_MODE_VIDEOTEX  0
+#define TERM_MODE_MIXED     1
 
     /* Aiguillages PRO3 (SWITCH ON/OFF entre modules).
      * Le Minitel a 4 modules: ECRAN ($58), CLAVIER ($51), MODEM ($59), PRISE ($50).

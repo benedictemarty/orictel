@@ -1,5 +1,16 @@
 # CHANGELOG - OricTel
 
+## [0.2.10] - 2026-05-07
+
+### Ajout
+- videotex.c: PRO2 mode protocole (ESC $3A $32 $7E/$7D).
+  - $7E (VIDEOTEX): OricTel reste en mode VIDEOTEX et acquitte avec
+    SEP ($13) + $71 comme un vrai Minitel 1B.
+  - $7D (MIXED): refuse silencieusement (mode tele-informatique non
+    implemente). Le serveur saura par l'absence d'ACK.
+  - Champ terminal_mode dans vtx_context_t (defaut VIDEOTEX).
+- 8 nouveaux tests. 110/110.
+
 ## [0.2.9] - 2026-05-07
 
 ### Ajout

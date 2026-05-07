@@ -33,6 +33,7 @@ void vtx_init(vtx_context_t* ctx)
     ctx->has_pending = 0;
     ctx->rolling_mode = 0;
     ctx->lowercase_mode = 0;
+    ctx->terminal_mode = TERM_MODE_VIDEOTEX;
     /* Aiguillages defaut Minitel 1B: MODEM->ECRAN et CLAVIER->MODEM */
     ctx->aiguillages = AIG_MDM_TO_SCR | AIG_KBD_TO_MDM;
 
@@ -479,6 +480,24 @@ static void dispatch_pro(vtx_context_t* ctx)
      * Reference: STUM 1B + miedit (constant.js) + eMinitel (Functionalities.cpp) */
     if (ctx->pro_kind == 2) {
         unsigned char on;
+
+        /* PRO2 + $32 = changement de mode protocole (VIDEOTEX/MIXED).
+         * Reference: STUM 1B, eMinitel PRO2_MODE_VIDEOTEX/MIXED. */
+        if (ctx->pro_buf[0] == 0x32) {
+            if (ctx->pro_buf[1] == 0x7E) {       /* MODE VIDEOTEX */
+                ctx->terminal_mode = TERM_MODE_VIDEOTEX;
+                /* ACK: SEP ($13) + $71 (videotex confirme) */
+                serial_send(0x13);
+                serial_send(0x71);
+            } else if (ctx->pro_buf[1] == 0x7D) { /* MODE MIXED */
+                /* OricTel ne supporte pas le mode MIXED (telé-informatique).
+                 * On ignore silencieusement, le serveur saura par l'absence
+                 * d'ACK que la bascule a echoue. */
+            }
+            return;
+        }
+
+        /* PRO2 + $69/$6A = START/STOP d'un mode (rolling, lowercase, ...) */
         if (ctx->pro_buf[0] == 0x69)      on = 1;  /* START */
         else if (ctx->pro_buf[0] == 0x6A) on = 0;  /* STOP */
         else return;
@@ -490,7 +509,7 @@ static void dispatch_pro(vtx_context_t* ctx)
                 ctx->lowercase_mode = on;
                 break;
             default:
-                /* Autres cibles PRO2 (PCE, mixed, ...) : TODO */
+                /* Autres cibles PRO2 (PCE, etc.) : TODO */
                 break;
         }
         return;

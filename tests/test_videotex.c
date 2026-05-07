@@ -622,6 +622,42 @@ static void test_pro3_aiguillage(void)
 }
 
 /* ===================================================================
+ *  Test: PRO2 mode protocole VIDEOTEX/MIXED ($3A $32 $7E/$7D)
+ * =================================================================== */
+static void test_pro2_mode_protocole(void)
+{
+    vtx_context_t ctx;
+    printf("Test: PRO2 mode protocole (VIDEOTEX/MIXED)\n");
+    vtx_init(&ctx);
+
+    ASSERT_EQ("defaut: terminal_mode = VIDEOTEX",
+              TERM_MODE_VIDEOTEX, ctx.terminal_mode);
+
+    /* PRO2 demande VIDEOTEX: ACK SEP+$71 emis */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x32); vtx_process(&ctx, 0x7E);
+    ASSERT_EQ("VIDEOTEX request: 2 octets ACK", 2, tx_len);
+    ASSERT_EQ("VIDEOTEX request: SEP", 0x13, tx_buf[0]);
+    ASSERT_EQ("VIDEOTEX request: ack code $71", 0x71, tx_buf[1]);
+    ASSERT_EQ("apres VIDEOTEX: terminal_mode inchange",
+              TERM_MODE_VIDEOTEX, ctx.terminal_mode);
+
+    /* PRO2 demande MIXED: refus silencieux (pas d'ACK, mode inchange) */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x32); vtx_process(&ctx, 0x7D);
+    ASSERT_EQ("MIXED request: 0 octet emis", 0, tx_len);
+    ASSERT_EQ("MIXED request: terminal_mode reste VIDEOTEX",
+              TERM_MODE_VIDEOTEX, ctx.terminal_mode);
+
+    /* Sync OK apres la sequence */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 'M');
+    ASSERT_EQ("M affiche apres PRO2 mode", 'M', ctx.screen[5][0].ch);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -647,6 +683,7 @@ int main(void)
     test_pro2_lowercase();
     test_pro2_rolling();
     test_pro3_aiguillage();
+    test_pro2_mode_protocole();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

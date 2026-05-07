@@ -1,12 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.9
+## Version actuelle: 0.2.10
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.9     | 2026-05-07 | En cours    |
+| orictel.tap        | 0.2.10     | 2026-05-07 | En cours    |
 | orictel_bridge.py  | 0.2.1     | 2026-03-24 | Stable      |
-| Videotex decoder   | 0.2.9     | 2026-05-07 | Stable      |
+| Videotex decoder   | 0.2.10     | 2026-05-07 | Stable      |
 | Display engine     | 0.2.2     | 2026-05-07 | Optimise    |
 | Keyboard module    | 0.2.3     | 2026-05-07 | Stable      |
 | Font data (G0)     | 0.2.1     | 2026-03-24 | Complet     |
@@ -14,6 +14,9 @@
 | Font data (G2)     | 0.2.1     | 2026-03-24 | En cours    |
 
 ## Historique des versions
+
+### 0.2.10 (2026-05-07)
+- PRO2 mode VIDEOTEX/MIXED ($32) avec ACK SEP+$71. 110/110 tests
 
 ### 0.2.9 (2026-05-07)
 - PRO3 AIGUILLAGE (4 couples module-a-module). 102/102 tests
