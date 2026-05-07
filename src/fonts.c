@@ -325,6 +325,38 @@ static const unsigned char font_g2_extra[][8] = {
     { 0x0A, 0x00, 0x0C, 0x04, 0x04, 0x04, 0x0E, 0x00 },
     /* [21] u trema (u") */
     { 0x0A, 0x00, 0x11, 0x11, 0x11, 0x11, 0x0F, 0x00 },
+
+    /* === Symboles G2 standalone supplementaires (norme CEPT) === */
+    /* [22] $24 = dollar $ */
+    { 0x04, 0x0F, 0x14, 0x0E, 0x05, 0x1E, 0x04, 0x00 },
+    /* [23] $26 = # numero (sharp) */
+    { 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x00, 0x00, 0x00 },
+    /* [24] $3C = un-quart (1/4) compact */
+    { 0x18, 0x08, 0x09, 0x12, 0x05, 0x0F, 0x01, 0x00 },
+    /* [25] $3D = un-demi (1/2) compact */
+    { 0x18, 0x08, 0x09, 0x12, 0x06, 0x09, 0x0F, 0x00 },
+    /* [26] $3E = trois-quarts (3/4) compact */
+    { 0x12, 0x16, 0x12, 0x05, 0x0F, 0x01, 0x00, 0x00 },
+    /* [27] $6A = Oe ligature majuscule */
+    { 0x16, 0x19, 0x11, 0x1F, 0x11, 0x09, 0x16, 0x00 },
+    /* [28] $7A = oe ligature minuscule */
+    { 0x00, 0x00, 0x16, 0x19, 0x1F, 0x11, 0x16, 0x00 },
+
+    /* === Accents majuscules (codes internes $8D-$93) === */
+    /* [29] $8D = A grave (a` maj) */
+    { 0x08, 0x04, 0x0E, 0x11, 0x1F, 0x11, 0x11, 0x00 },
+    /* [30] $8E = E aigu (e' maj) */
+    { 0x02, 0x04, 0x1F, 0x10, 0x1E, 0x10, 0x1F, 0x00 },
+    /* [31] $8F = E grave (e` maj) */
+    { 0x08, 0x04, 0x1F, 0x10, 0x1E, 0x10, 0x1F, 0x00 },
+    /* [32] $90 = E circonflexe (e^ maj) */
+    { 0x04, 0x0A, 0x1F, 0x10, 0x1E, 0x10, 0x1F, 0x00 },
+    /* [33] $91 = E trema (e" maj) */
+    { 0x0A, 0x00, 0x1F, 0x10, 0x1E, 0x10, 0x1F, 0x00 },
+    /* [34] $92 = C cedille (c, maj) */
+    { 0x00, 0x0E, 0x11, 0x10, 0x10, 0x11, 0x0E, 0x04 },
+    /* [35] $93 = A circonflexe (a^ maj) */
+    { 0x04, 0x0A, 0x0E, 0x11, 0x1F, 0x11, 0x11, 0x00 },
 };
 
 /* ===================================================================
@@ -348,6 +380,8 @@ const unsigned char* font_get_g2(unsigned char ch)
 {
     switch (ch) {
         case 0x23: return font_g2_extra[0];  /* livre sterling */
+        case 0x24: return font_g2_extra[22]; /* dollar */
+        case 0x26: return font_g2_extra[23]; /* # numero */
         case 0x27: return font_g2_extra[1];  /* section */
         case 0x2C: return font_g2_extra[2];  /* fleche gauche */
         case 0x2D: return font_g2_extra[3];  /* fleche haut */
@@ -356,7 +390,12 @@ const unsigned char* font_get_g2(unsigned char ch)
         case 0x30: return font_g2_extra[6];  /* degre ° */
         case 0x31: return font_g2_extra[7];  /* plus ou moins */
         case 0x38: return font_g2_extra[8];  /* division */
-        /* Accents SS2 pre-composes (codes internes $80+) */
+        case 0x3C: return font_g2_extra[24]; /* 1/4 */
+        case 0x3D: return font_g2_extra[25]; /* 1/2 */
+        case 0x3E: return font_g2_extra[26]; /* 3/4 */
+        case 0x6A: return font_g2_extra[27]; /* Oe ligature maj */
+        case 0x7A: return font_g2_extra[28]; /* oe ligature min */
+        /* Accents SS2 pre-composes minuscules (codes internes $80-$8C) */
         case 0x80: return font_g2_extra[9];  /* e accent aigu */
         case 0x81: return font_g2_extra[10]; /* e accent grave */
         case 0x82: return font_g2_extra[11]; /* e accent circ */
@@ -370,6 +409,14 @@ const unsigned char* font_get_g2(unsigned char ch)
         case 0x8A: return font_g2_extra[19]; /* e trema */
         case 0x8B: return font_g2_extra[20]; /* i trema */
         case 0x8C: return font_g2_extra[21]; /* u trema */
+        /* Accents SS2 pre-composes majuscules (codes internes $8D-$93) */
+        case 0x8D: return font_g2_extra[29]; /* A accent grave */
+        case 0x8E: return font_g2_extra[30]; /* E accent aigu */
+        case 0x8F: return font_g2_extra[31]; /* E accent grave */
+        case 0x90: return font_g2_extra[32]; /* E accent circ */
+        case 0x91: return font_g2_extra[33]; /* E trema */
+        case 0x92: return font_g2_extra[34]; /* C cedille */
+        case 0x93: return font_g2_extra[35]; /* A accent circ */
         default:
             return font_get_g0(ch);
     }

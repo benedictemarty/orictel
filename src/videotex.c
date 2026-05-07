@@ -685,27 +685,34 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
             /* Mapper (accent, base) -> code interne G2 accentue */
             switch (ctx->ss2_accent) {
                 case 0x42: /* aigu */
-                    if (byte == 0x65) acc_ch = 0x80; /* e' */
+                    if (byte == 0x65)      acc_ch = 0x80; /* e' */
+                    else if (byte == 0x45) acc_ch = 0x8E; /* E' */
                     break;
                 case 0x41: /* grave */
-                    if (byte == 0x65) acc_ch = 0x81; /* e` */
+                    if (byte == 0x65)      acc_ch = 0x81; /* e` */
                     else if (byte == 0x61) acc_ch = 0x83; /* a` */
                     else if (byte == 0x75) acc_ch = 0x84; /* u` */
+                    else if (byte == 0x41) acc_ch = 0x8D; /* A` */
+                    else if (byte == 0x45) acc_ch = 0x8F; /* E` */
                     break;
                 case 0x43: /* circonflexe */
-                    if (byte == 0x65) acc_ch = 0x82; /* e^ */
+                    if (byte == 0x65)      acc_ch = 0x82; /* e^ */
                     else if (byte == 0x61) acc_ch = 0x86; /* a^ */
                     else if (byte == 0x69) acc_ch = 0x87; /* i^ */
                     else if (byte == 0x6F) acc_ch = 0x88; /* o^ */
                     else if (byte == 0x75) acc_ch = 0x89; /* u^ */
+                    else if (byte == 0x41) acc_ch = 0x93; /* A^ */
+                    else if (byte == 0x45) acc_ch = 0x90; /* E^ */
                     break;
                 case 0x48: /* trema */
-                    if (byte == 0x65) acc_ch = 0x8A; /* e" */
+                    if (byte == 0x65)      acc_ch = 0x8A; /* e" */
                     else if (byte == 0x69) acc_ch = 0x8B; /* i" */
                     else if (byte == 0x75) acc_ch = 0x8C; /* u" */
+                    else if (byte == 0x45) acc_ch = 0x91; /* E" */
                     break;
                 case 0x4B: /* cedille */
-                    if (byte == 0x63) acc_ch = 0x85; /* c, */
+                    if (byte == 0x63)      acc_ch = 0x85; /* c, */
+                    else if (byte == 0x43) acc_ch = 0x92; /* C, */
                     break;
             }
             if (acc_ch) {

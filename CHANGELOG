@@ -1,5 +1,18 @@
 # CHANGELOG - OricTel
 
+## [0.2.14] - 2026-05-07
+
+### Ajout
+- fonts.c: jeu G2 etendu - 14 nouveaux glyphes pour conformite CEPT.
+  Symboles standalone: $24=$, $26=#, $3C=1/4, $3D=1/2, $3E=3/4,
+  $6A=OE majuscule, $7A=oe minuscule.
+  Accents majuscules pre-composes (codes internes $8D-$93):
+  A`, E', E`, E^, E", C,, A^.
+- videotex.c: SS2_ACC etendu, mappe les majuscules accentuees vers
+  les nouveaux codes internes. SS2 grave+A=A`, aigu+E=E', circ+E=E^,
+  trema+E=E", cedille+C=C,.
+- 25 nouveaux tests. 168/168.
+
 ## [0.2.13] - 2026-05-07
 
 ### Ajout

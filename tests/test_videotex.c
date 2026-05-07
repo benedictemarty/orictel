@@ -810,6 +810,69 @@ static void test_pro3_switch_ack(void)
 }
 
 /* ===================================================================
+ *  Test: G2 etendu - symboles CEPT et accents majuscules
+ * =================================================================== */
+static void test_g2_extended(void)
+{
+    vtx_context_t ctx;
+    printf("Test: G2 etendu (CEPT + maj accentuees)\n");
+
+    /* Symboles SS2 standalone: SS2 ($19) + code G2 -> CHARSET_G2 */
+    vtx_init(&ctx);
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x24);  /* $ */
+    ASSERT_EQ("G2: $24 = $", 0x24, ctx.screen[1][0].ch);
+    ASSERT_EQ("G2: $24 charset=G2", CHARSET_G2, ctx.screen[1][0].charset);
+
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x26);  /* # */
+    ASSERT_EQ("G2: $26 = #", 0x26, ctx.screen[1][1].ch);
+
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x3D);  /* 1/2 */
+    ASSERT_EQ("G2: $3D = 1/2", 0x3D, ctx.screen[1][2].ch);
+
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x6A);  /* OE majuscule */
+    ASSERT_EQ("G2: $6A = OE maj", 0x6A, ctx.screen[1][3].ch);
+
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x7A);  /* oe minuscule */
+    ASSERT_EQ("G2: $7A = oe min", 0x7A, ctx.screen[1][4].ch);
+
+    /* Accents majuscules: SS2 + accent + lettre majuscule */
+    vtx_init(&ctx);
+    /* À = SS2 grave A */
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x41); vtx_process(&ctx, 0x41);
+    ASSERT_EQ("SS2 grave+A: code interne $8D",
+              0x8D, ctx.screen[1][0].ch);
+    ASSERT_EQ("SS2 grave+A: charset=G2",
+              CHARSET_G2, ctx.screen[1][0].charset);
+
+    /* É = SS2 aigu E */
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x42); vtx_process(&ctx, 0x45);
+    ASSERT_EQ("SS2 aigu+E: code interne $8E", 0x8E, ctx.screen[1][1].ch);
+
+    /* Ê = SS2 circ E */
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x43); vtx_process(&ctx, 0x45);
+    ASSERT_EQ("SS2 circ+E: code interne $90", 0x90, ctx.screen[1][2].ch);
+
+    /* Ç = SS2 cedille C */
+    vtx_process(&ctx, 0x19); vtx_process(&ctx, 0x4B); vtx_process(&ctx, 0x43);
+    ASSERT_EQ("SS2 cedille+C: code interne $92", 0x92, ctx.screen[1][3].ch);
+
+    /* Verifier que font_get_g2 retourne un glyphe non-vide pour chaque code */
+    extern const unsigned char* font_get_g2(unsigned char ch);
+    {
+        unsigned char codes[] = {0x24, 0x26, 0x3C, 0x3D, 0x3E, 0x6A, 0x7A,
+                                 0x8D, 0x8E, 0x8F, 0x90, 0x91, 0x92, 0x93};
+        unsigned int i;
+        for (i = 0; i < sizeof(codes); ++i) {
+            const unsigned char* g = font_get_g2(codes[i]);
+            int has_pixels = 0;
+            int j;
+            for (j = 0; j < 8; ++j) if (g[j]) { has_pixels = 1; break; }
+            ASSERT_EQ("font_get_g2 retourne glyphe non-vide", 1, has_pixels);
+        }
+    }
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -839,6 +902,7 @@ int main(void)
     test_pro2_status_keyboard();
     test_pro3_start_stop_module();
     test_pro3_switch_ack();
+    test_g2_extended();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {
