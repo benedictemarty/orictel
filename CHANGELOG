@@ -1,5 +1,13 @@
 # CHANGELOG - OricTel
 
+## [0.2.3] - 2026-05-07
+
+### Ajout
+- Raccourcis locaux CTRL+L (effacer ecran) et CTRL+F (reset ACIA),
+  inspires du DTL-2000 Apple II. Permettent de recuperer un terminal
+  fige sans relancer le programme. Codes traites localement, non
+  envoyes a la ligne. Mise a jour README + keyboard.h/c + main.c.
+
 ## [0.2.2] - 2026-05-07
 
 ### Correction

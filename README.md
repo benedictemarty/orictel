@@ -126,6 +126,8 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 | Suite (page suiv) | CTRL+N ou Fl.BAS  | FUNCT+N     | SEP $48        |
 | Connexion/Fin     | CTRL+C            | FUNCT+C     | SEP $49        |
 | Mode rendu        | CTRL+D            |             | (local)        |
+| Effacer ecran     | CTRL+L            |             | (local)        |
+| Reset ACIA        | CTRL+F            |             | (local)        |
 
 ## Specifications techniques
 

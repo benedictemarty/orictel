@@ -160,6 +160,8 @@ unsigned char keyboard_scan(void)
      * APRES les touches speciales pour ne pas les avaler. */
     if (ch >= 0x01 && ch <= 0x1A) {
         if (ch == 0x04) return KEY_TOGGLE_RENDER;  /* CTRL+D */
+        if (ch == 0x0C) return KEY_LOCAL_CLEAR;    /* CTRL+L */
+        if (ch == 0x06) return KEY_LOCAL_RESET;    /* CTRL+F */
         func_key = map_ctrl_to_func(ch);
         if (func_key != KEY_NONE) {
             return func_key;

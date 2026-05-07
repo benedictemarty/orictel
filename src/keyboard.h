@@ -44,9 +44,11 @@
 #define KEY_CONNEXION   0x49
 
 /* Resultat du scan clavier */
-#define KEY_NONE        0x00    /* Aucune touche */
-#define KEY_FUNC_FLAG   0x80    /* Bit 7 = touche fonction Minitel */
+#define KEY_NONE          0x00  /* Aucune touche */
+#define KEY_FUNC_FLAG     0x80  /* Bit 7 = touche fonction Minitel */
 #define KEY_TOGGLE_RENDER 0xFE  /* CTRL+D = basculer mode rendu */
+#define KEY_LOCAL_CLEAR   0xFD  /* CTRL+L = effacer ecran local */
+#define KEY_LOCAL_RESET   0xFC  /* CTRL+F = reset ACIA local */
 
 /**
  * Initialise le module clavier.

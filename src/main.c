@@ -664,6 +664,12 @@ int main(void)
             g_render_mode++;
             if (g_render_mode > 2) g_render_mode = 0;
             vtx.full_refresh = 1;
+        } else if (key == KEY_LOCAL_CLEAR) {
+            vtx_clear_page(&vtx);
+            vtx.full_refresh = 1;
+        } else if (key == KEY_LOCAL_RESET) {
+            serial_init();
+            display_status("ACIA reset");
         } else if (key != KEY_NONE) {
             keyboard_process(key);
         }
