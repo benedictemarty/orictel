@@ -219,14 +219,14 @@ static void test_esc_attributes(void)
     vtx_process(&ctx, 0x4C);
     ASSERT_EQ("ESC normal size", SIZE_NORMAL, ctx.attr_size);
 
-    /* ESC $5C = inversion on */
-    vtx_process(&ctx, 0x1B);
-    vtx_process(&ctx, 0x5C);
-    ASSERT_EQ("ESC invert on", ATTR_INVERT, ctx.attr_flags & ATTR_INVERT);
-
-    /* ESC $5D = inversion off */
+    /* ESC $5D = inversion ON (convention telenet/miedit) */
     vtx_process(&ctx, 0x1B);
     vtx_process(&ctx, 0x5D);
+    ASSERT_EQ("ESC invert on", ATTR_INVERT, ctx.attr_flags & ATTR_INVERT);
+
+    /* ESC $5C = inversion OFF (convention telenet/miedit) */
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x5C);
     ASSERT_EQ("ESC invert off", 0, ctx.attr_flags & ATTR_INVERT);
 
     /* ESC $58 = concealed */

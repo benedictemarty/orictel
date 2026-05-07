@@ -46,9 +46,10 @@ static void clear_row(vtx_context_t* ctx, unsigned char row)
     unsigned char i;
     unsigned char* p;
     memset(&ctx->screen[row][0], 0, sizeof(vtx_cell_t) * VTX_COLS);
-    /* Corriger fg=WHITE (sinon encre noire = invisible) */
+    /* ch=' ' (espace explicite), fg=WHITE (encre noire = invisible). */
     p = (unsigned char*)&ctx->screen[row][0];
     for (i = 0; i < VTX_COLS; ++i) {
+        p[0] = ' ';
         p[2] = VTX_WHITE;
         p += sizeof(vtx_cell_t);
     }
@@ -64,12 +65,13 @@ void vtx_clear_page(vtx_context_t* ctx)
     memset(&ctx->screen[1][0], 0,
            sizeof(vtx_cell_t) * VTX_COLS * (VTX_ROWS - 1));
 
-    /* Corriger fg=WHITE pour toutes les cellules effacees.
-     * vtx_cell_t = {ch, charset, fg, bg, flags, size} → fg a offset 2 */
+    /* ch=' ' (espace explicite), fg=WHITE pour toutes les cellules.
+     * vtx_cell_t = {ch, charset, fg, bg, flags, size} → ch a offset 0, fg a 2 */
     {
         unsigned char* p = (unsigned char*)&ctx->screen[1][0];
         unsigned int i;
         for (i = 0; i < VTX_COLS * (VTX_ROWS - 1); ++i) {
+            p[0] = ' ';        /* caractere = espace */
             p[2] = VTX_WHITE;  /* fg = blanc */
             p += sizeof(vtx_cell_t);
         }

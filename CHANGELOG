@@ -1,5 +1,16 @@
 # CHANGELOG - OricTel
 
+## [0.2.5] - 2026-05-07
+
+### Correction
+- vtx_clear_page/clear_row: cellules effacees contiennent maintenant
+  ch=' ' explicitement (au lieu de 0). Semantique plus claire et
+  conforme aux tests, comportement de rendu inchange (display.c
+  traitait deja les deux comme vides).
+- test_videotex: convention ESC $5C/$5D invert alignee sur le code
+  ($5D=ON, $5C=OFF, conforme telenet/miedit).
+- 59/59 tests Videotex + 24/24 tests bridge passent.
+
 ## [0.2.4] - 2026-05-07
 
 ### Correction
