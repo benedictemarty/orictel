@@ -110,6 +110,10 @@ typedef struct {
     /* Code accent SS2 en cours ($41=grave, $42=aigu, $43=circ, $48=trema, $4B=cedille) */
     unsigned char ss2_accent;
 
+    /* Modes terminal (PRO2). 0 = etat par defaut Minitel 1B. */
+    unsigned char rolling_mode;    /* 1 = scroll en bas d'ecran, 0 = mode page */
+    unsigned char lowercase_mode;  /* 1 = minuscules autorisees, 0 = forcer majuscule */
+
     /* Sequence PRO en cours.
      * pro_kind: 1, 2 ou 3 (nombre total d'octets attendus apres ESC $39/$3A/$3B)
      * pro_idx: index du prochain octet a recevoir (0..pro_kind-1)

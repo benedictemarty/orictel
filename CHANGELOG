@@ -1,5 +1,17 @@
 # CHANGELOG - OricTel
 
+## [0.2.8] - 2026-05-07
+
+### Ajout
+- videotex.c: PRO2 mode minuscules (ESC $3A $69/$6A $45). Par defaut
+  (Minitel 1B), 'a'-'z' sont forcees en majuscules dans le jeu G0.
+  Le serveur peut activer/desactiver ce comportement via PRO2.
+- videotex.c: PRO2 mode rouleau (ESC $3A $69/$6A $43). En mode rouleau,
+  quand le curseur depasse la derniere ligne, l'ecran defile d'une
+  ligne (memmove + clear de la derniere ligne). Mode page conserve
+  par defaut. La ligne 0 (statut) reste fixe pendant le scroll.
+- 12 nouveaux tests (lowercase on/off + rolling on/off + scroll). 91/91.
+
 ## [0.2.7] - 2026-05-07
 
 ### Ajout

@@ -499,6 +499,71 @@ static void test_enqrom(void)
 }
 
 /* ===================================================================
+ *  Test: PRO2 mode minuscules (lowercase) - $3A $69/$6A $45
+ * =================================================================== */
+static void test_pro2_lowercase(void)
+{
+    vtx_context_t ctx;
+    printf("Test: PRO2 mode minuscules\n");
+    vtx_init(&ctx);
+
+    /* Defaut: lowercase_mode = 0, 'a' s'affiche en 'A' */
+    ASSERT_EQ("defaut: lowercase_mode = 0", 0, ctx.lowercase_mode);
+    vtx_process(&ctx, 'a');
+    ASSERT_EQ("defaut: 'a' force en 'A'", 'A', ctx.screen[1][0].ch);
+
+    /* PRO2 START LOWERCASE */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x45);
+    ASSERT_EQ("apres START LOWERCASE: lowercase_mode = 1", 1, ctx.lowercase_mode);
+    vtx_process(&ctx, 'b');
+    ASSERT_EQ("LOWERCASE on: 'b' affiche tel quel", 'b', ctx.screen[1][1].ch);
+
+    /* PRO2 STOP LOWERCASE */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x6A); vtx_process(&ctx, 0x45);
+    ASSERT_EQ("apres STOP LOWERCASE: lowercase_mode = 0", 0, ctx.lowercase_mode);
+    vtx_process(&ctx, 'c');
+    ASSERT_EQ("LOWERCASE off: 'c' force en 'C'", 'C', ctx.screen[1][2].ch);
+}
+
+/* ===================================================================
+ *  Test: PRO2 mode rouleau (rolling) - $3A $69/$6A $43
+ * =================================================================== */
+static void test_pro2_rolling(void)
+{
+    vtx_context_t ctx;
+    printf("Test: PRO2 mode rouleau\n");
+    vtx_init(&ctx);
+
+    /* Defaut: rolling_mode = 0 */
+    ASSERT_EQ("defaut: rolling_mode = 0", 0, ctx.rolling_mode);
+
+    /* PRO2 START ROLLING */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x43);
+    ASSERT_EQ("apres START ROLLING: rolling_mode = 1", 1, ctx.rolling_mode);
+
+    /* Tester le scroll: poser un 'X' en ligne 2, descendre en bas
+     * d'ecran, faire scroller, verifier que 'X' a remonte. */
+    vtx_set_cursor(&ctx, 2, 5);
+    vtx_process(&ctx, 'X');
+    ASSERT_EQ("avant scroll: X en (2,5)", 'X', ctx.screen[2][5].ch);
+
+    /* Forcer cur_y a la derniere ligne et provoquer un scroll via LF */
+    vtx_set_cursor(&ctx, VTX_ROWS - 1, 0);
+    vtx_process(&ctx, 0x0A);  /* LF */
+    /* Apres scroll, le 'X' doit etre passe de ligne 2 a ligne 1 */
+    ASSERT_EQ("apres scroll: X en (1,5)", 'X', ctx.screen[1][5].ch);
+    ASSERT_EQ("apres scroll: ligne 2 vide", ' ', ctx.screen[2][5].ch);
+
+    /* PRO2 STOP ROLLING */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x6A); vtx_process(&ctx, 0x43);
+    ASSERT_EQ("apres STOP ROLLING: rolling_mode = 0", 0, ctx.rolling_mode);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -521,6 +586,8 @@ int main(void)
     test_esc_resync();
     test_pro_sequences();
     test_enqrom();
+    test_pro2_lowercase();
+    test_pro2_rolling();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

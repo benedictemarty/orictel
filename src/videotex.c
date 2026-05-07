@@ -31,6 +31,8 @@ void vtx_init(vtx_context_t* ctx)
     ctx->pending_bg = VTX_BLACK;
     ctx->pending_underline = 0;
     ctx->has_pending = 0;
+    ctx->rolling_mode = 0;
+    ctx->lowercase_mode = 0;
 
     vtx_clear_page(ctx);
     vtx_clear_status(ctx);
@@ -112,12 +114,22 @@ void vtx_set_cursor(vtx_context_t* ctx, unsigned char row, unsigned char col)
  *  Ecriture d'un caractere a la position curseur
  * =================================================================== */
 
+static void scroll_up(vtx_context_t* ctx);
+
 static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
 {
     vtx_cell_t* cell;
 
     if (ctx->cur_y >= VTX_ROWS || ctx->cur_x >= VTX_COLS) {
         return;
+    }
+
+    /* Mode majuscule force (defaut Minitel 1B) : 'a'-'z' -> 'A'-'Z'.
+     * Ne s'applique qu'au jeu G0 (alphanumerique). G1 mosaique et
+     * G2 supplementaire ne sont pas affectes. */
+    if (cs == CHARSET_G0 && !ctx->lowercase_mode &&
+        ch >= 'a' && ch <= 'z') {
+        ch -= 32;
     }
 
     cell = &ctx->screen[ctx->cur_y][ctx->cur_x];
@@ -158,8 +170,13 @@ static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
         ctx->cur_x = 0;
         ctx->cur_y++;
         if (ctx->cur_y >= VTX_ROWS) {
-            /* Mode page (defaut): retour en ligne 1 (pas 0 = status) */
-            ctx->cur_y = 1;
+            if (ctx->rolling_mode) {
+                scroll_up(ctx);
+                ctx->cur_y = VTX_ROWS - 1;
+            } else {
+                /* Mode page (defaut): retour en ligne 1 (pas 0 = status) */
+                ctx->cur_y = 1;
+            }
         }
     }
 }
@@ -201,8 +218,22 @@ static void cursor_down(vtx_context_t* ctx)
 {
     if (ctx->cur_y < VTX_ROWS - 1) {
         ctx->cur_y++;
+    } else if (ctx->rolling_mode) {
+        /* Mode rouleau: scroll d'une ligne, curseur reste en bas */
+        scroll_up(ctx);
     }
     /* Mode page: pas de scroll, curseur reste en ligne 24 */
+}
+
+static void scroll_up(vtx_context_t* ctx)
+{
+    /* Decale les lignes 2..VTX_ROWS-1 vers 1..VTX_ROWS-2.
+     * La ligne 0 (statut) est preservee. La derniere ligne est effacee.
+     * Cout: ~5.5 Ko de memmove + full_refresh (~80ms a 1 MHz). */
+    memmove(&ctx->screen[1][0], &ctx->screen[2][0],
+            sizeof(vtx_cell_t) * VTX_COLS * (VTX_ROWS - 2));
+    clear_row(ctx, VTX_ROWS - 1);
+    ctx->full_refresh = 1;
 }
 
 /* ===================================================================
@@ -439,8 +470,30 @@ static void dispatch_pro(vtx_context_t* ctx)
         }
         return;
     }
-    /* PRO2/PRO3: pour l'instant ignores - seul le sync est preserve.
-     * TODO: rolling mode, lowercase, AIGUILLAGE, mode mixte/videotex. */
+    /* PRO2: 2 octets = action ($69=START / $6A=STOP) + cible.
+     * Cibles connues:
+     *   $43 = mode rouleau (scroll en bas d'ecran)
+     *   $45 = mode minuscules (autoriser 'a'-'z' au lieu de forcer majuscule)
+     * Reference: STUM 1B + miedit (constant.js) + eMinitel (Functionalities.cpp) */
+    if (ctx->pro_kind == 2) {
+        unsigned char on;
+        if (ctx->pro_buf[0] == 0x69)      on = 1;  /* START */
+        else if (ctx->pro_buf[0] == 0x6A) on = 0;  /* STOP */
+        else return;
+        switch (ctx->pro_buf[1]) {
+            case 0x43:  /* ROLLING */
+                ctx->rolling_mode = on;
+                break;
+            case 0x45:  /* LOWERCASE */
+                ctx->lowercase_mode = on;
+                break;
+            default:
+                /* Autres cibles PRO2 (PCE, mixed, ...) : TODO */
+                break;
+        }
+        return;
+    }
+    /* PRO3: ignore pour l'instant - seul le sync est preserve. */
 }
 
 /* ===================================================================
