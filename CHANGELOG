@@ -1,5 +1,16 @@
 # CHANGELOG - OricTel
 
+## [0.2.13] - 2026-05-07
+
+### Ajout
+- videotex.c: ACK PRO3 SWITCH (ESC $3B $63 + dest + status_byte).
+  Apres un SWITCH ON/OFF, OricTel renvoie le status de la destination
+  conformement au STUM 1B / eMinitel: bit 6 fixe, bit 0 = SCR->dest,
+  bit 1 = KBD->dest, bit 2 = MDM->dest, bit 3 = PRISE->dest (toujours 0).
+  Un serveur peut maintenant verifier l'effet d'une commande SWITCH.
+- 10 nouveaux tests (ACK ON/OFF avec dest=ECRAN/MODEM, status correct,
+  pas d'ACK sur couple non gere). 143/143.
+
 ## [0.2.12] - 2026-05-07
 
 ### Ajout

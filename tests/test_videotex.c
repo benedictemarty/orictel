@@ -760,6 +760,56 @@ static void test_pro3_start_stop_module(void)
 }
 
 /* ===================================================================
+ *  Test: ACK PRO3 SWITCH ON/OFF
+ *
+ *  Format: ESC $3B $63 + dest + status_byte (5 octets).
+ *  Status: bit6 fixe + bits selon les liens "src -> dest" connus.
+ * =================================================================== */
+static void test_pro3_switch_ack(void)
+{
+    vtx_context_t ctx;
+    printf("Test: ACK PRO3 SWITCH\n");
+    vtx_init(&ctx);
+    /* Defaut: AIG_MDM_TO_SCR + AIG_KBD_TO_MDM ON */
+
+    /* Demande: SWITCH ON KBD->ECRAN. Apres, dest=ECRAN status doit
+     * indiquer KBD->SCR (bit1) ET MDM->SCR (bit2) actifs. */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x61); vtx_process(&ctx, 0x58); vtx_process(&ctx, 0x51);
+    ASSERT_EQ("ACK ON KBD->SCR: 5 octets", 5, tx_len);
+    ASSERT_EQ("ACK: ESC", 0x1B, tx_buf[0]);
+    ASSERT_EQ("ACK: PRO3 $3B", 0x3B, tx_buf[1]);
+    ASSERT_EQ("ACK: code $63", 0x63, tx_buf[2]);
+    ASSERT_EQ("ACK: module dest = SCR", 0x58, tx_buf[3]);
+    ASSERT_EQ("ACK: status = $46 (bit6+bit2+bit1)",
+              0x40 | 0x04 | 0x02, tx_buf[4]);
+
+    /* Demande: SWITCH OFF MDM->SCR. Apres, status SCR garde KBD->SCR
+     * (bit1) mais plus MDM->SCR (bit2). */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x60); vtx_process(&ctx, 0x58); vtx_process(&ctx, 0x59);
+    ASSERT_EQ("ACK OFF MDM->SCR: status = $42 (bit6+bit1)",
+              0x40 | 0x02, tx_buf[4]);
+
+    /* Demande sur dest = MODEM. Defaut: KBD->MDM ON (bit1). */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x61); vtx_process(&ctx, 0x59);
+    vtx_process(&ctx, 0x58);  /* SCR -> MDM */
+    ASSERT_EQ("ACK ON SCR->MDM: dest = MDM", 0x59, tx_buf[3]);
+    ASSERT_EQ("ACK ON SCR->MDM: status = $43 (bit6+bit1+bit0)",
+              0x40 | 0x02 | 0x01, tx_buf[4]);
+
+    /* Couple non gere: aucun ACK emis */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x61); vtx_process(&ctx, 0x50); vtx_process(&ctx, 0x51);
+    ASSERT_EQ("couple inconnu: 0 octet emis", 0, tx_len);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -788,6 +838,7 @@ int main(void)
     test_pro2_mode_protocole();
     test_pro2_status_keyboard();
     test_pro3_start_stop_module();
+    test_pro3_switch_ack();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

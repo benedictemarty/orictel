@@ -584,6 +584,30 @@ static void dispatch_pro(vtx_context_t* ctx)
 
         if (on) ctx->aiguillages |= mask;
         else    ctx->aiguillages &= ~mask;
+
+        /* ACK PRO3 SWITCH: ESC $3B $63 + dest + status_byte (5 octets).
+         * Le status byte resume tous les liens "X -> dest" connus, avec
+         * convention bit (cf. eMinitel __func_PRO3):
+         *   bit 0 = ECRAN  -> dest
+         *   bit 1 = CLAVIER -> dest
+         *   bit 2 = MODEM  -> dest
+         *   bit 3 = PRISE/DIN -> dest (non gere, toujours 0)
+         *   bit 6 = $40 fixe (convention) */
+        {
+            unsigned char status = 0x40;
+            if (dest == 0x58) {  /* dest = ECRAN */
+                if (ctx->aiguillages & AIG_KBD_TO_SCR) status |= 0x02;
+                if (ctx->aiguillages & AIG_MDM_TO_SCR) status |= 0x04;
+            } else if (dest == 0x59) {  /* dest = MODEM */
+                if (ctx->aiguillages & AIG_SCR_TO_MDM) status |= 0x01;
+                if (ctx->aiguillages & AIG_KBD_TO_MDM) status |= 0x02;
+            }
+            serial_send(0x1B);
+            serial_send(0x3B);
+            serial_send(0x63);
+            serial_send(dest);
+            serial_send(status);
+        }
     }
 }
 
