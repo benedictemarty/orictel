@@ -413,6 +413,17 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
     /* Masquer bit 7 (7 bits Videotex) */
     byte &= 0x7F;
 
+    /* Re-sync: un ESC ($1B) recu en milieu de sequence multi-octets
+     * abandonne l'etat courant et redemarre une nouvelle sequence ESC.
+     * $1B n'est jamais une valeur legitime dans les payloads US/SS2/PRO/CSI
+     * (US: $40+ligne, SS2: $20-$7F, CSI param: '0'-'9'/';'), donc le voir
+     * signifie qu'on a perdu le sync et qu'une nouvelle commande arrive. */
+    if (byte == 0x1B && ctx->state != VTX_STATE_NORMAL
+                    && ctx->state != VTX_STATE_ESC) {
+        ctx->state = VTX_STATE_ESC;
+        return;
+    }
+
     switch (ctx->state) {
 
     case VTX_STATE_ESC:

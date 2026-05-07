@@ -379,6 +379,42 @@ static void test_g1_mosaics(void)
 }
 
 /* ===================================================================
+ *  Test: re-sync ESC en milieu de sequence
+ * =================================================================== */
+static void test_esc_resync(void)
+{
+    vtx_context_t ctx;
+    printf("Test: Re-sync ESC en milieu de sequence\n");
+    vtx_init(&ctx);
+
+    /* Sequence CSI tronquee suivie d'un ESC + commande valide.
+     * Avant le fix, l'ESC etait avale comme parametre invalide. */
+    vtx_process(&ctx, 0x1B);  /* ESC */
+    vtx_process(&ctx, 0x5B);  /* [ - debut CSI */
+    vtx_process(&ctx, '1');
+    vtx_process(&ctx, '2');
+    vtx_process(&ctx, 0x1B);  /* ESC interrompt: re-sync attendu */
+    vtx_process(&ctx, 0x44);  /* ESC $44 = INK bleu */
+    ASSERT_EQ("re-sync ESC: state retombe NORMAL", VTX_STATE_NORMAL, ctx.state);
+    ASSERT_EQ("re-sync ESC: INK bleu applique", VTX_BLUE, ctx.fg_color);
+
+    /* Sequence US tronquee + ESC */
+    vtx_init(&ctx);
+    vtx_process(&ctx, 0x1F);  /* US */
+    vtx_process(&ctx, 0x1B);  /* ESC interrompt avant la ligne */
+    vtx_process(&ctx, 0x46);  /* ESC $46 = INK cyan */
+    ASSERT_EQ("re-sync ESC depuis US: INK cyan", VTX_CYAN, ctx.fg_color);
+
+    /* Sequence PRO tronquee + ESC */
+    vtx_init(&ctx);
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x39);  /* ESC $39 = PRO1 */
+    vtx_process(&ctx, 0x1B);  /* ESC interrompt avant la commande */
+    vtx_process(&ctx, 0x42);  /* ESC $42 = INK vert */
+    ASSERT_EQ("re-sync ESC depuis PRO: INK vert", VTX_GREEN, ctx.fg_color);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -398,6 +434,7 @@ int main(void)
     test_background_color();
     test_line_wrapping();
     test_g1_mosaics();
+    test_esc_resync();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

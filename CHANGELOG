@@ -1,5 +1,15 @@
 # CHANGELOG - OricTel
 
+## [0.2.4] - 2026-05-07
+
+### Correction
+- videotex.c: re-sync sur ESC ($1B) en milieu de sequence multi-octets.
+  Si une trame corrompue ou tronquee laisse le decodeur dans un etat
+  CSI/US/SS2/PRO en attente, l'arrivee d'un nouvel ESC abandonne l'etat
+  courant et redemarre proprement. $1B n'etant jamais une valeur
+  legitime dans les payloads de ces etats, c'est un signal sans
+  ambiguite. 3 nouveaux tests (re-sync depuis CSI, US, PRO).
+
 ## [0.2.3] - 2026-05-07
 
 ### Ajout
