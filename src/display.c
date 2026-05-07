@@ -439,18 +439,25 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     }
 
     /* Mode 0 = AUTO: decider par ligne si on utilise les attributs.
-     * Regle: couleurs SI la ligne a des changements de couleur
-     * ET des cellules vides pour poser les attributs.
-     * Sinon: brut (caractere prioritaire, blanc sur noir). */
+     * Regle:
+     * - Couleurs SI changements de couleur ET cellules vides pour attributs
+     * - Brut SI la ligne contient des cellules double-hauteur/taille
+     *   (les attributs serial de row-1 ne correspondent pas au contenu)
+     * - Brut si pas de cellule vide pour poser les attributs */
     has_colors = 0;
     has_empty = 0;
-    for (col = 0; col < SCREEN_COLS; ++col) {
-        vtx_cell_t* c = &ctx->screen[row][col];
-        if (c->fg != VTX_WHITE || c->bg != VTX_BLACK) has_colors = 1;
-        if (c->ch == ' ' || c->ch == 0x20 || c->ch == 0) has_empty = 1;
-        if (has_colors && has_empty) break;
+    {
+        unsigned char has_dblh = 0;
+        for (col = 0; col < SCREEN_COLS; ++col) {
+            vtx_cell_t* c = &ctx->screen[row][col];
+            if (c->fg != VTX_WHITE || c->bg != VTX_BLACK) has_colors = 1;
+            if (c->ch == ' ' || c->ch == 0x20 || c->ch == 0) has_empty = 1;
+            if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE)
+                has_dblh = 1;
+        }
+        /* Double-hauteur = brut (les attributs serial row-1 seraient faux) */
+        use_attrs = (has_colors && has_empty && !has_dblh) ? 1 : 0;
     }
-    use_attrs = (has_colors && has_empty) ? 1 : 0;
 
     if (!use_attrs) {
         /* Brut: tout rendre en blanc, pas d'attributs */

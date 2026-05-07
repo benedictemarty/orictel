@@ -12,6 +12,18 @@
 #include <string.h>
 #include "videotex.h"
 
+/* Stubs des dependances HW non disponibles en mode TEST_HOST */
+#ifdef TEST_HOST
+void serial_send(unsigned char byte) { (void)byte; }
+void serial_send_buf(const unsigned char* buf, unsigned char len) { (void)buf; (void)len; }
+unsigned char serial_recv(void) { return 0xFF; }
+unsigned char serial_poll(void) { return 0; }
+void serial_init(void) {}
+void display_clear(void) {}
+void display_beep(void) {}
+void display_render(vtx_context_t* ctx) { (void)ctx; }
+#endif
+
 /* Compteurs de tests */
 static int tests_run = 0;
 static int tests_passed = 0;

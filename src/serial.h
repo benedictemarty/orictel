@@ -10,6 +10,10 @@
 #ifndef SERIAL_H
 #define SERIAL_H
 
+#ifdef TEST_HOST
+#define __fastcall__
+#endif
+
 /* Adresses des registres ACIA 6551 */
 #define ACIA_DATA    0x031C  /* R: donnee recue, W: donnee a envoyer */
 #define ACIA_STATUS  0x031D  /* R: statut, W: reset programme */
