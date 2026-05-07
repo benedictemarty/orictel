@@ -33,6 +33,8 @@ void vtx_init(vtx_context_t* ctx)
     ctx->has_pending = 0;
     ctx->rolling_mode = 0;
     ctx->lowercase_mode = 0;
+    /* Aiguillages defaut Minitel 1B: MODEM->ECRAN et CLAVIER->MODEM */
+    ctx->aiguillages = AIG_MDM_TO_SCR | AIG_KBD_TO_MDM;
 
     vtx_clear_page(ctx);
     vtx_clear_status(ctx);
@@ -493,7 +495,39 @@ static void dispatch_pro(vtx_context_t* ctx)
         }
         return;
     }
-    /* PRO3: ignore pour l'instant - seul le sync est preserve. */
+    /* PRO3: 3 octets = action + cible/source.
+     *   $60 SWITCH OFF + dest + source: rompt le lien source -> dest
+     *   $61 SWITCH ON  + dest + source: etablit le lien source -> dest
+     *   $69 START + xx + yy: active un module (TODO)
+     *   $6A STOP + xx + yy: desactive un module (TODO)
+     *
+     * Codes module STUM 1B:
+     *   $50 = PRISE peripherique
+     *   $51 = CLAVIER
+     *   $58 = ECRAN
+     *   $59 = MODEM
+     *
+     * Reference: STUM 1B + miedit (constant.js pro3SwitchOn/Off)
+     *            + eMinitel (Functionalities.cpp __func_PRO3) */
+    if (ctx->pro_kind == 3) {
+        unsigned char on;
+        unsigned char dest, src, mask;
+        if (ctx->pro_buf[0] == 0x61)      on = 1;  /* SWITCH ON */
+        else if (ctx->pro_buf[0] == 0x60) on = 0;  /* SWITCH OFF */
+        else return;  /* START/STOP module: TODO */
+
+        dest = ctx->pro_buf[1];
+        src  = ctx->pro_buf[2];
+        mask = 0;
+        if (dest == 0x58 && src == 0x51) mask = AIG_KBD_TO_SCR;
+        else if (dest == 0x58 && src == 0x59) mask = AIG_MDM_TO_SCR;
+        else if (dest == 0x59 && src == 0x51) mask = AIG_KBD_TO_MDM;
+        else if (dest == 0x59 && src == 0x58) mask = AIG_SCR_TO_MDM;
+        else return;  /* couple non gere */
+
+        if (on) ctx->aiguillages |= mask;
+        else    ctx->aiguillages &= ~mask;
+    }
 }
 
 /* ===================================================================

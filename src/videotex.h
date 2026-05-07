@@ -114,6 +114,19 @@ typedef struct {
     unsigned char rolling_mode;    /* 1 = scroll en bas d'ecran, 0 = mode page */
     unsigned char lowercase_mode;  /* 1 = minuscules autorisees, 0 = forcer majuscule */
 
+    /* Aiguillages PRO3 (SWITCH ON/OFF entre modules).
+     * Le Minitel a 4 modules: ECRAN ($58), CLAVIER ($51), MODEM ($59), PRISE ($50).
+     * Bit 0 = source CLAVIER vers destination ECRAN (echo local, le defaut sur 1B
+     * est OFF: ce qu'on tape n'est pas affiche sans retour serveur).
+     * Bit 1 = source MODEM vers destination ECRAN (defaut ON sur 1B).
+     * Bit 2 = source CLAVIER vers destination MODEM (defaut ON).
+     * Bit 3 = source ECRAN vers destination MODEM (rare, defaut OFF). */
+    unsigned char aiguillages;
+#define AIG_KBD_TO_SCR  0x01
+#define AIG_MDM_TO_SCR  0x02
+#define AIG_KBD_TO_MDM  0x04
+#define AIG_SCR_TO_MDM  0x08
+
     /* Sequence PRO en cours.
      * pro_kind: 1, 2 ou 3 (nombre total d'octets attendus apres ESC $39/$3A/$3B)
      * pro_idx: index du prochain octet a recevoir (0..pro_kind-1)

@@ -564,6 +564,64 @@ static void test_pro2_rolling(void)
 }
 
 /* ===================================================================
+ *  Test: PRO3 AIGUILLAGE (SWITCH ON/OFF entre modules)
+ * =================================================================== */
+static void test_pro3_aiguillage(void)
+{
+    vtx_context_t ctx;
+    printf("Test: PRO3 AIGUILLAGE\n");
+    vtx_init(&ctx);
+
+    /* Defaut Minitel 1B: MODEM->ECRAN ON, CLAVIER->MODEM ON, autres OFF */
+    ASSERT_EQ("defaut: MDM->SCR ON",  AIG_MDM_TO_SCR, ctx.aiguillages & AIG_MDM_TO_SCR);
+    ASSERT_EQ("defaut: KBD->MDM ON",  AIG_KBD_TO_MDM, ctx.aiguillages & AIG_KBD_TO_MDM);
+    ASSERT_EQ("defaut: KBD->SCR OFF", 0, ctx.aiguillages & AIG_KBD_TO_SCR);
+    ASSERT_EQ("defaut: SCR->MDM OFF", 0, ctx.aiguillages & AIG_SCR_TO_MDM);
+
+    /* PRO3 SWITCH ON: CLAVIER ($51) -> ECRAN ($58) = echo local activate */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x61);  /* ON */
+    vtx_process(&ctx, 0x58);  /* dest = ECRAN */
+    vtx_process(&ctx, 0x51);  /* source = CLAVIER */
+    ASSERT_EQ("apres SWITCH ON KBD->SCR", AIG_KBD_TO_SCR, ctx.aiguillages & AIG_KBD_TO_SCR);
+    ASSERT_EQ("state retombe NORMAL", VTX_STATE_NORMAL, ctx.state);
+
+    /* PRO3 SWITCH OFF: rompre le meme lien */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x60);  /* OFF */
+    vtx_process(&ctx, 0x58);
+    vtx_process(&ctx, 0x51);
+    ASSERT_EQ("apres SWITCH OFF KBD->SCR", 0, ctx.aiguillages & AIG_KBD_TO_SCR);
+
+    /* PRO3 SWITCH OFF: MODEM -> ECRAN (couper l'affichage des donnees serveur) */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x60);
+    vtx_process(&ctx, 0x58);
+    vtx_process(&ctx, 0x59);
+    ASSERT_EQ("apres SWITCH OFF MDM->SCR", 0, ctx.aiguillages & AIG_MDM_TO_SCR);
+
+    /* PRO3 SWITCH ON: ECRAN -> MODEM (echo distant) */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x61);
+    vtx_process(&ctx, 0x59);
+    vtx_process(&ctx, 0x58);
+    ASSERT_EQ("apres SWITCH ON SCR->MDM", AIG_SCR_TO_MDM, ctx.aiguillages & AIG_SCR_TO_MDM);
+
+    /* Couple non gere: pas de modification */
+    unsigned char before = ctx.aiguillages;
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3B);
+    vtx_process(&ctx, 0x61);
+    vtx_process(&ctx, 0x50);  /* PRISE - pas gere */
+    vtx_process(&ctx, 0x51);
+    ASSERT_EQ("couple inconnu: aiguillages inchanges", before, ctx.aiguillages);
+
+    /* Sync: apres PRO3 le decodeur accepte un caractere normal */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 'Z');
+    ASSERT_EQ("Z affiche apres PRO3", 'Z', ctx.screen[5][0].ch);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -588,6 +646,7 @@ int main(void)
     test_enqrom();
     test_pro2_lowercase();
     test_pro2_rolling();
+    test_pro3_aiguillage();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

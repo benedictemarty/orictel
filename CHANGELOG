@@ -1,5 +1,20 @@
 # CHANGELOG - OricTel
 
+## [0.2.9] - 2026-05-07
+
+### Ajout
+- videotex.c: PRO3 AIGUILLAGE (SWITCH ON/OFF entre modules).
+  Le serveur peut maintenant configurer les liens module-a-module via
+  ESC $3B + $61/$60 + dest + source. 4 couples geres:
+    CLAVIER -> ECRAN (echo local)       AIG_KBD_TO_SCR
+    MODEM   -> ECRAN                    AIG_MDM_TO_SCR
+    CLAVIER -> MODEM                    AIG_KBD_TO_MDM
+    ECRAN   -> MODEM                    AIG_SCR_TO_MDM
+  Etat initial = defaut Minitel 1B (MDM->SCR + KBD->MDM ON).
+  Pour l'instant les flags sont seulement stockes (pas d'effet pratique
+  sur le routage local OricTel - TODO si besoin echo local visible).
+- 11 nouveaux tests. 102/102 tests Videotex.
+
 ## [0.2.8] - 2026-05-07
 
 ### Ajout
