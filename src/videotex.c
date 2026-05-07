@@ -481,6 +481,27 @@ static void dispatch_pro(vtx_context_t* ctx)
     if (ctx->pro_kind == 2) {
         unsigned char on;
 
+        /* PRO2 + $72 + module = demande de status d'un module.
+         * Format reponse: ESC ($1B) + $3B + $73 + module + status byte
+         * (= PRO3 + $73 + ...). Reference: STUM 1B + eMinitel.
+         * Les modules courants sont $59 (KEYBOARD_IN) et $51 (KEYBOARD_OUT).
+         * Le status byte reflete l'etat du clavier: bits 6-7 fixes par
+         * convention, plus quelques flags optionnels (minuscules etc.). */
+        if (ctx->pro_buf[0] == 0x72) {
+            unsigned char target = ctx->pro_buf[1];
+            if (target == 0x59 || target == 0x51) {
+                unsigned char status = 0xC0;  /* bits 6-7 fixes (cf. eMinitel) */
+                if (ctx->lowercase_mode) status |= 0x02;
+                if (ctx->rolling_mode)   status |= 0x04;
+                serial_send(0x1B);
+                serial_send(0x3B);
+                serial_send(0x73);
+                serial_send(target);
+                serial_send(status);
+            }
+            return;
+        }
+
         /* PRO2 + $32 = changement de mode protocole (VIDEOTEX/MIXED).
          * Reference: STUM 1B, eMinitel PRO2_MODE_VIDEOTEX/MIXED. */
         if (ctx->pro_buf[0] == 0x32) {

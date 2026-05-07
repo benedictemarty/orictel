@@ -1,5 +1,16 @@
 # CHANGELOG - OricTel
 
+## [0.2.11] - 2026-05-07
+
+### Ajout
+- videotex.c: PRO2 status keyboard (ESC $3A $72 $59 ou $51).
+  Reponse PRO3+$73+module+status (5 octets) avec status byte
+  refletant l'etat courant: bits 6-7 fixes ($C0, base eMinitel) +
+  bit 1 si lowercase actif + bit 2 si rolling actif.
+  Permet aux serveurs de sonder l'etat du clavier sans avoir a
+  envoyer de tests interactifs.
+- 11 nouveaux tests. 121/121.
+
 ## [0.2.10] - 2026-05-07
 
 ### Ajout

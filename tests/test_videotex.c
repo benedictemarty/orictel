@@ -658,6 +658,59 @@ static void test_pro2_mode_protocole(void)
 }
 
 /* ===================================================================
+ *  Test: PRO2 status keyboard ($3A $72 $51/$59)
+ *
+ *  Reponse attendue: ESC $3B $73 + module + status_byte (5 octets).
+ * =================================================================== */
+static void test_pro2_status_keyboard(void)
+{
+    vtx_context_t ctx;
+    printf("Test: PRO2 status keyboard\n");
+    vtx_init(&ctx);
+
+    /* Status KEYBOARD_IN ($59), etat par defaut */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x72); vtx_process(&ctx, 0x59);
+    ASSERT_EQ("KBD_IN: 5 octets emis", 5, tx_len);
+    ASSERT_EQ("KBD_IN: ESC", 0x1B, tx_buf[0]);
+    ASSERT_EQ("KBD_IN: PRO3", 0x3B, tx_buf[1]);
+    ASSERT_EQ("KBD_IN: ack $73", 0x73, tx_buf[2]);
+    ASSERT_EQ("KBD_IN: module $59", 0x59, tx_buf[3]);
+    ASSERT_EQ("KBD_IN: status defaut $C0", 0xC0, tx_buf[4]);
+
+    /* Activer lowercase et rolling, refaire la requete */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x45);  /* START LOWERCASE */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x69); vtx_process(&ctx, 0x43);  /* START ROLLING */
+
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x72); vtx_process(&ctx, 0x59);
+    ASSERT_EQ("KBD_IN modes on: status $C6",
+              0xC0 | 0x02 | 0x04, tx_buf[4]);
+
+    /* Status KEYBOARD_OUT ($51) doit aussi repondre */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x72); vtx_process(&ctx, 0x51);
+    ASSERT_EQ("KBD_OUT: 5 octets emis", 5, tx_len);
+    ASSERT_EQ("KBD_OUT: module $51", 0x51, tx_buf[3]);
+
+    /* Cible inconnue: pas d'emission */
+    tx_reset();
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x3A);
+    vtx_process(&ctx, 0x72); vtx_process(&ctx, 0x40);
+    ASSERT_EQ("cible $40 inconnue: 0 octet", 0, tx_len);
+
+    /* Sync OK apres */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 'K');
+    ASSERT_EQ("K affiche apres status", 'K', ctx.screen[5][0].ch);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -684,6 +737,7 @@ int main(void)
     test_pro2_rolling();
     test_pro3_aiguillage();
     test_pro2_mode_protocole();
+    test_pro2_status_keyboard();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {
