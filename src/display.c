@@ -10,10 +10,14 @@
  *   $A000 + ligne_pixel * 40 + colonne = 1 octet (6 pixels)
  *   Bit 6 = 1 : les bits 5-0 sont des pixels (1=encre, 0=fond)
  *   Bit 6 = 0, bit 5 = 0 : attribut serial (encre $00-$07, fond $10-$17)
+ *   La ULA remet encre=blanc / fond=noir au debut de CHAQUE scanline:
+ *   une ligne sans attribut rend donc toujours blanc sur noir.
  *
- * Strategie couleur simplifiee:
- *   - Premiere colonne de chaque ligne pixel = attribut encre
- *   - Le reste = donnees pixel avec bit 6 = 1
+ * Strategie couleur (mode AUTO):
+ *   - Attributs serial poses uniquement sur les cellules vides
+ *     (un attribut sacrifie la cellule qu'il occupe)
+ *   - Lignes sans cellule vide ou avec double hauteur: rendu brut
+ *   - Mosaiques G1: dithering par densite de luminance
  */
 
 #include "display.h"
@@ -175,22 +179,28 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph,
  *  Chaque couleur a 8 masques (1 par ligne pixel).
  *  Le masque AND avec les pixels du glyphe simule la couleur.
  * =================================================================== */
+/* Les densites suivent l'ordre de luminance CCIR des couleurs
+ * (noir 0% < bleu 11% < rouge 30% < magenta 41% < vert 59%
+ *  < cyan 70% < jaune 89% < blanc 100%), pour que la hierarchie
+ * visuelle d'une page colorisee soit preservee en monochrome.
+ * Les textures different entre couleurs proches (lignes, damier,
+ * diagonale) pour rester distinguables a densite egale. */
 static const unsigned char g1_dither[8][8] = {
-    /* 0: Noir */
+    /* 0: Noir - 0% */
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
-    /* 1: Rouge - lignes alternees */
-    { 0x3F, 0x00, 0x3F, 0x00, 0x3F, 0x00, 0x3F, 0x00 },
-    /* 2: Vert - damier */
-    { 0x2A, 0x15, 0x2A, 0x15, 0x2A, 0x15, 0x2A, 0x15 },
-    /* 3: Jaune - dense 3/4 */
-    { 0x3F, 0x2A, 0x3F, 0x15, 0x3F, 0x2A, 0x3F, 0x15 },
-    /* 4: Bleu - sparse */
+    /* 1: Rouge - diagonale 33% */
     { 0x24, 0x09, 0x12, 0x24, 0x09, 0x12, 0x24, 0x09 },
-    /* 5: Magenta - diagonale */
-    { 0x21, 0x12, 0x04, 0x08, 0x21, 0x12, 0x04, 0x08 },
-    /* 6: Cyan - dense 5/6 */
+    /* 2: Vert - damier 50% */
+    { 0x2A, 0x15, 0x2A, 0x15, 0x2A, 0x15, 0x2A, 0x15 },
+    /* 3: Jaune - dense 83% */
     { 0x3F, 0x1B, 0x3F, 0x36, 0x3F, 0x1B, 0x3F, 0x36 },
-    /* 7: Blanc - plein */
+    /* 4: Bleu - diagonale eparse 25% */
+    { 0x21, 0x12, 0x04, 0x08, 0x21, 0x12, 0x04, 0x08 },
+    /* 5: Magenta - lignes irregulieres 42% */
+    { 0x2A, 0x12, 0x2A, 0x12, 0x2A, 0x12, 0x2A, 0x12 },
+    /* 6: Cyan - dense 75% */
+    { 0x3F, 0x2A, 0x3F, 0x15, 0x3F, 0x2A, 0x3F, 0x15 },
+    /* 7: Blanc - plein 100% */
     { 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F },
 };
 
@@ -219,17 +229,19 @@ static void render_cell_hires(const vtx_cell_t* cell,
     has_right = (col < SCREEN_COLS - 1) ? 1 : 0;
     if ((cell->flags & ATTR_CONCEALED) && g_global_mask) ch = ' ';
 
-    /* Feature 4: Clignotement - si blink_phase=1 et ATTR_FLASH, rendre vide */
+    inv_bit = (cell->flags & ATTR_INVERT) ? 0xC0 : 0x40;
+
+    /* Clignotement: en phase eteinte, rendre la cellule "vide" en
+     * conservant l'inversion (une cellule inversee qui flashe alterne
+     * pave plein / pave vide dans le fond inverse, pas pave / noir). */
     if ((cell->flags & ATTR_FLASH) && g_blink_phase) {
         ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
         for (line = 0; line < CHAR_H; ++line) {
-            *ptr = 0x40;
+            *ptr = inv_bit;
             ptr += 40;
         }
         return;
     }
-
-    inv_bit = (cell->flags & ATTR_INVERT) ? 0xC0 : 0x40;
 
     /* G1 = dithering, G0/G2 = pixels pleins */
     /* Mode 0=hybride (G1 dither), 1=tout dither, 2=brut (tout blanc) */
@@ -264,6 +276,9 @@ static void render_cell_hires(const vtx_cell_t* cell,
             ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
             for (line = 0; line < 4; ++line) {
                 g = glyph[line + 4];
+                /* Souligne: derniere ligne source (glyph[7]), avant le
+                 * dithering pour qu'il suive la couleur du texte */
+                if ((cell->flags & ATTR_UNDERLINE) && line == 3) g = 0x3F;
                 if (use_dither) g &= g1_dither[cell->fg & 7][line + 4];
                 /* Doubler les pixels: src bit5->dst bits 5,4; src bit4->dst bits 3,2; src bit3->dst bits 1,0 */
                 left_byte  = ((g & 0x20) ? 0x30 : 0) |
@@ -306,6 +321,8 @@ static void render_cell_hires(const vtx_cell_t* cell,
             ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
             for (line = 0; line < 4; ++line) {
                 unsigned char g = glyph[line + 4];
+                /* Souligne sur la derniere ligne source (glyph[7]) */
+                if ((cell->flags & ATTR_UNDERLINE) && line == 3) g = 0x3F;
                 if (use_dither) g &= g1_dither[cell->fg & 7][line + 4];
                 *ptr = g | inv_bit; ptr += 40;
                 *ptr = g | inv_bit; ptr += 40;
@@ -330,12 +347,13 @@ static void render_cell_hires(const vtx_cell_t* cell,
         for (line = 0; line < CHAR_H; ++line) {
             unsigned char g = glyph[line];
             unsigned char left_byte, right_byte;
-            if (use_dither) g &= g1_dither[cell->fg & 7][line];
 
-            /* Feature 3: Underline sur la derniere ligne */
+            /* Souligne sur la derniere ligne, avant le dithering
+             * pour qu'il suive la couleur du texte */
             if ((cell->flags & ATTR_UNDERLINE) && line == 7) {
                 g = 0x3F;
             }
+            if (use_dither) g &= g1_dither[cell->fg & 7][line];
 
             left_byte  = ((g & 0x20) ? 0x30 : 0) |
                          ((g & 0x10) ? 0x0C : 0) |
@@ -352,12 +370,13 @@ static void render_cell_hires(const vtx_cell_t* cell,
         ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
         for (line = 0; line < CHAR_H; ++line) {
             unsigned char g = glyph[line];
-            if (use_dither) g &= g1_dither[cell->fg & 7][line];
 
-            /* Feature 3: Underline - derniere ligne pixel = tous pixels on */
+            /* Souligne sur la derniere ligne, avant le dithering
+             * pour qu'il suive la couleur du texte */
             if ((cell->flags & ATTR_UNDERLINE) && line == 7) {
                 g = 0x3F;
             }
+            if (use_dither) g &= g1_dither[cell->fg & 7][line];
 
             *ptr = g | inv_bit;
             ptr += 40;
@@ -414,10 +433,11 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
     if (row >= SCREEN_ROWS) return;
 
-    /* Mode force par l'utilisateur (CTRL+D) */
+    /* Mode force par l'utilisateur (CTRL+D).
+     * Pas d'attribut a poser: la ULA remet encre=blanc/fond=noir en
+     * debut de scanline, le rendu brut/dithering est blanc par defaut. */
     if (g_render_mode == 2) {
         /* Brut force: tout blanc, aucun attribut */
-        set_ink_attr(0, row, VTX_WHITE);
         for (col = 0; col < SCREEN_COLS; ++col) {
             render_cell_hires(&ctx->screen[row][col], col, row);
             if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
@@ -428,8 +448,7 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         return;
     }
     if (g_render_mode == 1) {
-        /* Dithering force: tout dithering, INK blanc */
-        set_ink_attr(0, row, VTX_WHITE);
+        /* Dithering force: tout dithering, encre blanche ULA */
         for (col = 0; col < SCREEN_COLS; ++col) {
             render_cell_hires(&ctx->screen[row][col], col, row);
             if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
@@ -453,7 +472,7 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         for (col = 0; col < SCREEN_COLS; ++col) {
             vtx_cell_t* c = &ctx->screen[row][col];
             if (c->fg != VTX_WHITE || c->bg != VTX_BLACK) has_colors = 1;
-            if (c->ch == ' ' || c->ch == 0x20 || c->ch == 0) has_empty = 1;
+            if (c->ch == ' ' || c->ch == 0) has_empty = 1;
             if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE)
                 has_dblh = 1;
         }
@@ -463,7 +482,6 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
     if (!use_attrs) {
         /* Brut: tout rendre en blanc, pas d'attributs */
-        set_ink_attr(0, row, VTX_WHITE);
         for (col = 0; col < SCREEN_COLS; ++col) {
             render_cell_hires(&ctx->screen[row][col], col, row);
             if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
@@ -475,7 +493,8 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     }
 
     /* Hybride: attributs INK/PAPER sur cellules vides,
-     * caractere TOUJOURS prioritaire. */
+     * caractere TOUJOURS prioritaire.
+     * Etat initial = reset ULA en debut de scanline (blanc sur noir). */
     prev_bg = VTX_BLACK;
     prev_fg = VTX_WHITE;
 
@@ -483,7 +502,7 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         vtx_cell_t* cell = &ctx->screen[row][col];
         cell_fg = cell->fg;
         cell_bg = cell->bg;
-        is_empty = (cell->ch == ' ' || cell->ch == 0x20 || cell->ch == 0);
+        is_empty = (cell->ch == ' ' || cell->ch == 0);
 
         if (is_empty) {
             if (cell_bg != prev_bg) {

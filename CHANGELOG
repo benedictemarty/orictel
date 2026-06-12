@@ -1,5 +1,31 @@
 # CHANGELOG - OricTel
 
+## [0.2.22] - 2026-06-12
+
+### Corrige (mode couleur)
+- display.c: trames de dithering G1 reordonnees selon la luminance
+  CCIR reelle des couleurs. Avant: magenta (25%) rendait plus sombre
+  que bleu (33%) et rouge (50%), jaune (75%) plus sombre que cyan
+  (83%) - hierarchie visuelle inversee sur les pages colorisees.
+  Apres: noir 0 < bleu 25 < rouge 33 < magenta 42 < vert 50 < cyan 75
+  < jaune 83 < blanc 100, ordre conforme a la luminance.
+- display.c: le flash en phase eteinte conserve l'inversion (inv_bit
+  au lieu de 0x40 fixe). Une cellule inversee qui clignote alterne
+  pave plein / pave vide inverse, plus pave / noir.
+- display.c: souligne rendu en double hauteur et double taille
+  (il etait absent de ces deux chemins).
+- display.c: souligne applique AVANT le masque de dithering - il suit
+  desormais la couleur du texte au lieu de ressortir toujours blanc.
+
+### Refactor
+- display.c: suppression des set_ink_attr(0, row, WHITE) morts dans
+  les chemins brut/dithering: l'attribut etait ecrase par le rendu de
+  la cellule 0, et la ULA remet de toute facon encre=blanc en debut de
+  scanline. ~24 ecritures economisees par ligne rendue.
+- display.c: en-tete aligne sur la strategie couleur reelle (attributs
+  sur cellules vides, reset ULA par scanline), doublon ch==' '||0x20
+  supprime.
+
 ## [0.2.21] - 2026-06-12
 
 ### Corrige
