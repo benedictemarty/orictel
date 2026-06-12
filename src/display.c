@@ -576,10 +576,25 @@ static unsigned char cur_drawn;      /* 1 = barre presente a l'ecran */
 static unsigned char cur_drawn_x;
 static unsigned char cur_drawn_y;
 
-void display_render(vtx_context_t* ctx)
+/* Rendu des lignes dirty, au plus max_rows par appel.
+ * Le budget borne la latence de la boucle principale: le latch clavier
+ * de la ROM Oric ne retient que la DERNIERE touche pressee, donc un
+ * rendu long (page complete = 25 lignes, ~20-40 ms par ligne a 1 MHz)
+ * sans re-scanner le clavier perd des frappes. Les lignes non rendues
+ * restent dirty et partent aux appels suivants. */
+static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
 {
     unsigned char row;
+    unsigned char rendered;
     unsigned char want_cursor;
+
+    /* full_refresh = tout marquer dirty, le budget fait le reste */
+    if (ctx->full_refresh) {
+        for (row = 0; row < SCREEN_ROWS; ++row) {
+            ctx->dirty[row] = 1;
+        }
+        ctx->full_refresh = 0;
+    }
 
     want_cursor = (ctx->cur_visible && g_blink_phase == 0 &&
                    ctx->cur_y < SCREEN_ROWS && ctx->cur_x < SCREEN_COLS)
@@ -594,26 +609,28 @@ void display_render(vtx_context_t* ctx)
         cur_drawn = 0;
     }
 
-    for (row = 0; row < SCREEN_ROWS; ++row) {
-        if (!ctx->dirty[row] && !ctx->full_refresh) continue;
+    rendered = 0;
+    for (row = 0; row < SCREEN_ROWS && rendered < max_rows; ++row) {
+        if (!ctx->dirty[row]) continue;
         render_row_hires(ctx, row);
         ctx->dirty[row] = 0;
+        ++rendered;
         if (cur_drawn && row == cur_drawn_y) {
             /* La ligne sous la barre vient d'etre redessinee */
             cur_drawn = 0;
         }
         /* Le rendu de cette ligne a ecrase les scanlines ou la ligne
          * du dessous dessine les moities hautes de ses glyphes double
-         * hauteur: la re-rendre (traitee a l'iteration suivante,
-         * boucle ascendante). */
+         * hauteur: la re-rendre (cet appel si le budget le permet,
+         * sinon le suivant). */
         if (row + 1 < SCREEN_ROWS && row_has_dblh(ctx, row + 1)) {
             ctx->dirty[row + 1] = 1;
         }
     }
-    ctx->full_refresh = 0;
 
-    /* Curseur visible: barre blanche sous le caractere */
-    if (want_cursor) {
+    /* Curseur visible: barre blanche sous le caractere. Pas de barre
+     * tant que sa ligne attend un rendu (elle serait ecrasee). */
+    if (want_cursor && !ctx->dirty[ctx->cur_y]) {
         unsigned char* base =
             HIRES_ADDR((unsigned int)ctx->cur_y * CHAR_H + 7, ctx->cur_x);
         *base = 0x7F;
@@ -621,6 +638,19 @@ void display_render(vtx_context_t* ctx)
         cur_drawn_x = ctx->cur_x;
         cur_drawn_y = ctx->cur_y;
     }
+}
+
+/* Boucle principale: rendu budgete pour garder le clavier reactif */
+void display_render(vtx_context_t* ctx)
+{
+    render_dirty(ctx, 2);
+}
+
+/* Menus/splash: rendu complet en un appel (pas de boucle de rendu
+ * derriere, l'appelant attend ensuite une touche) */
+void display_render_all(vtx_context_t* ctx)
+{
+    render_dirty(ctx, SCREEN_ROWS);
 }
 
 void display_render_cell_row(vtx_context_t* ctx, unsigned char row)

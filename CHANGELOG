@@ -1,5 +1,23 @@
 # CHANGELOG - OricTel
 
+## [0.2.24] - 2026-06-12
+
+### Corrige (frappes clavier perdues)
+- Le latch clavier de la ROM Oric ne retient que la DERNIERE touche
+  pressee: pendant un rendu long (chaque caractere echo du serveur
+  re-rend une ligne de 40 cellules, ~20-40 ms a 1 MHz; une page
+  complete = 25 lignes), les frappes intermediaires etaient ecrasees.
+  Deux mesures:
+  - display.c: rendu budgete (render_dirty, 2 lignes max par appel de
+    display_render); les lignes restantes restent dirty et partent aux
+    iterations suivantes. La barre curseur n'est dessinee que si sa
+    ligne n'attend pas de rendu. Nouvelle API display_render_all
+    (rendu complet) pour les menus/splash qui n'ont pas de boucle de
+    rendu derriere.
+  - main.c: scan clavier deplace AVANT le rendu dans la boucle
+    principale, et pump TX immediat apres une frappe pour la faire
+    partir sans attendre l'iteration suivante.
+
 ## [0.2.23] - 2026-06-12
 
 ### Corrige (heuristique couleur AUTO)

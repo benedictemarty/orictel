@@ -225,7 +225,7 @@ static void splash_screen(vtx_context_t* ctx)
     ctx->dirty[22] = 1;
 
     /* Afficher */
-    display_render(ctx);
+    display_render_all(ctx);
 
     /* Jouer le jingle */
     play_jingle();
@@ -243,7 +243,7 @@ static void splash_screen(vtx_context_t* ctx)
 
     /* Effacer l'ecran pour la connexion */
     vtx_clear_page(ctx);
-    display_render(ctx);
+    display_render_all(ctx);
 }
 
 /* ===================================================================
@@ -291,7 +291,7 @@ static unsigned char select_mode(vtx_context_t* ctx)
     ctx->screen[15][12].fg = VTX_CYAN;
     ctx->dirty[15] = 1;
 
-    display_render(ctx);
+    display_render_all(ctx);
 
     for (;;) {
         unsigned char key = keyboard_scan();
@@ -358,7 +358,7 @@ static void dbg_byte(vtx_context_t* ctx, unsigned char b)
         dbg_col++;
     }
     ctx->dirty[dbg_row] = 1;
-    display_render(ctx);
+    display_render_all(ctx);
 }
 
 /* Contexte global pour debug (accessible depuis at_wait_response) */
@@ -435,7 +435,7 @@ static unsigned char select_server(vtx_context_t* ctx)
         }
         ctx->dirty[row] = 1;
     }
-    display_render(ctx);
+    display_render_all(ctx);
 
     /* Attendre touche 1, 2 ou 3 */
     for (;;) {
@@ -453,7 +453,7 @@ static unsigned char select_server(vtx_context_t* ctx)
                 ctx->screen[row][3 + j].fg = VTX_WHITE;
             }
             ctx->dirty[row] = 1;
-            display_render(ctx);
+            display_render_all(ctx);
 
             /* Boucle de saisie */
             for (;;) {
@@ -469,7 +469,7 @@ static unsigned char select_server(vtx_context_t* ctx)
                         --pos;
                         ctx->screen[row][14 + pos].ch = ' ';
                         ctx->dirty[row] = 1;
-                        display_render(ctx);
+                        display_render_all(ctx);
                     }
                 } else if (key >= 0x20 && key < 0x7F && pos < 38) {
                     /* Caractere normal */
@@ -477,7 +477,7 @@ static unsigned char select_server(vtx_context_t* ctx)
                     ctx->screen[row][14 + pos].ch = key;
                     ctx->screen[row][14 + pos].fg = VTX_GREEN;
                     ctx->dirty[row] = 1;
-                    display_render(ctx);
+                    display_render_all(ctx);
                     ++pos;
                 }
             }
@@ -499,7 +499,7 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
         ctx->screen[10][17 + i].fg = VTX_WHITE;
     }
     ctx->dirty[10] = 1;
-    display_render(ctx);
+    display_render_all(ctx);
 
     /* ATZ - reset modem */
     dbg_ctx = ctx;
@@ -532,7 +532,7 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
             ctx->screen[10][9 + j].fg = VTX_CYAN;
         }
         ctx->dirty[10] = 1;
-        display_render(ctx);
+        display_render_all(ctx);
 
         /* ATD serveur:port */
         dbg_init(12);
@@ -621,7 +621,7 @@ int main(void)
     connected = 0;
     idle_counter = 0;
     set_connexion_indicator(&vtx, 'F');
-    display_render(&vtx);
+    display_render_all(&vtx);
 
     for (;;) {
 
@@ -640,7 +640,28 @@ int main(void)
             serial_tx_pump();
         }
 
-        /* 2. Gestion indicateur connexion */
+        /* 2. Clavier AVANT le rendu: le latch clavier de la ROM ne
+         * retient que la derniere touche pressee; le lire en premier
+         * (et un rendu budgete en 4.) borne la fenetre pendant
+         * laquelle une frappe peut etre ecrasee par la suivante. */
+        key = keyboard_scan();
+        if (key == KEY_TOGGLE_RENDER) {
+            extern unsigned char g_render_mode;
+            g_render_mode++;
+            if (g_render_mode > 2) g_render_mode = 0;
+            vtx.full_refresh = 1;
+        } else if (key == KEY_LOCAL_CLEAR) {
+            vtx_clear_page(&vtx);
+            vtx.full_refresh = 1;
+        } else if (key == KEY_LOCAL_RESET) {
+            serial_init();
+            display_status("ACIA reset");
+        } else if (key != KEY_NONE) {
+            keyboard_process(&vtx, key);
+            serial_tx_pump();   /* faire partir la frappe sans attendre */
+        }
+
+        /* 3. Gestion indicateur connexion */
         if (got_data) {
             idle_counter = 0;
             if (!connected) {
@@ -658,32 +679,15 @@ int main(void)
             }
         }
 
-        /* 3. Rendre les lignes modifiees */
+        /* 4. Rendre les lignes modifiees (budget 2 lignes/iteration) */
         display_render(&vtx);
 
-        /* 4. Blink */
+        /* 5. Blink */
         ++blink_counter;
         if (blink_counter >= 250) {
             blink_counter = 0;
             vtx.blink_phase ^= 1;
             g_blink_phase = vtx.blink_phase;
-        }
-
-        /* 5. Clavier */
-        key = keyboard_scan();
-        if (key == KEY_TOGGLE_RENDER) {
-            extern unsigned char g_render_mode;
-            g_render_mode++;
-            if (g_render_mode > 2) g_render_mode = 0;
-            vtx.full_refresh = 1;
-        } else if (key == KEY_LOCAL_CLEAR) {
-            vtx_clear_page(&vtx);
-            vtx.full_refresh = 1;
-        } else if (key == KEY_LOCAL_RESET) {
-            serial_init();
-            display_status("ACIA reset");
-        } else if (key != KEY_NONE) {
-            keyboard_process(&vtx, key);
         }
     }
 

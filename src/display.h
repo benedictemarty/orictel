@@ -32,9 +32,17 @@
 void display_init(void);
 
 /**
- * Rend toutes les cellules modifiees.
+ * Rend les lignes modifiees, avec budget (2 lignes max par appel) pour
+ * borner la latence de la boucle principale et garder le clavier
+ * reactif. Les lignes restantes partent aux appels suivants.
  */
 void display_render(vtx_context_t* ctx);
+
+/**
+ * Rend toutes les lignes modifiees en un appel (menus, splash:
+ * contextes sans boucle de rendu derriere).
+ */
+void display_render_all(vtx_context_t* ctx);
 
 /**
  * Rend une seule ligne.
