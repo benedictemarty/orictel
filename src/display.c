@@ -668,17 +668,26 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
                 render_cell_hires(cell, col, row);
             }
         } else {
-            /* Course de cellules pleines jusqu'au prochain vide:
-             * deleguee au moteur asm (fallback C pour les cas rares).
-             * On doit s'arreter aux vides, eux seuls portent la
-             * logique d'attributs ci-dessus. */
+            /* Course de cellules pleines jusqu'au prochain vide ou
+             * changement d'encre, deleguee au moteur asm (fallback C
+             * pour les cas rares). Les vides portent la logique
+             * d'attributs ci-dessus, les changements d'encre bornent
+             * la decision couleur ci-dessous. */
             unsigned char run_end = col;
+            unsigned char run_fg = cell->fg;
             while (run_end < SCREEN_COLS - 1) {
                 vtx_cell_t* nc = &ctx->screen[row][run_end + 1];
                 if (nc->ch == ' ' || nc->ch == 0) break;
+                if (nc->fg != run_fg) break;
                 ++run_end;
             }
-            render_span_raw(ctx, row, col, run_end, 1);
+            /* Mosaiques en couleur solide: si l'encre serial deja
+             * posee correspond a celle de la course, rendre les G1
+             * en pixels PLEINS - la couleur vient de l'attribut,
+             * fidele au Minitel (logo Teletel jaune, pas trame).
+             * Sinon, repli dithering (G1 seulement). */
+            render_span_raw(ctx, row, col, run_end,
+                            (run_fg == prev_fg) ? 0 : 1);
             /* Si la course finit sur une double largeur, sauter la
              * moitie cachee (cellule run_end+1, contenu perime) */
             if (ctx->screen[row][run_end].size == SIZE_DOUBLE_WIDTH ||
