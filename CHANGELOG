@@ -1,5 +1,12 @@
 # CHANGELOG - OricTel
 
+## [0.2.32] - 2026-06-13
+
+### Modifie
+- Licence du projet: GPL v3 -> EUPL 1.2 (European Union Public
+  Licence). Fichier LICENSE remplace par le texte officiel (SPDX),
+  references mises a jour (README, ecran splash).
+
 ## [0.2.31] - 2026-06-13
 
 ### Corrige ("eTC" affiche dans le champ de saisie PAVI)

@@ -1,10 +1,10 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.31
+## Version actuelle: 0.2.32
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.31     | 2026-06-13 | En cours    |
+| orictel.tap        | 0.2.32     | 2026-06-13 | En cours    |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
 | orictel_bridge.py  | 0.2.21    | 2026-06-12 | Stable      |
 | Videotex decoder   | 0.2.18     | 2026-06-12 | Stable      |
@@ -15,6 +15,9 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.32 (2026-06-13)
+- Licence GPL v3 -> EUPL 1.2
 
 ### 0.2.31 (2026-06-13)
 - Fix "eTC" dans le champ PAVI: reponse ENQROM desactivee (alignement

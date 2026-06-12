@@ -192,10 +192,10 @@ static void splash_screen(vtx_context_t* ctx)
     ctx->dirty[13] = 1;
 
     /* Licence */
-    p = "Licence GPL v3";
+    p = "Licence EUPL 1.2";
     for (i = 0; p[i]; ++i) {
-        ctx->screen[15][13 + i].ch = p[i];
-        ctx->screen[15][13 + i].fg = VTX_YELLOW;
+        ctx->screen[15][12 + i].ch = p[i];
+        ctx->screen[15][12 + i].fg = VTX_YELLOW;
     }
     ctx->dirty[15] = 1;
 

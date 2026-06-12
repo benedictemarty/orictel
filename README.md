@@ -159,4 +159,4 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 
 ## Licence
 
-GPL v3 - Voir fichier LICENSE
+EUPL 1.2 (European Union Public Licence) - Voir fichier LICENSE
