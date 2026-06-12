@@ -11,6 +11,10 @@
 #ifndef FONTS_H
 #define FONTS_H
 
+/* Table brute G0: 96 glyphes ($20-$7F) x 8 octets, exposee pour le
+ * moteur de rendu assembleur (display_asm.s blit_run). */
+extern const unsigned char font_g0[96 * 8];
+
 /**
  * Retourne un pointeur vers les 8 octets du glyphe G0.
  * Chaque octet = 1 ligne de 6 pixels (bits 5-0).

@@ -38,8 +38,19 @@ extern const unsigned char* blit_and;
 extern unsigned char blit_or;
 void __fastcall__ blit_cell8(void);
 
-/* Table AND neutre (pas de dithering) pour le blit */
-static const unsigned char no_dither[8] = {
+/* Moteur de rendu de plage assembleur (display_asm.s): rend une suite
+ * de cellules taille normale G0/G1 sans flash/concealed/souligne, et
+ * retourne le nombre de cellules consommees (0 si la 1ere est hors
+ * fast-path: l'appelant rend cette cellule en C et relance). */
+extern unsigned char* run_cells;   /* 1ere cellule (vtx_cell_t brut) */
+extern unsigned char* run_dst;     /* destination HIRES */
+extern unsigned char run_count;    /* cellules max a rendre */
+extern unsigned char run_mode;     /* dither: 0=aucun, 1=G1 seul, 2=tout */
+unsigned char __fastcall__ blit_run(void);
+
+/* Table AND neutre (pas de dithering) pour le blit.
+ * Non-static: importee par display_asm.s. */
+const unsigned char no_dither[8] = {
     0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F
 };
 
@@ -211,10 +222,11 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph,
  *  demarrage: 1 Ko de BSS contre un lookup au rendu.
  * =================================================================== */
 
-static unsigned char g1_cache[2][64][8];
+/* Non-static: imports de display_asm.s (blit_run) */
+unsigned char g1_cache[2][64][8];
 
 /* Cas special G1 $60 (rangee haute pleine, cf. generate_mosaic) */
-static const unsigned char g1_glyph_60[8] = {
+const unsigned char g1_glyph_60[8] = {
     0x7F, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40
 };
 
@@ -251,7 +263,7 @@ static const unsigned char* g1_glyph(unsigned char ch, unsigned char separated)
  * visuelle d'une page colorisee soit preservee en monochrome.
  * Les textures different entre couleurs proches (lignes, damier,
  * diagonale) pour rester distinguables a densite egale. */
-static const unsigned char g1_dither[8][8] = {
+const unsigned char g1_dither[8][8] = {
     /* 0: Noir - 0% */
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
     /* 1: Rouge - diagonale 33% */
@@ -514,15 +526,32 @@ static unsigned char row_has_dblh(vtx_context_t* ctx, unsigned char row)
  * partiel (span) les laisserait hors du span -> ligne entiere forcee. */
 static unsigned char row_had_attrs[SCREEN_ROWS];
 
-/* Rendu sans attributs d'une plage de cellules [col_from, col_to] */
+/* Rendu d'une plage de cellules [col_from, col_to] sans attributs.
+ * dither_mode: 0=aucun (brut force), 1=G1 seulement (AUTO), 2=tout
+ * (dithering force). Le gros du travail part dans blit_run (asm);
+ * les cellules hors fast-path (G2, doubles tailles, flash, souligne,
+ * concealed) retombent sur render_cell_hires. */
 static void render_span_raw(vtx_context_t* ctx, unsigned char row,
-                            unsigned char col_from, unsigned char col_to)
+                            unsigned char col_from, unsigned char col_to,
+                            unsigned char dither_mode)
 {
-    unsigned char col;
-    for (col = col_from; col <= col_to; ++col) {
+    unsigned char col = col_from;
+    unsigned char n;
+
+    run_mode = dither_mode;
+    while (col <= col_to) {
+        run_cells = (unsigned char*)&ctx->screen[row][col];
+        run_dst = hires_row_base[row] + col;
+        run_count = (unsigned char)(col_to - col + 1);
+        n = blit_run();
+        col += n;
+        if (col > col_to) break;
+        /* Cellule hors fast-path: chemin C complet */
         render_cell_hires(&ctx->screen[row][col], col, row);
         if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
             ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
+            col += 2;
+        } else {
             ++col;
         }
     }
@@ -560,7 +589,8 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
             col_from = 0;
             col_to = SCREEN_COLS - 1;
         }
-        render_span_raw(ctx, row, col_from, col_to);
+        render_span_raw(ctx, row, col_from, col_to,
+                        (g_render_mode == 1) ? 2 : 0);
         return;
     }
 
@@ -592,13 +622,14 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     }
 
     if (!use_attrs) {
-        /* Brut: rendre la plage modifiee en blanc, pas d'attributs */
+        /* Brut: rendre la plage modifiee en blanc, pas d'attributs.
+         * Dither G1 seulement (mosaiques tramees, texte plein). */
         if (row_had_attrs[row]) {
             row_had_attrs[row] = 0;
             col_from = 0;
             col_to = SCREEN_COLS - 1;
         }
-        render_span_raw(ctx, row, col_from, col_to);
+        render_span_raw(ctx, row, col_from, col_to, 1);
         return;
     }
 
@@ -648,10 +679,24 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
                 render_cell_hires(cell, col, row);
             }
         } else {
-            render_cell_hires(cell, col, row);
-            if (cell->size == SIZE_DOUBLE_WIDTH ||
-                cell->size == SIZE_DOUBLE_SIZE) {
-                ++col;
+            /* Course de cellules pleines jusqu'au prochain vide:
+             * deleguee au moteur asm (fallback C pour les cas rares).
+             * On doit s'arreter aux vides, eux seuls portent la
+             * logique d'attributs ci-dessus. */
+            unsigned char run_end = col;
+            while (run_end < SCREEN_COLS - 1) {
+                vtx_cell_t* nc = &ctx->screen[row][run_end + 1];
+                if (nc->ch == ' ' || nc->ch == 0) break;
+                ++run_end;
+            }
+            render_span_raw(ctx, row, col, run_end, 1);
+            /* Si la course finit sur une double largeur, sauter la
+             * moitie cachee (cellule run_end+1, contenu perime) */
+            if (ctx->screen[row][run_end].size == SIZE_DOUBLE_WIDTH ||
+                ctx->screen[row][run_end].size == SIZE_DOUBLE_SIZE) {
+                col = run_end + 1;
+            } else {
+                col = run_end;
             }
         }
     }

@@ -65,7 +65,10 @@
 #define VTX_CYAN        6
 #define VTX_WHITE       7
 
-/* Structure d'une cellule ecran */
+/* Structure d'une cellule ecran.
+ * ATTENTION: l'ordre et la taille des champs (6 octets, offsets
+ * 0=ch 1=charset 2=fg 3=bg 4=flags 5=size) sont exploites par le
+ * moteur assembleur display_asm.s (blit_run). */
 typedef struct {
     unsigned char ch;           /* Code caractere */
     unsigned char charset;      /* CHARSET_G0, G1, G2 */

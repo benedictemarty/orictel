@@ -1,5 +1,27 @@
 # CHANGELOG - OricTel
 
+## [0.2.27] - 2026-06-12
+
+### Performance rendu (moteur de plage assembleur)
+- display_asm.s: blit_run, moteur de rendu de PLAGE en 6502. Parcourt
+  les cellules vtx_cell_t contigues entierement en assembleur:
+  resolution des glyphes G0 (font_g0 + (ch-$20)*8) et G1 (cache,
+  motif + mode separe) par arithmetique directe, dithering via table
+  AND, inversion via masque OR. S'arrete sur les cellules hors
+  fast-path (G2, doubles tailles, flash, concealed, souligne) que le
+  C rend avant de relancer. ~300 cycles/cellule tout compris contre
+  ~1000+ avec l'appel C par cellule.
+- display.c: render_span_raw pilote blit_run (parametre dither: aucun
+  / G1 seul / tout); la boucle hybride delegue ses courses de cellules
+  pleines au moteur (les vides gardent la logique d'attributs en C).
+- fonts.c/display.c: font_g0, g1_cache, g1_dither, g1_glyph_60,
+  no_dither exportes pour l'assembleur. videotex.h documente la
+  dependance a l'ordre des champs de vtx_cell_t.
+- Validation visuelle headless (--screenshot-at): splash (double
+  hauteur, G1, flash) et menu (couleurs hybrides) conformes.
+- Bilan: page complete ~0.25-0.3 s, frappe et navigation au ressenti
+  immediat.
+
 ## [0.2.26] - 2026-06-12
 
 ### Performance rendu (palier assembleur + serie instantanee)

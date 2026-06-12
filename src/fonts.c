@@ -19,7 +19,7 @@
  *  Minitel specifique: $7B=e' $7C=e` $7D=e^ $7E=u" $7F=a`
  * =================================================================== */
 
-static const unsigned char font_g0[96 * 8] = {
+const unsigned char font_g0[96 * 8] = {
     /* $20 espace */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     /* $21 ! */
