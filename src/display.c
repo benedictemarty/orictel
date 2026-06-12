@@ -16,7 +16,6 @@
  *   - Le reste = donnees pixel avec bit 6 = 1
  */
 
-#include <string.h>
 #include "display.h"
 #include "fonts.h"
 
@@ -201,10 +200,6 @@ static const unsigned char g1_dither[8][8] = {
  *  G1: dithering par couleur (pas de colonne perdue)
  * =================================================================== */
 
-/* Variable globale blink_phase accessible depuis main.c */
-extern unsigned char g_blink_phase;
-extern unsigned char g_global_mask;
-
 static void render_cell_hires(const vtx_cell_t* cell,
                                unsigned char col, unsigned char char_row)
 {
@@ -215,8 +210,13 @@ static void render_cell_hires(const vtx_cell_t* cell,
     unsigned char ch;
     unsigned char inv_bit;
     unsigned char use_dither;
+    unsigned char has_right;   /* 0 = double largeur en col 39: moitie
+                                * droite clippee (ecrire ptr+1 deborderait
+                                * sur la ligne pixel suivante, voire hors
+                                * du framebuffer sur la derniere cellule) */
 
     ch = cell->ch;
+    has_right = (col < SCREEN_COLS - 1) ? 1 : 0;
     if ((cell->flags & ATTR_CONCEALED) && g_global_mask) ch = ' ';
 
     /* Feature 4: Clignotement - si blink_phase=1 et ATTR_FLASH, rendre vide */
@@ -273,10 +273,10 @@ static void render_cell_hires(const vtx_cell_t* cell,
                              ((g & 0x02) ? 0x0C : 0) |
                              ((g & 0x01) ? 0x03 : 0);
                 *ptr       = left_byte | inv_bit;
-                *(ptr + 1) = right_byte | inv_bit;
+                if (has_right) *(ptr + 1) = right_byte | inv_bit;
                 ptr += 40;
                 *ptr       = left_byte | inv_bit;
-                *(ptr + 1) = right_byte | inv_bit;
+                if (has_right) *(ptr + 1) = right_byte | inv_bit;
                 ptr += 40;
             }
 
@@ -293,10 +293,10 @@ static void render_cell_hires(const vtx_cell_t* cell,
                                  ((g & 0x02) ? 0x0C : 0) |
                                  ((g & 0x01) ? 0x03 : 0);
                     *ptr       = left_byte | inv_bit;
-                    *(ptr + 1) = right_byte | inv_bit;
+                    if (has_right) *(ptr + 1) = right_byte | inv_bit;
                     ptr += 40;
                     *ptr       = left_byte | inv_bit;
-                    *(ptr + 1) = right_byte | inv_bit;
+                    if (has_right) *(ptr + 1) = right_byte | inv_bit;
                     ptr += 40;
                 }
             }
@@ -344,7 +344,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
                          ((g & 0x02) ? 0x0C : 0) |
                          ((g & 0x01) ? 0x03 : 0);
             *ptr       = left_byte | inv_bit;
-            *(ptr + 1) = right_byte | inv_bit;
+            if (has_right) *(ptr + 1) = right_byte | inv_bit;
             ptr += 40;
         }
     } else {
@@ -509,24 +509,50 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
  *  API publiques
  * =================================================================== */
 
+/* Derniere position ou la barre curseur a ete dessinee.
+ * L'octet HIRES sous la barre est ecrase (pixels ou attribut serial):
+ * le seul moyen fiable de le restaurer est de re-rendre la ligne. */
+static unsigned char cur_drawn;      /* 1 = barre presente a l'ecran */
+static unsigned char cur_drawn_x;
+static unsigned char cur_drawn_y;
+
 void display_render(vtx_context_t* ctx)
 {
     unsigned char row;
+    unsigned char want_cursor;
+
+    want_cursor = (ctx->cur_visible && g_blink_phase == 0 &&
+                   ctx->cur_y < SCREEN_ROWS && ctx->cur_x < SCREEN_COLS)
+                  ? 1 : 0;
+
+    /* Effacer la barre precedente si le curseur a bouge ou si la phase
+     * blink la cache: re-rendre sa ligne restaure pixels et attributs. */
+    if (cur_drawn && (!want_cursor ||
+                      cur_drawn_x != ctx->cur_x ||
+                      cur_drawn_y != ctx->cur_y)) {
+        ctx->dirty[cur_drawn_y] = 1;
+        cur_drawn = 0;
+    }
+
     for (row = 0; row < SCREEN_ROWS; ++row) {
         if (!ctx->dirty[row] && !ctx->full_refresh) continue;
         render_row_hires(ctx, row);
         ctx->dirty[row] = 0;
+        if (cur_drawn && row == cur_drawn_y) {
+            /* La ligne sous la barre vient d'etre redessinee */
+            cur_drawn = 0;
+        }
     }
     ctx->full_refresh = 0;
 
-    /* Curseur visible: inverser la derniere ligne pixel
-     * a la position du curseur (clignotement via blink_phase) */
-    if (ctx->cur_visible && (g_blink_phase == 0)) {
-        unsigned char* base;
-        if (ctx->cur_y < SCREEN_ROWS && ctx->cur_x < SCREEN_COLS) {
-            base = HIRES_ADDR((unsigned int)ctx->cur_y * CHAR_H + 7, ctx->cur_x);
-            *base = 0x7F;  /* Barre blanche sous le caractere */
-        }
+    /* Curseur visible: barre blanche sous le caractere */
+    if (want_cursor) {
+        unsigned char* base =
+            HIRES_ADDR((unsigned int)ctx->cur_y * CHAR_H + 7, ctx->cur_x);
+        *base = 0x7F;
+        cur_drawn = 1;
+        cur_drawn_x = ctx->cur_x;
+        cur_drawn_y = ctx->cur_y;
     }
 }
 

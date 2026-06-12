@@ -1,5 +1,24 @@
 # CHANGELOG - OricTel
 
+## [0.2.17] - 2026-06-12
+
+### Corrige
+- display.c: clip de la moitie droite des caracteres double largeur /
+  double taille en colonne 39. L'ecriture *(ptr+1) debordait sur la
+  colonne 0 de la ligne pixel suivante, et hors du framebuffer HIRES
+  ($BF40+) sur la derniere cellule de l'ecran.
+- display.c: cycle de vie de la barre curseur. La barre precedente
+  n'etait jamais effacee: trainee de curseurs fantomes lors des
+  deplacements, et corruption des couleurs de ligne quand la barre
+  ($7F, bit 6 set) ecrasait une colonne d'attribut serial. La ligne
+  sous l'ancienne barre est maintenant re-rendue (dirty) des que le
+  curseur bouge ou que la phase blink le cache - le clignotement
+  curseur fonctionne desormais reellement.
+
+### Refactor
+- display.c: suppression des declarations extern dupliquees
+  (g_blink_phase/g_global_mask) et de l'include string.h inutile.
+
 ## [0.2.16] - 2026-06-12
 
 ### Corrige
