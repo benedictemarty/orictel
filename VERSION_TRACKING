@@ -1,10 +1,10 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.28
+## Version actuelle: 0.2.29
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.28     | 2026-06-12 | En cours    |
+| orictel.tap        | 0.2.29     | 2026-06-12 | En cours    |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
 | orictel_bridge.py  | 0.2.21    | 2026-06-12 | Stable      |
 | Videotex decoder   | 0.2.18     | 2026-06-12 | Stable      |
@@ -15,6 +15,11 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.29 (2026-06-12)
+- Mosaiques G1 en couleur solide via attributs serial (dithering en
+  repli). Diagnostic PAVI: cartouches inverses corrects, logo blanc
+  fidele au serveur
 
 ### 0.2.28 (2026-06-12)
 - Sequence AT 4,9 s -> 1,8 s: display_clear en asm (~5 ms vs ~920 ms),

@@ -1,5 +1,24 @@
 # CHANGELOG - OricTel
 
+## [0.2.29] - 2026-06-12
+
+### Ajout
+- display.c: mosaiques G1 en COULEUR SOLIDE quand l'encre serial deja
+  posee correspond a celle de la course (les courses hybrides sont
+  desormais bornees aux changements d'encre). La couleur vient de
+  l'attribut, fidele au rendu Minitel; le dithering devient un repli
+  pour les zones multicolores sans delimiteur.
+
+### Diagnostic (page d'accueil PAVI, sans correctif necessaire)
+- Cartouches inverses ENVOI/CX FIN/GUIDE: rendu VERIFIE correct
+  (cellules INVERT+UNDERLINE en RAM, bit 7 present au framebuffer,
+  inversion ULA Phosphoric confirmee pixel a pixel). La lisibilite a
+  l'echelle 1x est une limite de la fonte 6x8 inversee - utiliser
+  --scale 3/F3 cote Phosphoric.
+- Logo Teletel: envoye en BLANC par le serveur (fg=7 verifie en RAM),
+  le rendu OricTel est fidele; seuls drapeaux/tarifs/numeros sont
+  jaunes sur cette page.
+
 ## [0.2.28] - 2026-06-12
 
 ### Corrige (lenteur de la sequence AT)
