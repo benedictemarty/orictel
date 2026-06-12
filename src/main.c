@@ -682,7 +682,7 @@ int main(void)
             serial_init();
             display_status("ACIA reset");
         } else if (key != KEY_NONE) {
-            keyboard_process(key);
+            keyboard_process(&vtx, key);
         }
     }
 

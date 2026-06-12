@@ -141,10 +141,7 @@ unsigned char keyboard_scan(void)
             return KEY_FUNC_FLAG | KEY_RETOUR;
 
         case 0x08:  /* Fleche GAUCHE (BS) */
-            serial_send(0x1B);
-            serial_send(0x5B);
-            serial_send(0x44);
-            return KEY_NONE;
+            return KEY_ARROW_LEFT;
 
         case 0x7F:  /* DELETE = Correction */
             return KEY_FUNC_FLAG | KEY_CORRECTION;
@@ -171,10 +168,7 @@ unsigned char keyboard_scan(void)
 
     /* Fleche DROITE */
     if (ch == 0x15) {
-        serial_send(0x1B);
-        serial_send(0x5B);
-        serial_send(0x43);
-        return KEY_NONE;
+        return KEY_ARROW_RIGHT;
     }
 
     /* --- Caractere ASCII normal --- */
@@ -182,23 +176,47 @@ unsigned char keyboard_scan(void)
 }
 
 /* ===================================================================
- *  Envoi des codes Minitel correspondants via serie
+ *  Emission des codes Minitel selon les aiguillages PRO3
  * =================================================================== */
 
-void keyboard_process(unsigned char key)
+/* Route un octet clavier selon les aiguillages du Minitel:
+ * CLAVIER->MODEM (defaut ON): envoi serie.
+ * CLAVIER->ECRAN (defaut OFF): echo local via le decodeur Videotex. */
+static void kbd_emit(vtx_context_t* ctx, unsigned char byte)
+{
+    if (ctx->aiguillages & AIG_KBD_TO_MDM) {
+        serial_send(byte);
+    }
+    if (ctx->aiguillages & AIG_KBD_TO_SCR) {
+        vtx_process(ctx, byte);
+    }
+}
+
+void keyboard_process(vtx_context_t* ctx, unsigned char key)
 {
     if (key == KEY_NONE) {
+        return;
+    }
+
+    /* Fleches gauche/droite: actives uniquement en mode curseur
+     * (PRO3 START $59 $43), comme sur un Minitel 1B reel. */
+    if (key == KEY_ARROW_LEFT || key == KEY_ARROW_RIGHT) {
+        if (ctx->kbd_cursor) {
+            kbd_emit(ctx, 0x1B);
+            kbd_emit(ctx, 0x5B);
+            kbd_emit(ctx, (key == KEY_ARROW_LEFT) ? 0x44 : 0x43);
+        }
         return;
     }
 
     /* Touche fonction Minitel */
     if (key & KEY_FUNC_FLAG) {
         unsigned char func_code = key & 0x7F;
-        serial_send(SEP);           /* Separateur $13 */
-        serial_send(func_code);     /* Code fonction ($41-$49) */
+        kbd_emit(ctx, SEP);          /* Separateur $13 */
+        kbd_emit(ctx, func_code);    /* Code fonction ($41-$49) */
         return;
     }
 
-    /* Caractere ASCII normal - envoyer tel quel (7 bits) */
-    serial_send(key & 0x7F);
+    /* Caractere ASCII normal - emettre tel quel (7 bits) */
+    kbd_emit(ctx, key & 0x7F);
 }

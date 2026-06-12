@@ -25,6 +25,8 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
+#include "videotex.h"
+
 /* Adresses VIA 6522 */
 #define VIA_PORTB   0x0300
 #define VIA_PORTA   0x030F  /* PSG Port A via VIA */
@@ -49,6 +51,8 @@
 #define KEY_TOGGLE_RENDER 0xFE  /* CTRL+D = basculer mode rendu */
 #define KEY_LOCAL_CLEAR   0xFD  /* CTRL+L = effacer ecran local */
 #define KEY_LOCAL_RESET   0xFC  /* CTRL+F = reset ACIA local */
+#define KEY_ARROW_LEFT    0xFB  /* Fleche gauche (mode curseur PRO3) */
+#define KEY_ARROW_RIGHT   0xFA  /* Fleche droite (mode curseur PRO3) */
 
 /**
  * Initialise le module clavier.
@@ -63,9 +67,14 @@ void keyboard_init(void);
 unsigned char keyboard_scan(void);
 
 /**
- * Traite une touche et envoie les codes Minitel via la serie.
+ * Traite une touche et emet les codes Minitel selon les aiguillages
+ * PRO3 du contexte: vers le modem si CLAVIER->MODEM est actif (defaut),
+ * en echo local (decodeur Videotex) si CLAVIER->ECRAN est actif.
+ * Les fleches gauche/droite ne sont emises qu'en mode curseur
+ * (PRO3 START $59 $43).
+ * @param ctx Contexte Videotex (aiguillages, kbd_cursor)
  * @param key Code retourne par keyboard_scan()
  */
-void keyboard_process(unsigned char key);
+void keyboard_process(vtx_context_t* ctx, unsigned char key);
 
 #endif /* KEYBOARD_H */

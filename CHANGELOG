@@ -1,5 +1,19 @@
 # CHANGELOG - OricTel
 
+## [0.2.20] - 2026-06-12
+
+### Ajout
+- keyboard.c: les aiguillages PRO3 sont desormais APPLIQUES, plus
+  seulement trackes/acquittes. keyboard_process(ctx, key) route chaque
+  octet clavier via kbd_emit(): vers le modem si CLAVIER->MODEM actif
+  (defaut), en echo local via vtx_process si CLAVIER->ECRAN actif.
+  Un serveur qui coupe l'echo distant (SWITCH ON ECRAN<-CLAVIER) voit
+  maintenant le comportement attendu.
+- keyboard.c: les fleches gauche/droite (ESC[D / ESC[C) ne sont emises
+  qu'en mode curseur PRO3 (START $59 $43), conformement au Minitel 1B.
+  Nouveaux codes KEY_ARROW_LEFT/RIGHT; keyboard_scan n'emet plus rien
+  directement sur la serie.
+
 ## [0.2.19] - 2026-06-12
 
 ### Ajout
