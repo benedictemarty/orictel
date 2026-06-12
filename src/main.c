@@ -562,7 +562,10 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
                         ++drain;
                         continue;
                     }
-                    /* Premier octet non-CRLF = debut Videotex, on arrete */
+                    /* Premier octet non-CRLF = debut Videotex: le
+                     * passer au decodeur, pas le jeter (un ESC mange
+                     * ici desynchronisait la 1ere sequence serveur) */
+                    vtx_process(ctx, b);
                     break;
                 }
                 delay_ms(10);

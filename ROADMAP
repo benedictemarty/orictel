@@ -52,6 +52,9 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Support Telestrat natif (ACIA integree)
 
 ## Backlog
+- Investiguer les iterations de boucle principale a ~114k cycles
+  observees post-connexion (trace 0.2.30: 114 ms entre deux pumps TX
+  a ecran stable - profiler la fenetre pour identifier le poste)
 - Support d'autres serveurs Minitel (MiniPavi, etc.)
 - Mode hors-ligne avec pages Videotex pre-chargees
 - Impression via port parallele Oric

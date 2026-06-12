@@ -20,13 +20,25 @@ extern unsigned char g_global_mask;
  *  Reponse STUM 1B: SOH + constructeur + type + version + EOT
  * =================================================================== */
 
+/* Reponse d'identification ENQ/ENQROM - DESACTIVEE.
+ *
+ * La STUM 1B demande de repondre SOH + constructeur + type + version
+ * + EOT, mais les serveurs modernes (MiniPavi/PAVI) ne CONSOMMENT pas
+ * cette reponse: ils l'echoient comme une frappe utilisateur, et
+ * "{tc" apparait dans le champ de saisie (verifie a la trace serie:
+ * le serveur place le curseur, active l'echo, puis echoie nos octets
+ * $7B $74 $63 - meme avec une reponse partie en 9 ms).
+ * miedit, l'emulateur de reference qui fonctionne avec ces serveurs,
+ * ne repond a AUCUNE sequence PRO. On s'aligne.
+ * Reactivable ici si un serveur exigeant l'identification apparait. */
 static void send_ident(void)
 {
-    serial_send(0x01);  /* SOH */
-    serial_send(0x7B);  /* Constructeur (Matra) */
-    serial_send(0x74);  /* Type (Minitel 1B) */
-    serial_send(0x63);  /* Version */
-    serial_send(0x04);  /* EOT */
+    /* serial_send(0x01); SOH
+     * serial_send(0x7B); constructeur (Matra)
+     * serial_send(0x74); type (Minitel 1B)
+     * serial_send(0x63); version
+     * serial_send(0x04); EOT
+     * serial_tx_flush(); */
 }
 
 /* ===================================================================
@@ -566,6 +578,7 @@ static void dispatch_pro(vtx_context_t* ctx)
                 serial_send(0x73);
                 serial_send(target);
                 serial_send(status);
+                serial_tx_flush();  /* reponse protocole: partir d'un bloc */
             }
             return;
         }
@@ -578,6 +591,7 @@ static void dispatch_pro(vtx_context_t* ctx)
                 /* ACK: SEP ($13) + $71 (videotex confirme) */
                 serial_send(0x13);
                 serial_send(0x71);
+                serial_tx_flush();
             } else if (ctx->pro_buf[1] == 0x7D) { /* MODE MIXED */
                 /* OricTel ne supporte pas le mode MIXED (telé-informatique).
                  * On ignore silencieusement, le serveur saura par l'absence
@@ -673,6 +687,7 @@ static void dispatch_pro(vtx_context_t* ctx)
             serial_send(0x63);
             serial_send(dest);
             serial_send(status);
+            serial_tx_flush();  /* reponse protocole: partir d'un bloc */
         }
     }
 }

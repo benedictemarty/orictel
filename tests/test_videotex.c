@@ -23,6 +23,8 @@ static void tx_reset(void) { tx_len = 0; }
 void serial_send(unsigned char byte) {
     if (tx_len < (int)sizeof(tx_buf)) tx_buf[tx_len++] = byte;
 }
+void serial_tx_flush(void) {}
+void serial_tx_pump(void) {}
 unsigned char serial_recv(void) { return 0xFF; }
 unsigned char serial_poll(void) { return 0; }
 void serial_init(void) {}
@@ -469,12 +471,18 @@ static void test_pro_sequences(void)
 }
 
 /* ===================================================================
- *  Test: ENQROM (PRO1 + $7B = identification terminal)
+ *  Test: ENQROM (PRO1 + $7B) - reponse DESACTIVEE
+ *
+ *  Les serveurs modernes (MiniPavi) n'attendent pas la reponse
+ *  d'identification: ils l'echoient comme une frappe dans le champ
+ *  de saisie ("{tc" affiche). miedit (reference) ne repond pas non
+ *  plus. On verifie que la sequence est consommee SANS emission et
+ *  sans perdre le sync.
  * =================================================================== */
 static void test_enqrom(void)
 {
     vtx_context_t ctx;
-    printf("Test: ENQROM (PRO1 + $7B)\n");
+    printf("Test: ENQROM (PRO1 + $7B) - pas de reponse\n");
     vtx_init(&ctx);
 
     tx_reset();
@@ -482,13 +490,13 @@ static void test_enqrom(void)
     vtx_process(&ctx, 0x39);
     vtx_process(&ctx, 0x7B);  /* ENQROM */
 
-    ASSERT_EQ("ENQROM: 5 octets emis", 5, tx_len);
-    ASSERT_EQ("ENQROM: SOH", 0x01, tx_buf[0]);
-    ASSERT_EQ("ENQROM: constructeur Matra", 0x7B, tx_buf[1]);
-    ASSERT_EQ("ENQROM: type Minitel 1B", 0x74, tx_buf[2]);
-    ASSERT_EQ("ENQROM: version", 0x63, tx_buf[3]);
-    ASSERT_EQ("ENQROM: EOT", 0x04, tx_buf[4]);
+    ASSERT_EQ("ENQROM: 0 octet emis (aligne miedit)", 0, tx_len);
     ASSERT_EQ("ENQROM: state retombe NORMAL", VTX_STATE_NORMAL, ctx.state);
+
+    /* Sync preserve: le texte suivant s'affiche normalement */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 'K');
+    ASSERT_EQ("K affiche apres ENQROM", 'K', ctx.screen[5][0].ch);
 
     /* PRO1 inconnu: aucune emission */
     tx_reset();

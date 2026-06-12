@@ -1,5 +1,25 @@
 # CHANGELOG - OricTel
 
+## [0.2.31] - 2026-06-13
+
+### Corrige ("eTC" affiche dans le champ de saisie PAVI)
+Diagnostic complet a la trace serie: le serveur envoie ESC $39 $7B
+(ENQROM) en debut de session; notre reponse SOH $7B $74 $63 EOT
+n'etait pas consommee comme protocole par MiniPavi, qui l'echoyait
+comme une frappe dans le champ de saisie ("{tc" -> "eTC" avec la
+casse forcee, $7B = e accent en G0). Verifie: meme une reponse partie
+en 9 ms est echoyee - le serveur n'attend simplement pas de reponse.
+miedit (emulateur de reference) ne repond a aucune sequence PRO.
+- videotex.c: reponse ENQ/ENQROM desactivee (alignement miedit),
+  send_ident conserve comme point de reactivation documente.
+- videotex.c: les ACK PRO2/PRO3 restants partent desormais d'un bloc
+  (serial_tx_flush) au lieu d'un octet par iteration de boucle - une
+  reponse etalee sur 1+ s arrive apres l'activation de l'echo serveur.
+- main.c: le drain post-CONNECT passait le premier octet non-CRLF a
+  la poubelle au lieu du decodeur (un ESC mange desynchronisait la
+  premiere sequence serveur).
+- Tests ENQROM inverses: verification d'absence d'emission. 219/219.
+
 ## [0.2.30] - 2026-06-12
 
 ### Corrige (couleur du premier mot)
