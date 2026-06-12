@@ -1,12 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.15
+## Version actuelle: 0.2.16
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.15     | 2026-05-07 | En cours    |
+| orictel.tap        | 0.2.16     | 2026-06-12 | En cours    |
 | orictel_bridge.py  | 0.2.1     | 2026-03-24 | Stable      |
-| Videotex decoder   | 0.2.15     | 2026-05-07 | Stable      |
+| Videotex decoder   | 0.2.16     | 2026-06-12 | Stable      |
 | Display engine     | 0.2.2     | 2026-05-07 | Optimise    |
 | Keyboard module    | 0.2.3     | 2026-05-07 | Stable      |
 | Font data (G0)     | 0.2.1     | 2026-03-24 | Complet     |
@@ -14,6 +14,11 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.16 (2026-06-12)
+- Fix decodeur: SEP etat dedie, sync g_global_mask au re-init, dirty
+  ligne du dessus en double hauteur. Refactor reset_cells/send_ident.
+  195/195 tests
 
 ### 0.2.15 (2026-05-07)
 - Mask global (ESC # $20 $58/$5F). 180/180 tests

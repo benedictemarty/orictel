@@ -1,5 +1,26 @@
 # CHANGELOG - OricTel
 
+## [0.2.16] - 2026-06-12
+
+### Corrige
+- videotex.c: SEP ($13) en reception consomme le code fonction via un
+  etat dedie VTX_STATE_SEP. L'ancien code reutilisait le mecanisme PRO1:
+  un SEP suivi de $7B declenchait une reponse ENQROM parasite.
+- videotex.c: vtx_init resynchronise g_global_mask (copie renderer).
+  Apres un re-init avec mask leve, decodeur et renderer divergeaient.
+- videotex.c: un caractere double hauteur/taille marque aussi dirty la
+  ligne du dessus (la moitie haute du glyphe y est rendue). Un re-rendu
+  isole de cette ligne ecrasait la moitie haute du glyphe.
+
+### Refactor
+- videotex.c: clear_row/vtx_clear_page/clear_eol unifies sur
+  reset_cells() a champs nommes - suppression des patchs par offsets
+  bruts qui dependaient silencieusement de l'ordre des champs de
+  vtx_cell_t.
+- videotex.c: reponse identification ENQ/ENQROM factorisee (send_ident).
+- videotex.h: suppression du champ mort row_cleared[].
+- 15 nouveaux tests. 195/195.
+
 ## [0.2.15] - 2026-05-07
 
 ### Ajout

@@ -35,6 +35,7 @@
 #define VTX_STATE_SS2_ACC   9   /* SS2 accent: attente du caractere base */
 #define VTX_STATE_MASK_SP   10  /* Mask global: attend $20 apres ESC # */
 #define VTX_STATE_MASK_END  11  /* Mask global: attend $58 (set) ou $5F (reset) */
+#define VTX_STATE_SEP       12  /* SEP ($13) recu: consommer le code fonction */
 
 /* Jeux de caracteres */
 #define CHARSET_G0  0       /* Alphanumerique */
@@ -154,9 +155,8 @@ typedef struct {
     /* Buffer ecran (40x25 cellules) */
     vtx_cell_t screen[VTX_ROWS][VTX_COLS];
 
-    /* Dirty flags et effacement paresseux */
+    /* Dirty flags */
     unsigned char dirty[VTX_ROWS];      /* 1 = ligne modifiee, a re-rendre */
-    unsigned char row_cleared[VTX_ROWS]; /* 1 = ligne logiquement vide (lazy) */
     unsigned char full_refresh;         /* 1 = tout redessiner */
     unsigned char blink_phase;          /* 0 ou 1, bascule toutes les ~500ms */
 } vtx_context_t;

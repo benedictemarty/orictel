@@ -923,6 +923,97 @@ static void test_mask_global(void)
 }
 
 /* ===================================================================
+ *  Test: SEP en reception (etat dedie, pas de dispatch PRO)
+ * =================================================================== */
+static void test_sep_reception(void)
+{
+    vtx_context_t ctx;
+    printf("Test: SEP reception (etat dedie)\n");
+    vtx_init(&ctx);
+
+    /* SEP + code fonction classique ($41): consomme, pas d'action */
+    tx_reset();
+    vtx_process(&ctx, 0x13);
+    ASSERT_EQ("SEP: etat = SEP", VTX_STATE_SEP, ctx.state);
+    vtx_process(&ctx, 0x41);
+    ASSERT_EQ("SEP $41: retour NORMAL", VTX_STATE_NORMAL, ctx.state);
+    ASSERT_EQ("SEP $41: rien emis", 0, tx_len);
+
+    /* Regression: SEP + $7B ne doit PAS declencher la reponse ENQROM
+     * (l'ancien code reutilisait le mecanisme PRO1, et dispatch_pro
+     * repondait SOH..EOT sur $7B). */
+    tx_reset();
+    vtx_process(&ctx, 0x13);
+    vtx_process(&ctx, 0x7B);
+    ASSERT_EQ("SEP $7B: retour NORMAL", VTX_STATE_NORMAL, ctx.state);
+    ASSERT_EQ("SEP $7B: pas de reponse ENQROM", 0, tx_len);
+
+    /* Le code fonction n'est pas affiche */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 0x13);
+    vtx_process(&ctx, 0x46);
+    vtx_process(&ctx, 'X');
+    ASSERT_EQ("apres SEP, X affiche en (5,0)", 'X', ctx.screen[5][0].ch);
+}
+
+/* ===================================================================
+ *  Test: re-init resynchronise g_global_mask
+ * =================================================================== */
+static void test_reinit_global_mask(void)
+{
+    vtx_context_t ctx;
+    printf("Test: vtx_init resynchronise g_global_mask\n");
+    vtx_init(&ctx);
+
+    /* Lever le mask via le flux serveur */
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x23);
+    vtx_process(&ctx, 0x20); vtx_process(&ctx, 0x5F);
+    ASSERT_EQ("mask leve: g_global_mask = 0", 0, g_global_mask);
+
+    /* Re-init: les deux copies doivent revenir a 1 */
+    vtx_init(&ctx);
+    ASSERT_EQ("re-init: ctx.global_mask = 1", 1, ctx.global_mask);
+    ASSERT_EQ("re-init: g_global_mask = 1", 1, g_global_mask);
+}
+
+/* ===================================================================
+ *  Test: double hauteur marque dirty la ligne du dessus
+ * =================================================================== */
+static void test_double_height_dirty(void)
+{
+    vtx_context_t ctx;
+    printf("Test: double hauteur -> dirty ligne au-dessus\n");
+    vtx_init(&ctx);
+
+    /* Simuler un rendu: nettoyer les dirty flags */
+    memset(ctx.dirty, 0, sizeof(ctx.dirty));
+    ctx.full_refresh = 0;
+
+    /* Caractere double hauteur en ligne 5 */
+    vtx_set_cursor(&ctx, 5, 0);
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x4D);  /* ESC $4D = double hauteur */
+    vtx_process(&ctx, 'A');
+    ASSERT_EQ("ligne 5 dirty", 1, ctx.dirty[5]);
+    ASSERT_EQ("ligne 4 dirty (moitie haute du glyphe)", 1, ctx.dirty[4]);
+
+    /* Double taille: meme exigence */
+    memset(ctx.dirty, 0, sizeof(ctx.dirty));
+    vtx_set_cursor(&ctx, 8, 0);
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x4F);  /* ESC $4F = double taille */
+    vtx_process(&ctx, 'B');
+    ASSERT_EQ("ligne 8 dirty", 1, ctx.dirty[8]);
+    ASSERT_EQ("ligne 7 dirty (moitie haute)", 1, ctx.dirty[7]);
+
+    /* Taille normale: la ligne du dessus reste propre */
+    memset(ctx.dirty, 0, sizeof(ctx.dirty));
+    vtx_set_cursor(&ctx, 10, 0);
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x4C);  /* ESC $4C = normal */
+    vtx_process(&ctx, 'C');
+    ASSERT_EQ("ligne 10 dirty", 1, ctx.dirty[10]);
+    ASSERT_EQ("ligne 9 non dirty (taille normale)", 0, ctx.dirty[9]);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -954,6 +1045,9 @@ int main(void)
     test_pro3_switch_ack();
     test_g2_extended();
     test_mask_global();
+    test_sep_reception();
+    test_reinit_global_mask();
+    test_double_height_dirty();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

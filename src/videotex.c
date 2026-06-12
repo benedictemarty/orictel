@@ -16,6 +16,20 @@
 extern unsigned char g_global_mask;
 
 /* ===================================================================
+ *  Identification terminal (ENQ et PRO1 ENQROM)
+ *  Reponse STUM 1B: SOH + constructeur + type + version + EOT
+ * =================================================================== */
+
+static void send_ident(void)
+{
+    serial_send(0x01);  /* SOH */
+    serial_send(0x7B);  /* Constructeur (Matra) */
+    serial_send(0x74);  /* Type (Minitel 1B) */
+    serial_send(0x63);  /* Version */
+    serial_send(0x04);  /* EOT */
+}
+
+/* ===================================================================
  *  Initialisation
  * =================================================================== */
 
@@ -43,6 +57,7 @@ void vtx_init(vtx_context_t* ctx)
     ctx->kbd_extended = 0;
     ctx->kbd_cursor = 0;
     ctx->global_mask = 1;  /* defaut: cellules concealed cachees */
+    g_global_mask = 1;     /* garder la copie renderer synchronisee */
 
     vtx_clear_page(ctx);
     vtx_clear_status(ctx);
@@ -53,41 +68,31 @@ void vtx_init(vtx_context_t* ctx)
  *  Gestion ecran
  * =================================================================== */
 
+/* Remet une plage de cellules a l'etat "vide visible":
+ * ch=' ' et fg=WHITE (fg=BLACK rendrait la cellule invisible,
+ * encre noire sur fond noir). */
+static void reset_cells(vtx_cell_t* cell, unsigned int count)
+{
+    while (count-- > 0) {
+        cell->ch = ' ';
+        cell->charset = CHARSET_G0;
+        cell->fg = VTX_WHITE;
+        cell->bg = VTX_BLACK;
+        cell->flags = 0;
+        cell->size = SIZE_NORMAL;
+        ++cell;
+    }
+}
+
 static void clear_row(vtx_context_t* ctx, unsigned char row)
 {
-    unsigned char i;
-    unsigned char* p;
-    memset(&ctx->screen[row][0], 0, sizeof(vtx_cell_t) * VTX_COLS);
-    /* ch=' ' (espace explicite), fg=WHITE (encre noire = invisible). */
-    p = (unsigned char*)&ctx->screen[row][0];
-    for (i = 0; i < VTX_COLS; ++i) {
-        p[0] = ' ';
-        p[2] = VTX_WHITE;
-        p += sizeof(vtx_cell_t);
-    }
+    reset_cells(&ctx->screen[row][0], VTX_COLS);
     ctx->dirty[row] = 1;
 }
 
 void vtx_clear_page(vtx_context_t* ctx)
 {
-    /* Clear rapide: memset a zero puis corriger fg=WHITE.
-     * memset(0) met fg=VTX_BLACK (0) ce qui rend les cellules
-     * invisibles (encre noire sur fond noir). Il FAUT mettre
-     * fg=VTX_WHITE pour que le renderer utilise l'encre blanche. */
-    memset(&ctx->screen[1][0], 0,
-           sizeof(vtx_cell_t) * VTX_COLS * (VTX_ROWS - 1));
-
-    /* ch=' ' (espace explicite), fg=WHITE pour toutes les cellules.
-     * vtx_cell_t = {ch, charset, fg, bg, flags, size} → ch a offset 0, fg a 2 */
-    {
-        unsigned char* p = (unsigned char*)&ctx->screen[1][0];
-        unsigned int i;
-        for (i = 0; i < VTX_COLS * (VTX_ROWS - 1); ++i) {
-            p[0] = ' ';        /* caractere = espace */
-            p[2] = VTX_WHITE;  /* fg = blanc */
-            p += sizeof(vtx_cell_t);
-        }
-    }
+    reset_cells(&ctx->screen[1][0], VTX_COLS * (VTX_ROWS - 1));
 
     /* Effacer le framebuffer HIRES d'un coup (8000 octets = $40)
      * au lieu de marquer dirty et re-rendre 1000 cellules vides */
@@ -166,6 +171,13 @@ static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
     }
 
     ctx->dirty[ctx->cur_y] = 1;
+    /* Double hauteur/taille: la moitie haute du glyphe est rendue dans
+     * les lignes pixel de la ligne du dessus. Sans ce dirty, un re-rendu
+     * isole de cur_y-1 ecraserait la moitie haute. */
+    if ((ctx->attr_size == SIZE_DOUBLE_HEIGHT ||
+         ctx->attr_size == SIZE_DOUBLE_SIZE) && ctx->cur_y > 0) {
+        ctx->dirty[ctx->cur_y - 1] = 1;
+    }
     ctx->last_char = ch;
     ctx->last_charset = cs;
 
@@ -252,15 +264,8 @@ static void scroll_up(vtx_context_t* ctx)
 
 static void clear_eol(vtx_context_t* ctx)
 {
-    unsigned char i;
-    for (i = ctx->cur_x; i < VTX_COLS; ++i) {
-        ctx->screen[ctx->cur_y][i].ch = ' ';
-        ctx->screen[ctx->cur_y][i].charset = CHARSET_G0;
-        ctx->screen[ctx->cur_y][i].fg = VTX_WHITE;
-        ctx->screen[ctx->cur_y][i].bg = VTX_BLACK;
-        ctx->screen[ctx->cur_y][i].flags = 0;
-        ctx->screen[ctx->cur_y][i].size = SIZE_NORMAL;
-    }
+    reset_cells(&ctx->screen[ctx->cur_y][ctx->cur_x],
+                VTX_COLS - ctx->cur_x);
     ctx->dirty[ctx->cur_y] = 1;
 }
 
@@ -473,13 +478,8 @@ static void dispatch_pro(vtx_context_t* ctx)
     if (ctx->pro_kind == 1) {
         switch (ctx->pro_buf[0]) {
             case 0x7B:  /* ENQROM - identification du Minitel.
-                         * Reponse: SOH + 3 octets identifiant + EOT.
-                         * Codes alignes sur ENQ ($05) traite plus bas. */
-                serial_send(0x01);  /* SOH */
-                serial_send(0x7B);  /* Constructeur (Matra) */
-                serial_send(0x74);  /* Type (Minitel 1B) */
-                serial_send(0x63);  /* Version */
-                serial_send(0x04);  /* EOT */
+                         * Meme reponse que ENQ ($05). */
+                send_ident();
                 break;
             default:
                 /* SEP fonction et autres PRO1 inconnus: ignore */
@@ -768,6 +768,11 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         ctx->state = VTX_STATE_NORMAL;
         return;
 
+    case VTX_STATE_SEP:
+        /* Code fonction apres SEP: consomme, aucune action. */
+        ctx->state = VTX_STATE_NORMAL;
+        return;
+
     case VTX_STATE_PRO:
         /* Accumule un octet de payload PRO. */
         if (ctx->pro_idx < 3) {
@@ -789,11 +794,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
     if (byte < 0x20) {
         switch (byte) {
             case 0x05:  /* ENQ - identification terminal */
-                serial_send(0x01);  /* SOH */
-                serial_send(0x7B);  /* Constructeur (Matra) */
-                serial_send(0x74);  /* Type (Minitel 1B) */
-                serial_send(0x63);  /* Version */
-                serial_send(0x04);  /* EOT */
+                send_ident();
                 break;
             case 0x07:  /* BEL - bip */
                 display_beep();
@@ -830,11 +831,11 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                 break;
             case 0x13:  /* SEP - separateur (touches fonction Minitel) */
                 /* Le prochain octet est le code fonction ($41-$49).
-                 * En reception, on l'ignore (c'est le serveur qui envoie).
-                 * Reutilise le mecanisme PRO pour consommer 1 octet. */
-                ctx->state = VTX_STATE_PRO;
-                ctx->pro_kind = 1;
-                ctx->pro_idx = 0;
+                 * En reception, on le consomme sans agir (c'est le
+                 * serveur qui envoie). Etat dedie: passer par le
+                 * mecanisme PRO declencherait dispatch_pro (un SEP
+                 * suivi de $7B repondrait ENQROM a tort). */
+                ctx->state = VTX_STATE_SEP;
                 break;
             case 0x14:  /* DC4/COFF - curseur invisible */
                 ctx->cur_visible = 0;
