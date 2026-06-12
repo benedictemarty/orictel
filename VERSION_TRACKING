@@ -133,7 +133,7 @@
 ### 0.2.1 (2026-03-24)
 - Optimisation rendu display avec fast path et boucles deroulees
 - Mise a jour README et documentation complete
-- Ajout CLAUDE.md
+- Documentation projet completee
 
 ### 0.1.0-alpha (2026-03-22)
 - Creation initiale du projet

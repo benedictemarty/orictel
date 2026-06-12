@@ -246,7 +246,7 @@ Mesure avant/apres (selection serveur -> ATD envoye):
   avec capture du PID.
 
 ### Documentation
-- Makefile help / CLAUDE.md / README alignes sur les cibles reelles:
+- Makefile help / README / doc projet alignes sur les cibles reelles:
   run = modem AT, run-direct = TCP V23, run-ws = bridge. Liste des
   serveurs du menu corrigee (PAVI 3617, MiniPavi).
 - tests/test_server.py raccorde au build: nouvelle cible 'make
@@ -515,7 +515,7 @@ Mesure avant/apres (selection serveur -> ATD envoye):
 - README: mise a jour complete pour refleter l'etat v0.2.x du projet
 - README: documentation des deux modes de connexion (Digitelec + bridge)
 - README: ajout menu serveur, modem AT, modes de rendu, splash screen
-- Ajout CLAUDE.md pour integration Claude Code
+- Documentation projet completee
 - Makefile: correction flag --fastload -> -f pour Phosphoric v1.15.1
 
 ### Correction
