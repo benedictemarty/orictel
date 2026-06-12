@@ -419,6 +419,21 @@ static void set_paper_attr(unsigned char col, unsigned char char_row, unsigned c
     }
 }
 
+/* Vrai si la ligne contient au moins une cellule double hauteur ou
+ * double taille (dont la moitie haute vit dans les scanlines de la
+ * ligne du dessus). */
+static unsigned char row_has_dblh(vtx_context_t* ctx, unsigned char row)
+{
+    unsigned char col;
+    for (col = 0; col < SCREEN_COLS; ++col) {
+        unsigned char s = ctx->screen[row][col].size;
+        if (s == SIZE_DOUBLE_HEIGHT || s == SIZE_DOUBLE_SIZE) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 {
     unsigned char col;
@@ -464,6 +479,10 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
      * - Couleurs SI changements de couleur ET cellules vides pour attributs
      * - Brut SI la ligne contient des cellules double-hauteur/taille
      *   (les attributs serial de row-1 ne correspondent pas au contenu)
+     * - Brut aussi SI la ligne DU DESSOUS en contient: les moities
+     *   hautes de ses glyphes sont dessinees dans NOS scanlines et
+     *   seraient teintees par nos attributs alors que leurs moities
+     *   basses sont rendues brut (blanc)
      * - Brut si pas de cellule vide pour poser les attributs */
     has_colors = 0;
     has_empty = 0;
@@ -476,7 +495,9 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
             if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE)
                 has_dblh = 1;
         }
-        /* Double-hauteur = brut (les attributs serial row-1 seraient faux) */
+        if (!has_dblh && row + 1 < SCREEN_ROWS) {
+            has_dblh = row_has_dblh(ctx, row + 1);
+        }
         use_attrs = (has_colors && has_empty && !has_dblh) ? 1 : 0;
     }
 
@@ -505,10 +526,30 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
         is_empty = (cell->ch == ' ' || cell->ch == 0);
 
         if (is_empty) {
-            if (cell_bg != prev_bg) {
+            unsigned char bg_change = (cell_bg != prev_bg) ? 1 : 0;
+            unsigned char fg_change = (cell_fg != prev_fg) ? 1 : 0;
+
+            if (bg_change && fg_change) {
+                /* Un seul octet d'attribut par cellule. Si le vide
+                 * suivant existe, poser le fond ici: l'encre sera
+                 * posee dessus a l'iteration suivante. Delimiteur
+                 * isole (suivi de texte): la couleur du texte prime
+                 * sur la zone de fond, poser l'encre. */
+                unsigned char next_is_empty =
+                    (col + 1 < SCREEN_COLS &&
+                     (ctx->screen[row][col + 1].ch == ' ' ||
+                      ctx->screen[row][col + 1].ch == 0)) ? 1 : 0;
+                if (next_is_empty) {
+                    set_paper_attr(col, row, cell_bg);
+                    prev_bg = cell_bg;
+                } else {
+                    set_ink_attr(col, row, cell_fg);
+                    prev_fg = cell_fg;
+                }
+            } else if (bg_change) {
                 set_paper_attr(col, row, cell_bg);
                 prev_bg = cell_bg;
-            } else if (cell_fg != prev_fg) {
+            } else if (fg_change) {
                 set_ink_attr(col, row, cell_fg);
                 prev_fg = cell_fg;
             } else {
@@ -560,6 +601,13 @@ void display_render(vtx_context_t* ctx)
         if (cur_drawn && row == cur_drawn_y) {
             /* La ligne sous la barre vient d'etre redessinee */
             cur_drawn = 0;
+        }
+        /* Le rendu de cette ligne a ecrase les scanlines ou la ligne
+         * du dessous dessine les moities hautes de ses glyphes double
+         * hauteur: la re-rendre (traitee a l'iteration suivante,
+         * boucle ascendante). */
+        if (row + 1 < SCREEN_ROWS && row_has_dblh(ctx, row + 1)) {
+            ctx->dirty[row + 1] = 1;
         }
     }
     ctx->full_refresh = 0;

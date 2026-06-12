@@ -1,5 +1,24 @@
 # CHANGELOG - OricTel
 
+## [0.2.23] - 2026-06-12
+
+### Corrige (heuristique couleur AUTO)
+- display.c: delimiteur unique ou fond ET encre changent. Un seul
+  octet d'attribut par cellule: si le vide suivant existe, le fond est
+  pose ici et l'encre a l'iteration suivante (comportement naturel);
+  si le delimiteur est isole (suivi de texte), l'encre prime desormais
+  sur la zone de fond - la couleur du texte etait silencieusement
+  perdue, or elle est semantiquement plus importante qu'une zone de
+  fond d'une cellule.
+- display.c: la decision AUTO force aussi le rendu brut quand la ligne
+  DU DESSOUS contient des doubles hauteurs: leurs moities hautes,
+  dessinees dans les scanlines de la ligne courante, etaient teintees
+  par ses attributs alors que les moities basses restaient blanches.
+- display.c: display_render re-rend la ligne du dessous quand elle
+  contient des doubles hauteurs et que la ligne courante vient d'etre
+  redessinee (boucle ascendante): un re-rendu isole de la ligne du
+  dessus ecrasait definitivement les moities hautes des glyphes.
+
 ## [0.2.22] - 2026-06-12
 
 ### Corrige (mode couleur)
