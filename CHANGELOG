@@ -1,5 +1,18 @@
 # CHANGELOG - OricTel
 
+## [0.2.33] - 2026-06-13
+
+### Documentation
+- README remis a niveau (etait reste a 0.2.1/mars): architecture avec
+  serial_tx/display_asm, fonctionnalites reelles (moteur asm, regard-
+  avant couleur, mosaiques solides, PRO appliques, politique ENQROM),
+  specs serie actuelles (Control $00 emulateur, V23 reel en ROADMAP),
+  cibles make completes, fleches/mode curseur dans le tableau clavier.
+- Nouveau docs/MANUEL_UTILISATION.md: demarrage rapide, modes de
+  connexion, ecran et indicateur de liaison, clavier complet et
+  raccourcis locaux, modes de rendu expliques, serveurs testes,
+  depannage, limites connues.
+
 ## [0.2.32] - 2026-06-13
 
 ### Modifie

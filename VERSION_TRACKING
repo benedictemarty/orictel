@@ -1,6 +1,6 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.32
+## Version actuelle: 0.2.33
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
@@ -15,6 +15,9 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.33 (2026-06-13)
+- README remis a niveau + nouveau manuel d'utilisation
 
 ### 0.2.32 (2026-06-13)
 - Licence GPL v3 -> EUPL 1.2

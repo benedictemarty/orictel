@@ -46,7 +46,7 @@ utilisable avec les serveurs Minitel modernes via Internet.
 
 ## Sprint 5 - Distribution (v1.0.0) [PLANIFIE]
 - [ ] Image disque Sedoric avec auto-boot
-- [ ] Documentation utilisateur complete
+- [x] Documentation utilisateur complete (docs/MANUEL_UTILISATION.md, 0.2.33)
 - [ ] Tests de compatibilite avec differents serveurs
 - [ ] Packaging et distribution
 - [ ] Support Telestrat natif (ACIA integree)
