@@ -2,6 +2,10 @@
 
 ## [0.2.33] - 2026-06-13
 
+### Infrastructure
+- Depot public GitHub cree: https://github.com/benedictemarty/orictel
+  (remote 'github', pousse en miroir du Gitea 'origin').
+
 ### Documentation
 - README remis a niveau (etait reste a 0.2.1/mars): architecture avec
   serial_tx/display_asm, fonctionnalites reelles (moteur asm, regard-
