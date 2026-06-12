@@ -1,5 +1,25 @@
 # CHANGELOG - OricTel
 
+## [0.2.30] - 2026-06-12
+
+### Corrige (couleur du premier mot)
+- display.c: regard-avant dans le placement des attributs hybrides.
+  Une cellule vide pose desormais l'encre DU TEXTE QUI LA SUIT, pas la
+  sienne: l'espace devant un mot colore ne porte pas toujours l'encre
+  du mot dans le flux (le Minitel a des attributs paralleles, l'Oric
+  non). Symptome corrige, releve sur la page meteo PAVI: METEO blanc /
+  BORDEAUX jaune, PLUIE blanc / DANS L'HEURE cyan - le premier mot de
+  chaque zone coloree restait blanc. Un octet attribut encre s'affiche
+  comme le papier courant, identique a l'espace remplace: aucun cout
+  visuel.
+
+### Verifie (fidelite au flux)
+- Les traits de separation de l'accueil PAVI sont envoyes en encre
+  BLEUE par le serveur (trace serie: ESC $44 + $60 + REP) - le rendu
+  OricTel bleu est fidele; l'emulateur web de reference les recolore.
+  Avec les mosaiques solides (0.2.29) ils sont desormais pleins au
+  lieu de trames.
+
 ## [0.2.29] - 2026-06-12
 
 ### Ajout

@@ -639,7 +639,24 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 
         if (is_empty) {
             unsigned char bg_change = (cell_bg != prev_bg) ? 1 : 0;
-            unsigned char fg_change = (cell_fg != prev_fg) ? 1 : 0;
+            unsigned char want_fg = cell_fg;
+            unsigned char next_is_empty = 1;
+            unsigned char fg_change;
+
+            /* Regard-avant: si la cellule suivante est du texte, c'est
+             * SON encre qu'il faut poser ici - l'espace devant un mot
+             * colore ne porte pas toujours l'encre du mot dans le flux
+             * (le Minitel a des attributs paralleles, l'Oric non).
+             * Un attribut encre s'affiche comme le papier courant:
+             * visuellement identique a l'espace qu'il remplace. */
+            if (col + 1 < SCREEN_COLS) {
+                vtx_cell_t* nx = &ctx->screen[row][col + 1];
+                if (nx->ch != ' ' && nx->ch != 0) {
+                    want_fg = nx->fg;
+                    next_is_empty = 0;
+                }
+            }
+            fg_change = (want_fg != prev_fg) ? 1 : 0;
 
             if (bg_change && fg_change) {
                 /* Un seul octet d'attribut par cellule. Si le vide
@@ -647,23 +664,19 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
                  * posee dessus a l'iteration suivante. Delimiteur
                  * isole (suivi de texte): la couleur du texte prime
                  * sur la zone de fond, poser l'encre. */
-                unsigned char next_is_empty =
-                    (col + 1 < SCREEN_COLS &&
-                     (ctx->screen[row][col + 1].ch == ' ' ||
-                      ctx->screen[row][col + 1].ch == 0)) ? 1 : 0;
                 if (next_is_empty) {
                     set_paper_attr(col, row, cell_bg);
                     prev_bg = cell_bg;
                 } else {
-                    set_ink_attr(col, row, cell_fg);
-                    prev_fg = cell_fg;
+                    set_ink_attr(col, row, want_fg);
+                    prev_fg = want_fg;
                 }
             } else if (bg_change) {
                 set_paper_attr(col, row, cell_bg);
                 prev_bg = cell_bg;
             } else if (fg_change) {
-                set_ink_attr(col, row, cell_fg);
-                prev_fg = cell_fg;
+                set_ink_attr(col, row, want_fg);
+                prev_fg = want_fg;
             } else {
                 render_cell_hires(cell, col, row);
             }
