@@ -27,7 +27,8 @@ C_SRCS  = $(SRCDIR)/main.c \
           $(SRCDIR)/serial_tx.c
 
 # Sources assembleur
-ASM_SRCS = $(SRCDIR)/serial_asm.s
+ASM_SRCS = $(SRCDIR)/serial_asm.s \
+           $(SRCDIR)/display_asm.s
 
 # Objets
 C_OBJS   = $(patsubst $(SRCDIR)/%.c,$(BLDDIR)/%.o,$(C_SRCS))

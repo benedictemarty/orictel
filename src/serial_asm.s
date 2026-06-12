@@ -32,16 +32,19 @@ DCD_BIT      = $20
 ; ===========================================================================
 ; serial_init - Polling, pas d'IRQ
 ;
-; Control: $1F = 19200 baud, 8 bits, 1 stop, horloge interne
-;   (19200 8N1: commandes AT du modem emule et flux TCP emulateur.
-;    Le V23 reel 1200/75 7E1 demanderait Control=$18 + parite Command.)
+; Control: $00 = horloge externe, 8 bits, 1 stop. Phosphoric traite
+;   l'horloge externe en "instant transfer": aucun cadencement baud,
+;   les octets sont disponibles des leur arrivee TCP. C'est le mode
+;   le plus rapide sous emulateur ($1F = 19200 cadence la livraison
+;   a ~1.9 Ko/s, perceptible au chargement d'une page).
+;   Le V23 reel 1200/75 7E1 demanderait Control=$18 + parite Command.
 ; Command: $03 = DTR on, RX IRQ off, no parity
 ; ===========================================================================
 _serial_init:
         lda     #$00
         sta     ACIA_STATUS     ; Programmed reset (efface OVRN, TDRE=1)
 
-        lda     #$1F            ; 19200 baud, 8N1, clock interne
+        lda     #$00            ; Horloge externe = instant transfer
         sta     ACIA_CONTROL
 
         lda     #$03            ; DTR on, IRQ RX off

@@ -30,6 +30,19 @@ extern unsigned char g_global_mask;
 /* Mode rendu: 0=hybride (G0 serial + G1 dithering), 1=tout dithering */
 unsigned char g_render_mode = 0;  /* 0=hybride (defaut), 1=dithering, 2=brut */
 
+/* Blit cellule assembleur (display_asm.s):
+ * dst[l*40] = (src[l] AND and_tbl[l]) OR or_mask, l = 0..7 */
+extern const unsigned char* blit_src;
+extern unsigned char* blit_dst;
+extern const unsigned char* blit_and;
+extern unsigned char blit_or;
+void __fastcall__ blit_cell8(void);
+
+/* Table AND neutre (pas de dithering) pour le blit */
+static const unsigned char no_dither[8] = {
+    0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F
+};
+
 /* Pointeur HIRES */
 #define HIRES ((unsigned char*)0xA000)
 
@@ -62,12 +75,15 @@ static void hires_on(void)
  *  Initialisation
  * =================================================================== */
 
+static void g1_cache_init(void);
+
 void display_init(void)
 {
     unsigned char i;
     unsigned char* ptr;
 
     hires_on();
+    g1_cache_init();
 
     /* Cacher les 3 lignes texte en bas (remplir de noir) */
     /* En HIRES, les lignes texte 25-27 sont a $BF68-$BFDF */
@@ -187,6 +203,44 @@ static void generate_mosaic(unsigned char code, unsigned char* glyph,
 }
 
 /* ===================================================================
+ *  Cache des glyphes mosaique G1
+ *
+ *  generate_mosaic coute ~400-800 cycles cc65 par cellule; les pages
+ *  Minitel sont denses en mosaiques. Les 64 motifs (bits 0-4 + bit 6
+ *  du code) x 2 modes (contigu/separe) sont precalcules une fois au
+ *  demarrage: 1 Ko de BSS contre un lookup au rendu.
+ * =================================================================== */
+
+static unsigned char g1_cache[2][64][8];
+
+/* Cas special G1 $60 (rangee haute pleine, cf. generate_mosaic) */
+static const unsigned char g1_glyph_60[8] = {
+    0x7F, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40
+};
+
+static void g1_cache_init(void)
+{
+    unsigned char sep, p;
+    for (sep = 0; sep < 2; ++sep) {
+        for (p = 0; p < 64; ++p) {
+            /* Reconstruire un code dont le motif est p, sans tomber
+             * sur le cas special $60 (bit5 du motif = bit6 du code) */
+            unsigned char code = (p & 0x1F) | ((p & 0x20) << 1);
+            generate_mosaic(code, &g1_cache[sep][p][0], sep);
+        }
+    }
+}
+
+/* Glyphe G1 depuis le cache */
+static const unsigned char* g1_glyph(unsigned char ch, unsigned char separated)
+{
+    if (ch == 0x60) {
+        return g1_glyph_60;
+    }
+    return &g1_cache[separated][(ch & 0x1F) | ((ch & 0x40) >> 1)][0];
+}
+
+/* ===================================================================
  *  Tables de dithering pour mosaiques G1
  *  Chaque couleur a 8 masques (1 par ligne pixel).
  *  Le masque AND avec les pixels du glyphe simule la couleur.
@@ -227,7 +281,6 @@ static void render_cell_hires(const vtx_cell_t* cell,
 {
     unsigned char* ptr;
     const unsigned char* glyph;
-    unsigned char mosaic_buf[8];
     unsigned char line;
     unsigned char ch;
     unsigned char inv_bit;
@@ -262,9 +315,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
 
     /* Selectionner le glyphe */
     if (cell->charset == CHARSET_G1) {
-        generate_mosaic(ch, mosaic_buf,
-                        (cell->flags & ATTR_SEPARATED) ? 1 : 0);
-        glyph = mosaic_buf;
+        glyph = g1_glyph(ch, (cell->flags & ATTR_SEPARATED) ? 1 : 0);
     } else if (cell->charset == CHARSET_G2) {
         glyph = font_get_g2(ch);
     } else {
@@ -378,14 +429,26 @@ static void render_cell_hires(const vtx_cell_t* cell,
             ptr += 40;
         }
     } else {
-        /* TAILLE NORMALE */
+        /* TAILLE NORMALE: blit assembleur (~190 cycles contre ~2000
+         * pour la boucle C). Le dithering passe par la table AND.
+         * Seul le souligne (ligne 7 forcee a $3F avant dithering)
+         * garde la boucle C. */
+        if (!(cell->flags & ATTR_UNDERLINE)) {
+            blit_src = glyph;
+            blit_dst = hires_row_base[char_row] + col;
+            blit_and = use_dither ? &g1_dither[cell->fg & 7][0] : no_dither;
+            blit_or = inv_bit;
+            blit_cell8();
+            return;
+        }
+
         ptr = hires_row_base[char_row] + col;
         for (line = 0; line < CHAR_H; ++line) {
             unsigned char g = glyph[line];
 
             /* Souligne sur la derniere ligne, avant le dithering
              * pour qu'il suive la couleur du texte */
-            if ((cell->flags & ATTR_UNDERLINE) && line == 7) {
+            if (line == 7) {
                 g = 0x3F;
             }
             if (use_dither) g &= g1_dither[cell->fg & 7][line];

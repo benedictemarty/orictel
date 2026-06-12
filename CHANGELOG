@@ -1,5 +1,24 @@
 # CHANGELOG - OricTel
 
+## [0.2.26] - 2026-06-12
+
+### Performance rendu (palier assembleur + serie instantanee)
+- display_asm.s: blit cellule 6x8 en assembleur 6502 (~190 cycles
+  contre ~1500-2500 pour la boucle C cc65). Le dithering passe par une
+  table AND, l'inversion par le masque OR. Fast path pour toutes les
+  cellules taille normale sans souligne (~95% des cellules).
+- display.c: cache g1_cache[2][64][8] (1 Ko BSS) precalcule au
+  demarrage - generate_mosaic (~400-800 cycles) n'est plus appele a
+  chaque rendu de cellule mosaique, juste un lookup. Cas special $60
+  conserve hors cache.
+- serial_asm.s: ACIA Control = $00 (horloge externe) = mode "instant
+  transfer" de Phosphoric. A $1F (19200), l'emulateur cadencait la
+  livraison a ~1.9 Ko/s: une page arrivait au compte-gouttes quelle
+  que soit la vitesse du rendu. Le V23 reel demande toujours $18
+  (entree ROADMAP inchangee).
+- Bilan attendu: page complete ~0.3 s (rendu) au lieu de ~2 s rendu
+  + 1-2 s de cadencement serie.
+
 ## [0.2.25] - 2026-06-12
 
 ### Performance rendu (paquet 1+2+3)

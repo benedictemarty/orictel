@@ -41,7 +41,8 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Mode Drapeaux francais sur ecran d'accueil
 - [ ] Sauvegarde/restauration de pages ecran
 - [ ] Support Minitel 2 (mode mixte/photo)
-- [ ] Optimisations memoire et vitesse
+- [x] Optimisations vitesse rendu (blit asm, cache G1, dirty spans,
+      budget adaptatif, table adresses HIRES - 0.2.25/0.2.26)
 
 ## Sprint 5 - Distribution (v1.0.0) [PLANIFIE]
 - [ ] Image disque Sedoric avec auto-boot
