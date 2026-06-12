@@ -5,6 +5,9 @@
 ### Infrastructure
 - Depot public GitHub cree: https://github.com/benedictemarty/orictel
   (remote 'github', pousse en miroir du Gitea 'origin').
+- Topics GitHub (oric, minitel, 6502, cc65, retrocomputing, videotex,
+  teletel) et captures d'ecran (accueil Teletel + splash) dans le
+  README (assets/).
 
 ### Documentation
 - README remis a niveau (etait reste a 0.2.1/mars): architecture avec

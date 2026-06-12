@@ -11,6 +11,10 @@ OricTel transforme votre Oric 1 ou Oric Atmos en terminal Minitel 1B complet,
 capable de se connecter aux serveurs Minitel encore en activite sur Internet
 (PAVI 3617, MiniPavi, ...).
 
+| Accueil Teletel (PAVI 3617) | Ecran de demarrage |
+|:---:|:---:|
+| ![Accueil Teletel sur PAVI 3617](assets/screenshot-accueil-pavi.png) | ![Splash OricTel](assets/screenshot-splash.png) |
+
 Trois modes de connexion :
 
 1. **Modem AT** (recommande) : le backend modem de Phosphoric emule un modem
