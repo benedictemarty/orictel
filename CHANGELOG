@@ -1,5 +1,14 @@
 # CHANGELOG - OricTel
 
+## [0.2.18] - 2026-06-12
+
+### Ajout
+- videotex.c: CSI H (CUP) honore ses parametres row;col (1-based).
+  ESC[5;10H positionne reellement le curseur en (5,9) au lieu d'un
+  home systematique. Le parser CSI extrait desormais param1 et param2.
+  Hors limites: position inchangee (clamp via vtx_set_cursor).
+- 9 nouveaux tests. 204/204.
+
 ## [0.2.17] - 2026-06-12
 
 ### Corrige

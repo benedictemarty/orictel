@@ -923,6 +923,47 @@ static void test_mask_global(void)
 }
 
 /* ===================================================================
+ *  Test: CSI H avec parametres (CUP row;col)
+ * =================================================================== */
+static void send_str(vtx_context_t* ctx, const char* s)
+{
+    while (*s) vtx_process(ctx, (unsigned char)*s++);
+}
+
+static void test_csi_cup_params(void)
+{
+    vtx_context_t ctx;
+    printf("Test: CSI H avec parametres\n");
+    vtx_init(&ctx);
+
+    /* ESC [ H sans parametre = home (1,0) */
+    vtx_set_cursor(&ctx, 10, 20);
+    vtx_process(&ctx, 0x1B); send_str(&ctx, "[H");
+    ASSERT_EQ("CSI H: row = 1", 1, ctx.cur_y);
+    ASSERT_EQ("CSI H: col = 0", 0, ctx.cur_x);
+
+    /* ESC [ 5 ; 10 H = ligne 5, colonne 10 (1-based) -> (5,9) */
+    vtx_process(&ctx, 0x1B); send_str(&ctx, "[5;10H");
+    ASSERT_EQ("CSI 5;10 H: row = 5", 5, ctx.cur_y);
+    ASSERT_EQ("CSI 5;10 H: col = 9", 9, ctx.cur_x);
+
+    /* ESC [ 12 H = ligne 12, colonne 0 */
+    vtx_process(&ctx, 0x1B); send_str(&ctx, "[12H");
+    ASSERT_EQ("CSI 12 H: row = 12", 12, ctx.cur_y);
+    ASSERT_EQ("CSI 12 H: col = 0", 0, ctx.cur_x);
+
+    /* Parametres hors limites: position inchangee (clamp vtx_set_cursor) */
+    vtx_process(&ctx, 0x1B); send_str(&ctx, "[99;99H");
+    ASSERT_EQ("CSI 99;99 H: row inchangee", 12, ctx.cur_y);
+    ASSERT_EQ("CSI 99;99 H: col inchangee", 0, ctx.cur_x);
+
+    /* Le texte suit bien la position */
+    vtx_process(&ctx, 0x1B); send_str(&ctx, "[8;3H");
+    vtx_process(&ctx, 'Z');
+    ASSERT_EQ("Z ecrit en (8,2)", 'Z', ctx.screen[8][2].ch);
+}
+
+/* ===================================================================
  *  Test: SEP en reception (etat dedie, pas de dispatch PRO)
  * =================================================================== */
 static void test_sep_reception(void)
@@ -1045,6 +1086,7 @@ int main(void)
     test_pro3_switch_ack();
     test_g2_extended();
     test_mask_global();
+    test_csi_cup_params();
     test_sep_reception();
     test_reinit_global_mask();
     test_double_height_dirty();

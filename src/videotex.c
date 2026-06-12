@@ -405,6 +405,7 @@ static void process_esc(vtx_context_t* ctx, unsigned char byte)
 static void process_csi(vtx_context_t* ctx, unsigned char byte)
 {
     unsigned char param;
+    unsigned char param2;
 
     /* Accumuler les parametres (chiffres et ;) */
     if ((byte >= '0' && byte <= '9') || byte == ';') {
@@ -414,13 +415,19 @@ static void process_csi(vtx_context_t* ctx, unsigned char byte)
         return;
     }
 
-    /* Terminer: parser le parametre */
+    /* Terminer: parser param1[;param2] */
     ctx->csi_buf[ctx->csi_len] = 0;
     param = 0;
-    if (ctx->csi_len > 0) {
+    param2 = 0;
+    {
         unsigned char i;
         for (i = 0; i < ctx->csi_len && ctx->csi_buf[i] != ';'; ++i) {
             param = param * 10 + (ctx->csi_buf[i] - '0');
+        }
+        if (i < ctx->csi_len && ctx->csi_buf[i] == ';') {
+            for (++i; i < ctx->csi_len && ctx->csi_buf[i] != ';'; ++i) {
+                param2 = param2 * 10 + (ctx->csi_buf[i] - '0');
+            }
         }
     }
     if (param == 0) param = 1;
@@ -438,8 +445,12 @@ static void process_csi(vtx_context_t* ctx, unsigned char byte)
         case 'D':   /* CUB - curseur gauche */
             while (param-- > 0) cursor_left(ctx);
             break;
-        case 'H':   /* CUP - position curseur (row;col) */
-            vtx_set_cursor(ctx, 1, 0);  /* Home par defaut */
+        case 'H':   /* CUP - position curseur (row;col, 1-based).
+                     * Sans parametre: home (1,0). row mappe direct sur
+                     * la grille vtx (ligne 0 = statut, inaccessible:
+                     * param=0 est force a 1 plus haut). col 1-based ->
+                     * 0-based; vtx_set_cursor clampe row/col invalides. */
+            vtx_set_cursor(ctx, param, (param2 > 0) ? param2 - 1 : 0);
             break;
         case 'J':   /* ED - effacer ecran */
             if (param == 2 || ctx->csi_len == 0) {
