@@ -358,7 +358,8 @@ static void dbg_byte(vtx_context_t* ctx, unsigned char b)
         dbg_col++;
     }
     ctx->dirty[dbg_row] = 1;
-    display_render_all(ctx);
+    /* Pas de rendu ici: l'appelant (at_wait_response) rend une fois
+     * par rafale drainee, pas une fois par octet. */
 }
 
 /* Contexte global pour debug (accessible depuis at_wait_response) */
@@ -373,16 +374,23 @@ static unsigned char at_wait_response(const char* keyword, unsigned int timeout_
 
     while (elapsed < timeout_ms) {
         if (serial_poll()) {
-            unsigned char b = serial_recv();
-            dbg_byte(dbg_ctx, b);  /* Afficher l'octet */
-            if (b == keyword[ki]) {
-                ++ki;
-                if (keyword[ki] == 0) return 1;
-            } else if (b == keyword[0]) {
-                ki = 1;
-            } else {
-                ki = 0;
-            }
+            /* Drainer la rafale entiere, puis UN rendu */
+            do {
+                unsigned char b = serial_recv();
+                dbg_byte(dbg_ctx, b);
+                if (b == keyword[ki]) {
+                    ++ki;
+                    if (keyword[ki] == 0) {
+                        display_render_all(dbg_ctx);
+                        return 1;
+                    }
+                } else if (b == keyword[0]) {
+                    ki = 1;
+                } else {
+                    ki = 0;
+                }
+            } while (serial_poll());
+            display_render_all(dbg_ctx);
         } else {
             delay_ms(10);
             elapsed += 10;
@@ -605,9 +613,10 @@ int main(void)
         vtx_clear_page(&vtx);
 
         if (mode == MODE_MODEM) {
-            /* Mode modem AT: 19200 baud pour commandes AT */
+            /* Mode modem AT (le backend emule repond immediatement,
+             * 100 ms suffisent pour la stabilisation) */
             serial_init();
-            delay_ms(500);
+            delay_ms(100);
             modem_connect(&vtx, srv_idx);
             vtx_clear_page(&vtx);
         } else {

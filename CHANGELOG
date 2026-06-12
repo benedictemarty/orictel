@@ -1,5 +1,23 @@
 # CHANGELOG - OricTel
 
+## [0.2.28] - 2026-06-12
+
+### Corrige (lenteur de la sequence AT)
+Diagnostic par trace serie cycle-precise (--serial-trace Phosphoric):
+la livraison serie etait instantanee, mais OricTel mettait 2,6 s entre
+serial_init et ATZ, et 3,8 s entre le OK et l'ATD. Causes et remedes:
+- display_clear etait une boucle C cc65 a ~115 cycles/OCTET (acces
+  pile par iteration) soit ~920 ms par effacement HIRES, paye a chaque
+  vtx_clear_page (3 fois dans la sequence AT, plus chaque transition
+  de menu). Reecrit en assembleur deroule par pages: ~5 ms.
+- at_wait_response rendait l'ecran de debug A CHAQUE OCTET recu;
+  desormais la rafale disponible est drainee puis UN rendu est fait.
+- delay_ms(500) post serial_init reduit a 100 ms (le modem emule
+  repond immediatement).
+Mesure avant/apres (selection serveur -> ATD envoye):
+4,9 s -> 1,8 s. Le reste du temps de connexion est le reseau reel
+(TCP + premiere page du serveur, ~3 s sur PAVI).
+
 ## [0.2.27] - 2026-06-12
 
 ### Performance rendu (moteur de plage assembleur)

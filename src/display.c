@@ -108,20 +108,9 @@ void display_init(void)
     *(unsigned char*)0xBFB8 = 0x00;  /* Ink black ligne 27 */
 }
 
-/* ===================================================================
- *  Effacement HIRES
- * =================================================================== */
-
-void display_clear(void)
-{
-    unsigned int i;
-    unsigned char* ptr = HIRES;
-
-    /* Remplir le framebuffer: chaque octet = $40 (bit 6 set, pixels off) */
-    for (i = 0; i < 8000; ++i) {
-        ptr[i] = 0x40;
-    }
-}
+/* display_clear: implemente en assembleur (display_asm.s).
+ * La boucle C cc65 coutait ~920 ms par effacement (~115 cycles/octet),
+ * payee a chaque vtx_clear_page (transitions de menus, sequence AT). */
 
 /* ===================================================================
  *  Generation glyphe G1 mosaique (2x3 blocs dans 6x8 pixels)
