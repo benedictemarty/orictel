@@ -576,7 +576,9 @@ static void set_connexion_indicator(vtx_context_t* ctx, unsigned char ch)
     ctx->screen[0][38].bg = VTX_BLACK;
     ctx->screen[0][38].flags = ATTR_INVERT;
     ctx->screen[0][38].size = SIZE_NORMAL;
-    ctx->dirty[0] = 1;
+    /* vtx_touch (pas dirty[0]=1): la ligne 0 peut deja porter un span
+     * retreci par le decodeur, il faut l'etendre jusqu'a la col 38 */
+    vtx_touch(ctx, 0, 38, 38);
 }
 
 int main(void)
@@ -679,8 +681,16 @@ int main(void)
             }
         }
 
-        /* 4. Rendre les lignes modifiees (budget 2 lignes/iteration) */
+        /* 4. Rendu adaptatif: 2 lignes par passe, puis continuer tant
+         * que rien d'autre n'attend (ni octet serie, ni touche). Une
+         * page se peint a pleine vitesse moteur quand la machine est
+         * libre, et la main revient au clavier des qu'il le faut. */
         display_render(&vtx);
+        while (display_dirty_pending(&vtx) &&
+               !serial_poll() && !keyboard_pending()) {
+            display_render(&vtx);
+            serial_tx_pump();
+        }
 
         /* 5. Blink */
         ++blink_counter;

@@ -155,8 +155,14 @@ typedef struct {
     /* Buffer ecran (40x25 cellules) */
     vtx_cell_t screen[VTX_ROWS][VTX_COLS];
 
-    /* Dirty flags */
+    /* Dirty flags + plage de colonnes modifiees par ligne.
+     * Invariant: quand dirty[row]==0, le span est (0, VTX_COLS-1)
+     * (plein). Un code externe peut donc poser dirty[row]=1 sans
+     * toucher au span: la ligne entiere sera rendue. Le retrecissement
+     * passe par vtx_touch(). */
     unsigned char dirty[VTX_ROWS];      /* 1 = ligne modifiee, a re-rendre */
+    unsigned char dirty_min[VTX_ROWS];  /* 1ere colonne modifiee */
+    unsigned char dirty_max[VTX_ROWS];  /* derniere colonne modifiee */
     unsigned char full_refresh;         /* 1 = tout redessiner */
     unsigned char blink_phase;          /* 0 ou 1, bascule toutes les ~500ms */
 } vtx_context_t;
@@ -187,5 +193,12 @@ void vtx_clear_status(vtx_context_t* ctx);
  * Positionne le curseur.
  */
 void vtx_set_cursor(vtx_context_t* ctx, unsigned char row, unsigned char col);
+
+/**
+ * Marque une plage de colonnes [col_from, col_to] modifiee sur une
+ * ligne (etend le span dirty existant le cas echeant).
+ */
+void vtx_touch(vtx_context_t* ctx, unsigned char row,
+               unsigned char col_from, unsigned char col_to);
 
 #endif /* VIDEOTEX_H */

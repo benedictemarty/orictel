@@ -1,5 +1,26 @@
 # CHANGELOG - OricTel
 
+## [0.2.25] - 2026-06-12
+
+### Performance rendu (paquet 1+2+3)
+- Budget adaptatif: la boucle principale continue de rendre des lignes
+  tant que ni la serie ni le clavier n'ont rien en attente
+  (display_dirty_pending + keyboard_pending). Une page se peint a
+  pleine vitesse moteur quand la machine est libre, la main revient
+  au clavier des qu'une touche ou un octet arrive.
+- Table hires_row_base[25] precalculee en RODATA: supprime la
+  multiplication 16 bits cc65 (~100 cycles) payee a chaque cellule
+  rendue pour calculer l'adresse HIRES.
+- Dirty par plage de colonnes (vtx_touch, dirty_min/dirty_max par
+  ligne): un echo de frappe ne re-rend plus que sa cellule au lieu de
+  la ligne entiere (40 cellules, ~30-40 ms). Invariant: ligne propre =
+  span plein, donc un dirty[row]=1 pose sans vtx_touch reste correct.
+  Lignes hybrides (attributs serial): ligne entiere obligatoire (un
+  changement local deplace la chaine d'attributs), et transition
+  hybride->brut forcee pleine ligne via row_had_attrs[] pour purger
+  les octets d'attributs residuels.
+- 19 nouveaux tests (spans). 223/223.
+
 ## [0.2.24] - 2026-06-12
 
 ### Corrige (frappes clavier perdues)

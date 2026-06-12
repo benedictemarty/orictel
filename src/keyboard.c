@@ -102,6 +102,11 @@ static unsigned char map_funct_to_func(unsigned char ch)
  *  Oric-1 et Atmos.
  * =================================================================== */
 
+unsigned char keyboard_pending(void)
+{
+    return kbhit() ? 1 : 0;
+}
+
 unsigned char keyboard_scan(void)
 {
     unsigned char ch;

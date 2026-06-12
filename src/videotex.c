@@ -30,12 +30,44 @@ static void send_ident(void)
 }
 
 /* ===================================================================
+ *  Dirty spans
+ * =================================================================== */
+
+void vtx_touch(vtx_context_t* ctx, unsigned char row,
+               unsigned char col_from, unsigned char col_to)
+{
+    if (row >= VTX_ROWS) {
+        return;
+    }
+    if (!ctx->dirty[row]) {
+        ctx->dirty[row] = 1;
+        ctx->dirty_min[row] = col_from;
+        ctx->dirty_max[row] = col_to;
+    } else {
+        if (col_from < ctx->dirty_min[row]) ctx->dirty_min[row] = col_from;
+        if (col_to   > ctx->dirty_max[row]) ctx->dirty_max[row] = col_to;
+    }
+}
+
+/* Retablit l'invariant "ligne propre = span plein" sur une plage de
+ * lignes: un dirty[row]=1 pose sans vtx_touch rendra la ligne entiere. */
+static void reset_spans(vtx_context_t* ctx, unsigned char from_row)
+{
+    unsigned char r;
+    for (r = from_row; r < VTX_ROWS; ++r) {
+        ctx->dirty_min[r] = 0;
+        ctx->dirty_max[r] = VTX_COLS - 1;
+    }
+}
+
+/* ===================================================================
  *  Initialisation
  * =================================================================== */
 
 void vtx_init(vtx_context_t* ctx)
 {
     memset(ctx, 0, sizeof(vtx_context_t));
+    reset_spans(ctx, 0);
 
     ctx->state = VTX_STATE_NORMAL;
     ctx->cur_x = 0;
@@ -87,7 +119,7 @@ static void reset_cells(vtx_cell_t* cell, unsigned int count)
 static void clear_row(vtx_context_t* ctx, unsigned char row)
 {
     reset_cells(&ctx->screen[row][0], VTX_COLS);
-    ctx->dirty[row] = 1;
+    vtx_touch(ctx, row, 0, VTX_COLS - 1);
 }
 
 void vtx_clear_page(vtx_context_t* ctx)
@@ -98,6 +130,7 @@ void vtx_clear_page(vtx_context_t* ctx)
      * au lieu de marquer dirty et re-rendre 1000 cellules vides */
     display_clear();
     memset(&ctx->dirty[1], 0, VTX_ROWS - 1);
+    reset_spans(ctx, 1);
 
     ctx->cur_x = 0;
     ctx->cur_y = 1;
@@ -170,13 +203,23 @@ static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
         ctx->has_pending = 0;
     }
 
-    ctx->dirty[ctx->cur_y] = 1;
-    /* Double hauteur/taille: la moitie haute du glyphe est rendue dans
-     * les lignes pixel de la ligne du dessus. Sans ce dirty, un re-rendu
-     * isole de cur_y-1 ecraserait la moitie haute. */
-    if ((ctx->attr_size == SIZE_DOUBLE_HEIGHT ||
-         ctx->attr_size == SIZE_DOUBLE_SIZE) && ctx->cur_y > 0) {
-        ctx->dirty[ctx->cur_y - 1] = 1;
+    /* Marquer la plage modifiee: la cellule, +1 colonne en double
+     * largeur/taille (moitie droite du glyphe) */
+    {
+        unsigned char span_end = ctx->cur_x;
+        if ((ctx->attr_size == SIZE_DOUBLE_WIDTH ||
+             ctx->attr_size == SIZE_DOUBLE_SIZE) &&
+            span_end < VTX_COLS - 1) {
+            ++span_end;
+        }
+        vtx_touch(ctx, ctx->cur_y, ctx->cur_x, span_end);
+        /* Double hauteur/taille: la moitie haute du glyphe est rendue
+         * dans les lignes pixel de la ligne du dessus. Sans ce dirty,
+         * un re-rendu isole de cur_y-1 ecraserait la moitie haute. */
+        if ((ctx->attr_size == SIZE_DOUBLE_HEIGHT ||
+             ctx->attr_size == SIZE_DOUBLE_SIZE) && ctx->cur_y > 0) {
+            vtx_touch(ctx, ctx->cur_y - 1, ctx->cur_x, span_end);
+        }
     }
     ctx->last_char = ch;
     ctx->last_charset = cs;
@@ -266,7 +309,7 @@ static void clear_eol(vtx_context_t* ctx)
 {
     reset_cells(&ctx->screen[ctx->cur_y][ctx->cur_x],
                 VTX_COLS - ctx->cur_x);
-    ctx->dirty[ctx->cur_y] = 1;
+    vtx_touch(ctx, ctx->cur_y, ctx->cur_x, VTX_COLS - 1);
 }
 
 static void clear_eos(vtx_context_t* ctx)

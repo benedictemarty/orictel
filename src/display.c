@@ -33,8 +33,20 @@ unsigned char g_render_mode = 0;  /* 0=hybride (defaut), 1=dithering, 2=brut */
 /* Pointeur HIRES */
 #define HIRES ((unsigned char*)0xA000)
 
-/* Calcul adresse pixel: ligne_pixel * 40 + colonne */
-#define HIRES_ADDR(px_row, col) (HIRES + (unsigned int)(px_row) * 40 + (col))
+/* Adresses de base des 25 lignes caracteres ($A000 + row * 320).
+ * Precalcule en RODATA: cc65 emet une multiplication 16 bits a
+ * l'execution pour row*320, payee a chaque cellule rendue sinon. */
+static unsigned char* const hires_row_base[SCREEN_ROWS] = {
+    (unsigned char*)0xA000, (unsigned char*)0xA140, (unsigned char*)0xA280,
+    (unsigned char*)0xA3C0, (unsigned char*)0xA500, (unsigned char*)0xA640,
+    (unsigned char*)0xA780, (unsigned char*)0xA8C0, (unsigned char*)0xAA00,
+    (unsigned char*)0xAB40, (unsigned char*)0xAC80, (unsigned char*)0xADC0,
+    (unsigned char*)0xAF00, (unsigned char*)0xB040, (unsigned char*)0xB180,
+    (unsigned char*)0xB2C0, (unsigned char*)0xB400, (unsigned char*)0xB540,
+    (unsigned char*)0xB680, (unsigned char*)0xB7C0, (unsigned char*)0xB900,
+    (unsigned char*)0xBA40, (unsigned char*)0xBB80, (unsigned char*)0xBCC0,
+    (unsigned char*)0xBE00,
+};
 
 /* ===================================================================
  *  Passage en mode HIRES via ROM Atmos
@@ -235,7 +247,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
      * conservant l'inversion (une cellule inversee qui flashe alterne
      * pave plein / pave vide dans le fond inverse, pas pave / noir). */
     if ((cell->flags & ATTR_FLASH) && g_blink_phase) {
-        ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+        ptr = hires_row_base[char_row] + col;
         for (line = 0; line < CHAR_H; ++line) {
             *ptr = inv_bit;
             ptr += 40;
@@ -273,7 +285,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
             unsigned char g, left_byte, right_byte;
 
             /* Moitie basse (lignes 4-7) sur la ligne courante */
-            ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+            ptr = hires_row_base[char_row] + col;
             for (line = 0; line < 4; ++line) {
                 g = glyph[line + 4];
                 /* Souligne: derniere ligne source (glyph[7]), avant le
@@ -297,7 +309,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
 
             /* Moitie haute (lignes 0-3) sur la ligne au-dessus */
             if (char_row > 0) {
-                ptr = HIRES_ADDR((unsigned int)(char_row - 1) * CHAR_H, col);
+                ptr = hires_row_base[char_row - 1] + col;
                 for (line = 0; line < 4; ++line) {
                     g = glyph[line];
                     if (use_dither) g &= g1_dither[cell->fg & 7][line];
@@ -318,7 +330,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
         } else {
             /* DOUBLE HAUTEUR seulement (pas double largeur) */
             /* Moitie basse (lignes 4-7 du glyphe) sur la ligne courante */
-            ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+            ptr = hires_row_base[char_row] + col;
             for (line = 0; line < 4; ++line) {
                 unsigned char g = glyph[line + 4];
                 /* Souligne sur la derniere ligne source (glyph[7]) */
@@ -330,7 +342,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
 
             /* Moitie haute (lignes 0-3) sur la ligne au-dessus */
             if (char_row > 0) {
-                ptr = HIRES_ADDR((unsigned int)(char_row - 1) * CHAR_H, col);
+                ptr = hires_row_base[char_row - 1] + col;
                 for (line = 0; line < 4; ++line) {
                     unsigned char g = glyph[line];
                     if (use_dither) g &= g1_dither[cell->fg & 7][line];
@@ -343,7 +355,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
         /* Feature 2: DOUBLE LARGEUR seulement.
          * Chaque pixel colonne est doublee: 3 source cols -> 6 dest pixels.
          * On ecrit dans col (left half) et col+1 (right half). */
-        ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+        ptr = hires_row_base[char_row] + col;
         for (line = 0; line < CHAR_H; ++line) {
             unsigned char g = glyph[line];
             unsigned char left_byte, right_byte;
@@ -367,7 +379,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
         }
     } else {
         /* TAILLE NORMALE */
-        ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+        ptr = hires_row_base[char_row] + col;
         for (line = 0; line < CHAR_H; ++line) {
             unsigned char g = glyph[line];
 
@@ -400,7 +412,7 @@ static void render_cell_hires(const vtx_cell_t* cell,
 /* Ecrit un attribut serial encre sur les 8 lignes pixel d'une colonne */
 static void set_ink_attr(unsigned char col, unsigned char char_row, unsigned char ink)
 {
-    unsigned char* ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+    unsigned char* ptr = hires_row_base[char_row] + col;
     unsigned char line;
     for (line = 0; line < CHAR_H; ++line) {
         *ptr = ink & 0x07;  /* Attribut encre: $00-$07 */
@@ -411,7 +423,7 @@ static void set_ink_attr(unsigned char col, unsigned char char_row, unsigned cha
 /* Feature 1: Ecrit un attribut serial fond (PAPER) sur les 8 lignes pixel d'une colonne */
 static void set_paper_attr(unsigned char col, unsigned char char_row, unsigned char paper)
 {
-    unsigned char* ptr = HIRES_ADDR((unsigned int)char_row * CHAR_H, col);
+    unsigned char* ptr = hires_row_base[char_row] + col;
     unsigned char line;
     for (line = 0; line < CHAR_H; ++line) {
         *ptr = 0x10 | (paper & 0x07);  /* Attribut fond: $10-$17 */
@@ -434,6 +446,25 @@ static unsigned char row_has_dblh(vtx_context_t* ctx, unsigned char row)
     return 0;
 }
 
+/* Lignes rendues en hybride au dernier passage: des octets d'attributs
+ * serial subsistent sur ces lignes. Une transition vers un rendu brut
+ * partiel (span) les laisserait hors du span -> ligne entiere forcee. */
+static unsigned char row_had_attrs[SCREEN_ROWS];
+
+/* Rendu sans attributs d'une plage de cellules [col_from, col_to] */
+static void render_span_raw(vtx_context_t* ctx, unsigned char row,
+                            unsigned char col_from, unsigned char col_to)
+{
+    unsigned char col;
+    for (col = col_from; col <= col_to; ++col) {
+        render_cell_hires(&ctx->screen[row][col], col, row);
+        if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
+            ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
+            ++col;
+        }
+    }
+}
+
 static void render_row_hires(vtx_context_t* ctx, unsigned char row)
 {
     unsigned char col;
@@ -445,32 +476,28 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     unsigned char use_attrs;  /* 1=hybride (couleurs), 0=brut (blanc/noir) */
     unsigned char has_colors;
     unsigned char has_empty;
+    unsigned char col_from;
+    unsigned char col_to;
 
     if (row >= SCREEN_ROWS) return;
+
+    /* Plage de colonnes a rendre (invariant: span plein quand la ligne
+     * n'a pas ete retrecie via vtx_touch) */
+    col_from = ctx->dirty_min[row];
+    col_to = ctx->dirty_max[row];
+    if (col_to >= SCREEN_COLS) col_to = SCREEN_COLS - 1;
+    if (col_from > col_to) col_from = col_to;
 
     /* Mode force par l'utilisateur (CTRL+D).
      * Pas d'attribut a poser: la ULA remet encre=blanc/fond=noir en
      * debut de scanline, le rendu brut/dithering est blanc par defaut. */
-    if (g_render_mode == 2) {
-        /* Brut force: tout blanc, aucun attribut */
-        for (col = 0; col < SCREEN_COLS; ++col) {
-            render_cell_hires(&ctx->screen[row][col], col, row);
-            if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
-                ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
-                ++col;
-            }
+    if (g_render_mode == 2 || g_render_mode == 1) {
+        if (row_had_attrs[row]) {
+            row_had_attrs[row] = 0;
+            col_from = 0;
+            col_to = SCREEN_COLS - 1;
         }
-        return;
-    }
-    if (g_render_mode == 1) {
-        /* Dithering force: tout dithering, encre blanche ULA */
-        for (col = 0; col < SCREEN_COLS; ++col) {
-            render_cell_hires(&ctx->screen[row][col], col, row);
-            if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
-                ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
-                ++col;
-            }
-        }
+        render_span_raw(ctx, row, col_from, col_to);
         return;
     }
 
@@ -502,20 +529,22 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     }
 
     if (!use_attrs) {
-        /* Brut: tout rendre en blanc, pas d'attributs */
-        for (col = 0; col < SCREEN_COLS; ++col) {
-            render_cell_hires(&ctx->screen[row][col], col, row);
-            if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
-                ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
-                ++col;
-            }
+        /* Brut: rendre la plage modifiee en blanc, pas d'attributs */
+        if (row_had_attrs[row]) {
+            row_had_attrs[row] = 0;
+            col_from = 0;
+            col_to = SCREEN_COLS - 1;
         }
+        render_span_raw(ctx, row, col_from, col_to);
         return;
     }
 
     /* Hybride: attributs INK/PAPER sur cellules vides,
-     * caractere TOUJOURS prioritaire.
+     * caractere TOUJOURS prioritaire. Ligne ENTIERE obligatoire: un
+     * changement local peut deplacer la chaine d'attributs de toute
+     * la suite de la ligne.
      * Etat initial = reset ULA en debut de scanline (blanc sur noir). */
+    row_had_attrs[row] = 1;
     prev_bg = VTX_BLACK;
     prev_fg = VTX_WHITE;
 
@@ -588,10 +617,13 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
     unsigned char rendered;
     unsigned char want_cursor;
 
-    /* full_refresh = tout marquer dirty, le budget fait le reste */
+    /* full_refresh = tout marquer dirty (span plein), le budget fait
+     * le reste */
     if (ctx->full_refresh) {
         for (row = 0; row < SCREEN_ROWS; ++row) {
             ctx->dirty[row] = 1;
+            ctx->dirty_min[row] = 0;
+            ctx->dirty_max[row] = SCREEN_COLS - 1;
         }
         ctx->full_refresh = 0;
     }
@@ -601,11 +633,12 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
                   ? 1 : 0;
 
     /* Effacer la barre precedente si le curseur a bouge ou si la phase
-     * blink la cache: re-rendre sa ligne restaure pixels et attributs. */
+     * blink la cache: re-rendre sa cellule restaure pixels/attributs
+     * (en hybride, render_row_hires elargit de lui-meme a la ligne). */
     if (cur_drawn && (!want_cursor ||
                       cur_drawn_x != ctx->cur_x ||
                       cur_drawn_y != ctx->cur_y)) {
-        ctx->dirty[cur_drawn_y] = 1;
+        vtx_touch(ctx, cur_drawn_y, cur_drawn_x, cur_drawn_x);
         cur_drawn = 0;
     }
 
@@ -614,6 +647,9 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
         if (!ctx->dirty[row]) continue;
         render_row_hires(ctx, row);
         ctx->dirty[row] = 0;
+        /* Retablir l'invariant: ligne propre = span plein */
+        ctx->dirty_min[row] = 0;
+        ctx->dirty_max[row] = SCREEN_COLS - 1;
         ++rendered;
         if (cur_drawn && row == cur_drawn_y) {
             /* La ligne sous la barre vient d'etre redessinee */
@@ -621,10 +657,10 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
         }
         /* Le rendu de cette ligne a ecrase les scanlines ou la ligne
          * du dessous dessine les moities hautes de ses glyphes double
-         * hauteur: la re-rendre (cet appel si le budget le permet,
-         * sinon le suivant). */
+         * hauteur: la re-rendre entierement (cet appel si le budget le
+         * permet, sinon le suivant). */
         if (row + 1 < SCREEN_ROWS && row_has_dblh(ctx, row + 1)) {
-            ctx->dirty[row + 1] = 1;
+            vtx_touch(ctx, row + 1, 0, SCREEN_COLS - 1);
         }
     }
 
@@ -632,7 +668,7 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
      * tant que sa ligne attend un rendu (elle serait ecrasee). */
     if (want_cursor && !ctx->dirty[ctx->cur_y]) {
         unsigned char* base =
-            HIRES_ADDR((unsigned int)ctx->cur_y * CHAR_H + 7, ctx->cur_x);
+            hires_row_base[ctx->cur_y] + 7 * 40 + ctx->cur_x;
         *base = 0x7F;
         cur_drawn = 1;
         cur_drawn_x = ctx->cur_x;
@@ -651,6 +687,18 @@ void display_render(vtx_context_t* ctx)
 void display_render_all(vtx_context_t* ctx)
 {
     render_dirty(ctx, SCREEN_ROWS);
+}
+
+/* Reste-t-il des lignes a rendre ? (pour le budget adaptatif de la
+ * boucle principale) */
+unsigned char display_dirty_pending(vtx_context_t* ctx)
+{
+    unsigned char row;
+    if (ctx->full_refresh) return 1;
+    for (row = 0; row < SCREEN_ROWS; ++row) {
+        if (ctx->dirty[row]) return 1;
+    }
+    return 0;
 }
 
 void display_render_cell_row(vtx_context_t* ctx, unsigned char row)
@@ -682,7 +730,7 @@ void display_cursor(unsigned char visible, unsigned char col, unsigned char row)
 
     if (row >= SCREEN_ROWS || col >= SCREEN_COLS) return;
 
-    base = HIRES_ADDR((unsigned int)row * CHAR_H + 7, col);
+    base = hires_row_base[row] + 7 * 40 + col;
 
     if (visible) {
         *base ^= 0x3F;  /* Inverser la derniere ligne pixel */

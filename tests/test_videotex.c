@@ -1054,6 +1054,72 @@ static void test_double_height_dirty(void)
 }
 
 /* ===================================================================
+ *  Test: dirty spans (plage de colonnes modifiees par ligne)
+ * =================================================================== */
+static void test_dirty_spans(void)
+{
+    vtx_context_t ctx;
+    printf("Test: dirty spans\n");
+    vtx_init(&ctx);
+
+    /* Invariant: ligne propre = span plein */
+    memset(ctx.dirty, 0, sizeof(ctx.dirty));
+    ctx.full_refresh = 0;
+    ASSERT_EQ("span min plein apres init", 0, ctx.dirty_min[5]);
+    ASSERT_EQ("span max plein apres init", VTX_COLS - 1, ctx.dirty_max[5]);
+
+    /* Un caractere: span = sa cellule */
+    vtx_set_cursor(&ctx, 5, 10);
+    vtx_process(&ctx, 'A');
+    ASSERT_EQ("put_char: dirty", 1, ctx.dirty[5]);
+    ASSERT_EQ("put_char: min = 10", 10, ctx.dirty_min[5]);
+    ASSERT_EQ("put_char: max = 10", 10, ctx.dirty_max[5]);
+
+    /* Deuxieme caractere plus loin: le span s'etend */
+    vtx_set_cursor(&ctx, 5, 30);
+    vtx_process(&ctx, 'B');
+    ASSERT_EQ("extension: min = 10", 10, ctx.dirty_min[5]);
+    ASSERT_EQ("extension: max = 30", 30, ctx.dirty_max[5]);
+
+    /* vtx_touch etend vers la gauche */
+    vtx_touch(&ctx, 5, 3, 3);
+    ASSERT_EQ("touch gauche: min = 3", 3, ctx.dirty_min[5]);
+    ASSERT_EQ("touch gauche: max = 30", 30, ctx.dirty_max[5]);
+
+    /* CAN (clear EOL): span de cur_x a 39 */
+    memset(ctx.dirty, 0, sizeof(ctx.dirty));
+    /* retablir l'invariant span plein comme apres un rendu */
+    ctx.dirty_min[7] = 0; ctx.dirty_max[7] = VTX_COLS - 1;
+    vtx_set_cursor(&ctx, 7, 20);
+    vtx_process(&ctx, 0x18);  /* CAN */
+    ASSERT_EQ("clear_eol: dirty", 1, ctx.dirty[7]);
+    ASSERT_EQ("clear_eol: min = 20", 20, ctx.dirty_min[7]);
+    ASSERT_EQ("clear_eol: max = 39", VTX_COLS - 1, ctx.dirty_max[7]);
+
+    /* Double largeur: span de 2 colonnes */
+    memset(ctx.dirty, 0, sizeof(ctx.dirty));
+    ctx.dirty_min[9] = 0; ctx.dirty_max[9] = VTX_COLS - 1;
+    vtx_set_cursor(&ctx, 9, 4);
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x4E);  /* double largeur */
+    vtx_process(&ctx, 'C');
+    ASSERT_EQ("double largeur: min = 4", 4, ctx.dirty_min[9]);
+    ASSERT_EQ("double largeur: max = 5", 5, ctx.dirty_max[9]);
+
+    /* Double hauteur: span identique sur la ligne du dessus */
+    memset(ctx.dirty, 0, sizeof(ctx.dirty));
+    ctx.dirty_min[12] = 0; ctx.dirty_max[12] = VTX_COLS - 1;
+    ctx.dirty_min[11] = 0; ctx.dirty_max[11] = VTX_COLS - 1;
+    vtx_set_cursor(&ctx, 12, 6);
+    vtx_process(&ctx, 0x1B); vtx_process(&ctx, 0x4D);  /* double hauteur */
+    vtx_process(&ctx, 'D');
+    ASSERT_EQ("dbl hauteur: dirty ligne 12", 1, ctx.dirty[12]);
+    ASSERT_EQ("dbl hauteur: span 12 min = 6", 6, ctx.dirty_min[12]);
+    ASSERT_EQ("dbl hauteur: dirty ligne 11", 1, ctx.dirty[11]);
+    ASSERT_EQ("dbl hauteur: span 11 min = 6", 6, ctx.dirty_min[11]);
+    ASSERT_EQ("dbl hauteur: span 11 max = 6", 6, ctx.dirty_max[11]);
+}
+
+/* ===================================================================
  *  Point d'entree
  * =================================================================== */
 
@@ -1089,6 +1155,7 @@ int main(void)
     test_sep_reception();
     test_reinit_global_mask();
     test_double_height_dirty();
+    test_dirty_spans();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

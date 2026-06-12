@@ -60,6 +60,11 @@
 void keyboard_init(void);
 
 /**
+ * Indique si une touche attend d'etre lue (sans la consommer).
+ */
+unsigned char keyboard_pending(void);
+
+/**
  * Scanne le clavier Oric et retourne la touche pressee.
  * @return Code ASCII (7 bits) ou KEY_FUNC_FLAG | code_fonction,
  *         ou KEY_NONE si aucune touche.

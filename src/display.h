@@ -45,6 +45,11 @@ void display_render(vtx_context_t* ctx);
 void display_render_all(vtx_context_t* ctx);
 
 /**
+ * Indique s'il reste des lignes a rendre (budget adaptatif).
+ */
+unsigned char display_dirty_pending(vtx_context_t* ctx);
+
+/**
  * Rend une seule ligne.
  */
 void display_render_cell_row(vtx_context_t* ctx, unsigned char row);
