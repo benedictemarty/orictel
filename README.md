@@ -82,13 +82,22 @@ pip3 install -r bridge/requirements.txt
 
 ## Utilisation
 
-### Mode Digitelec (recommande, sans bridge)
+### Mode modem AT (recommande, serveur choisi dans le menu)
 
 ```bash
 make run
 # Equivalent a:
-# phosphoric --rom basic11b.rom --tape orictel.tap --fastload \
-#     --serial digitelec:pavi.3617.fr:3617
+# oric1-emu --rom basic11b.rom --tape orictel.tap -f \
+#     --serial modem --serial-buffer 4096
+```
+
+### Mode TCP direct V23 (serveur fixe, sans bridge)
+
+```bash
+make run-direct
+# Equivalent a:
+# oric1-emu --rom basic11b.rom --tape orictel.tap -f \
+#     --serial tcp:pavi.3617.fr:3617 --serial-v23 --serial-buffer 4096
 ```
 
 ### Mode WebSocket (avec bridge)
@@ -105,8 +114,8 @@ make run-ws
 ### Serveurs Minitel disponibles
 
 Le menu de selection integre propose plusieurs serveurs :
-- `pavi.3617.fr:3617` - Pavi (recommande)
-- `minitel.3614.fr:516` - 3614
+- `pavi.3617.fr:3617` - PAVI 3617 (recommande)
+- `go.minipavi.fr:516` - MiniPavi
 - Saisie libre pour tout autre serveur (hostname:port)
 
 ## Touches Minitel

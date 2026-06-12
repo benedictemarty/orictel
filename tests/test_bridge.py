@@ -39,8 +39,7 @@ def test_bridge_creation():
     assert_eq("stats_rx", 0, bridge.stats_rx)
     assert_eq("stats_tx", 0, bridge.stats_tx)
     assert_eq("ws initial", None, bridge.ws)
-    assert_eq("tcp_reader initial", None, bridge.tcp_reader)
-    assert_eq("tcp_writer initial", None, bridge.tcp_writer)
+    assert_eq("session inactive au depart", False, bridge.active)
 
 
 def test_bridge_default_url():

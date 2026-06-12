@@ -40,14 +40,16 @@ log = logging.getLogger("orictel-bridge")
 
 
 class Bridge:
-    """Pont bidirectionnel entre une connexion TCP et un WebSocket."""
+    """Pont bidirectionnel entre une connexion TCP et un WebSocket.
 
-    def __init__(self, ws_url: str, pace_delay: float = 0.008):
+    Une seule session a la fois: l'etat (ws, stats) est porte par
+    l'instance, une connexion TCP concurrente est refusee.
+    """
+
+    def __init__(self, ws_url: str):
         self.ws_url = ws_url
-        self.pace_delay = pace_delay
         self.ws = None
-        self.tcp_reader = None
-        self.tcp_writer = None
+        self.active = False
         self.stats_rx = 0  # octets recus du WS (vers Oric)
         self.stats_tx = 0  # octets envoyes au WS (depuis Oric)
 
@@ -56,10 +58,18 @@ class Bridge:
     ):
         """Gere une connexion TCP entrante depuis l'emulateur."""
         peer = writer.get_extra_info("peername")
-        log.info("Emulateur connecte depuis %s", peer)
 
-        self.tcp_reader = reader
-        self.tcp_writer = writer
+        if self.active:
+            log.warning("Connexion refusee (session deja active): %s", peer)
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return
+
+        self.active = True
+        log.info("Emulateur connecte depuis %s", peer)
 
         try:
             # Connexion immediate au serveur Minitel via WebSocket
@@ -115,6 +125,7 @@ class Bridge:
             except Exception:
                 pass
             self.ws = None
+            self.active = False
             log.info(
                 "Session terminee. RX: %d octets, TX: %d octets",
                 self.stats_rx, self.stats_tx,
@@ -169,10 +180,7 @@ class Bridge:
                 await writer.drain()
 
                 if log.isEnabledFor(logging.DEBUG):
-                    log.debug(
-                        "WS->TCP: %d octets",
-                        len(data), self.pace_delay * 1000,
-                    )
+                    log.debug("WS->TCP: %d octets", len(data))
         except asyncio.CancelledError:
             raise
         except websockets.exceptions.ConnectionClosed:
@@ -202,12 +210,6 @@ async def main():
         help=f"URL du serveur WebSocket Minitel (defaut: {DEFAULT_WS_URL})",
     )
     parser.add_argument(
-        "--pace",
-        type=float,
-        default=0.04,
-        help="Delai entre octets WS->TCP en secondes (defaut: 0.04 = 40ms)",
-    )
-    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Afficher les octets echanges (debug)",
@@ -217,7 +219,7 @@ async def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    bridge = Bridge(args.ws_url, pace_delay=args.pace)
+    bridge = Bridge(args.ws_url)
 
     server = await asyncio.start_server(
         bridge.handle_tcp_client,

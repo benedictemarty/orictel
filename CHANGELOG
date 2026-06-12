@@ -1,5 +1,29 @@
 # CHANGELOG - OricTel
 
+## [0.2.21] - 2026-06-12
+
+### Corrige
+- bridge: suppression de l'argument --pace, accepte et documente mais
+  jamais applique (l'envoi WS->TCP est volontairement a pleine vitesse,
+  le FIFO emulateur absorbe).
+- bridge: appel log.debug WS->TCP avec un argument excedentaire qui
+  produisait un "Logging error" a chaque message en mode -v.
+- bridge: une connexion TCP concurrente est explicitement refusee
+  (l'etat de session est mono-client par construction; auparavant une
+  2e connexion ecrasait silencieusement l'etat de la 1ere).
+- Makefile: run-ws tuait le bridge avec 'kill %1' dans un shell separe
+  (chaque ligne de recette = un shell): le bridge restait orphelin sur
+  le port 3615 a chaque lancement. Recette en une seule ligne shell
+  avec capture du PID.
+
+### Documentation
+- Makefile help / CLAUDE.md / README alignes sur les cibles reelles:
+  run = modem AT, run-direct = TCP V23, run-ws = bridge. Liste des
+  serveurs du menu corrigee (PAVI 3617, MiniPavi).
+- tests/test_server.py raccorde au build: nouvelle cible 'make
+  test-server' (serveur Videotex local de demo, test manuel).
+- main.c: commentaire blink aligne sur le code (250 iterations).
+
 ## [0.2.20] - 2026-06-12
 
 ### Ajout

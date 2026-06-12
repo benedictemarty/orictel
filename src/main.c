@@ -21,7 +21,8 @@
 /* Contexte Videotex global */
 static vtx_context_t vtx;
 
-/* Compteur blink: bascule blink_phase toutes les ~25 frames (50Hz -> ~500ms) */
+/* Compteur blink: bascule blink_phase toutes les ~250 iterations de la
+ * boucle principale (duree dependante de la charge, ~0.5-1s en pratique) */
 static unsigned char blink_counter;
 
 /* Variable globale blink_phase accessible depuis display.c */

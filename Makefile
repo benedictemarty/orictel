@@ -101,14 +101,17 @@ run-direct: $(OUTPUT)
 	@echo "=== OricTel -> $(MINITEL_SERVER) (TCP direct V23) ==="
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_DIRECT)
 
-# Lancer avec le bridge WebSocket (pour ws://3617.fr)
+# Lancer avec le bridge WebSocket (pour ws://3617.fr).
+# Une seule ligne shell: le PID du bridge est connu et tue a la sortie
+# (chaque ligne de recette make tourne dans son propre shell, un kill %1
+# sur une ligne separee ne tuerait jamais le processus).
 run-ws: $(OUTPUT)
-	@echo "=== Lancement du bridge WebSocket ==="
-	python3 $(BRDIR)/orictel_bridge.py &
-	@sleep 2
+	@echo "=== Bridge WebSocket + emulateur ==="
+	python3 $(BRDIR)/orictel_bridge.py & BRIDGE_PID=$$!; \
+	sleep 2; \
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f \
-		--serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
-	-kill %1 2>/dev/null
+		--serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf; \
+	kill $$BRIDGE_PID 2>/dev/null || true
 
 # Lancer uniquement le bridge
 bridge:
@@ -126,9 +129,16 @@ test-videotex: $(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c
 		$(SRCDIR)/fonts.c -DTEST_HOST
 	$(BLDDIR)/test_videotex
 
+# Le runner integre du script gere les tests async (pytest sans
+# pytest-asyncio ne sait pas les executer et echouait silencieusement
+# avant de retomber sur le script: double execution trompeuse).
 test-bridge:
-	python3 -m pytest $(TESTDIR)/test_bridge.py -v 2>/dev/null || \
 	python3 $(TESTDIR)/test_bridge.py
+
+# Serveur Videotex local interactif (test manuel, pas dans 'test'):
+# lance un serveur TCP qui envoie des sequences Videotex de demo.
+test-server:
+	python3 $(TESTDIR)/test_server.py --test all
 
 # ============================================================================
 # Nettoyage
@@ -147,10 +157,13 @@ help:
 	@echo ""
 	@echo "Cibles:"
 	@echo "  all           Compiler orictel.tap (defaut)"
-	@echo "  run           Lancer bridge + emulateur"
+	@echo "  run           Emulateur en mode modem AT (serveur choisi au menu)"
+	@echo "  run-direct    Emulateur en TCP direct V23 vers $(MINITEL_SERVER)"
+	@echo "  run-ws        Bridge WebSocket + emulateur (ws://3617.fr)"
 	@echo "  bridge        Lancer uniquement le bridge"
 	@echo "  test          Executer tous les tests"
 	@echo "  test-videotex Tests du decodeur Videotex"
 	@echo "  test-bridge   Tests du bridge"
+	@echo "  test-server   Serveur Videotex local de demo (test manuel)"
 	@echo "  clean         Nettoyer les fichiers generes"
 	@echo "  help          Afficher cette aide"

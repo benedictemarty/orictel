@@ -1,12 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.20
+## Version actuelle: 0.2.21
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.20     | 2026-06-12 | En cours    |
+| orictel.tap        | 0.2.21     | 2026-06-12 | En cours    |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
-| orictel_bridge.py  | 0.2.1     | 2026-03-24 | Stable      |
+| orictel_bridge.py  | 0.2.21    | 2026-06-12 | Stable      |
 | Videotex decoder   | 0.2.18     | 2026-06-12 | Stable      |
 | Display engine     | 0.2.17    | 2026-06-12 | Optimise    |
 | Keyboard module    | 0.2.20    | 2026-06-12 | Stable      |
@@ -15,6 +15,11 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.21 (2026-06-12)
+- Fix bridge (--pace mort, log debug, mono-client), Makefile run-ws
+  (bridge orphelin), alignement doc (run/run-direct/run-ws, serveurs),
+  cible test-server
 
 ### 0.2.20 (2026-06-12)
 - Aiguillages PRO3 appliques au clavier (routage modem/echo local),
