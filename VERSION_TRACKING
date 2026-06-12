@@ -1,10 +1,11 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.18
+## Version actuelle: 0.2.19
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.18     | 2026-06-12 | En cours    |
+| orictel.tap        | 0.2.19     | 2026-06-12 | En cours    |
+| serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
 | orictel_bridge.py  | 0.2.1     | 2026-03-24 | Stable      |
 | Videotex decoder   | 0.2.18     | 2026-06-12 | Stable      |
 | Display engine     | 0.2.17    | 2026-06-12 | Optimise    |
@@ -14,6 +15,10 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.19 (2026-06-12)
+- File d'emission TX non bloquante (serial_tx.c), doc serie alignee
+  sur la config reelle 19200 8N1
 
 ### 0.2.18 (2026-06-12)
 - CSI H (CUP) avec parametres row;col. 204/204 tests

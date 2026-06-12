@@ -23,7 +23,8 @@ C_SRCS  = $(SRCDIR)/main.c \
           $(SRCDIR)/videotex.c \
           $(SRCDIR)/display.c \
           $(SRCDIR)/fonts.c \
-          $(SRCDIR)/keyboard.c
+          $(SRCDIR)/keyboard.c \
+          $(SRCDIR)/serial_tx.c
 
 # Sources assembleur
 ASM_SRCS = $(SRCDIR)/serial_asm.s

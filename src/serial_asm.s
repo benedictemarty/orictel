@@ -12,7 +12,8 @@
 ; ===========================================================================
 
         .export _serial_init
-        .export _serial_send
+        .export _serial_send_raw
+        .export _serial_tx_ready
         .export _serial_recv
         .export _serial_poll
         .export _serial_dcd
@@ -31,8 +32,10 @@ DCD_BIT      = $20
 ; ===========================================================================
 ; serial_init - Polling, pas d'IRQ
 ;
-; Control: 8 bits, 1 stop, 1200 baud, horloge interne = $18
-; Command: DTR on, RX IRQ OFF, RTS low, no parity = $0B
+; Control: $1F = 19200 baud, 8 bits, 1 stop, horloge interne
+;   (19200 8N1: commandes AT du modem emule et flux TCP emulateur.
+;    Le V23 reel 1200/75 7E1 demanderait Control=$18 + parite Command.)
+; Command: $03 = DTR on, RX IRQ off, no parity
 ; ===========================================================================
 _serial_init:
         lda     #$00
@@ -49,15 +52,26 @@ _serial_init:
         rts
 
 ; ===========================================================================
-; serial_send - Polling TDRE
+; serial_send_raw - Ecriture directe ACIA, bloque sur TDRE
+; Ne pas appeler directement depuis le code applicatif: passer par
+; serial_send() (file TX logicielle, serial_tx.c) pour ne pas bloquer
+; la reception pendant l'attente TDRE.
 ; ===========================================================================
-_serial_send:
+_serial_send_raw:
         pha
 @wait:  lda     ACIA_STATUS
         and     #TDRE
         beq     @wait
         pla
         sta     ACIA_DATA
+        rts
+
+; ===========================================================================
+; serial_tx_ready - TDRE set = transmetteur pret (non bloquant)
+; ===========================================================================
+_serial_tx_ready:
+        lda     ACIA_STATUS
+        and     #TDRE
         rts
 
 ; ===========================================================================

@@ -2,9 +2,16 @@
  * @file serial.h
  * @brief Driver serie ACIA 6551 pour OricTel
  *
- * Interface haut niveau pour la communication serie via l'ACIA 6551
- * mappee a $031C-$031F. Utilisee pour la liaison Minitel V23
- * (1200 baud RX / 75 baud TX, 7 bits, parite paire).
+ * Interface pour la communication serie via l'ACIA 6551 mappee a
+ * $031C-$031F. Configuration actuelle: 19200 baud, 8N1, horloge
+ * interne (commandes AT du modem emule et flux TCP emulateur).
+ * Le V23 reel (1200 RX / 75 TX, 7E1) demanderait Control=$18 et la
+ * parite dans Command - voir serial_asm.s.
+ *
+ * L'emission passe par une file logicielle non bloquante (serial_tx.c)
+ * drainee depuis la boucle principale, pour ne jamais bloquer la
+ * reception pendant l'attente TDRE (l'ACIA n'a qu'un octet de tampon
+ * RX et aucune IRQ n'est utilisee).
  */
 
 #ifndef SERIAL_H
@@ -25,16 +32,40 @@
 #define ACIA_TDRE    0x10    /* Bit 4: Transmitter Data Register Empty */
 
 /**
- * Initialise l'ACIA 6551 pour le mode Minitel V23.
- * Configuration: 1200 baud, 7 bits, parite paire, 1 stop.
+ * Initialise l'ACIA 6551: 19200 baud, 8N1, polling (pas d'IRQ).
  */
 void __fastcall__ serial_init(void);
 
 /**
- * Envoie un octet via l'ACIA. Attend que le transmetteur soit pret.
- * @param byte Octet a envoyer (7 bits utiles)
+ * Empile un octet dans la file d'emission (non bloquant tant que la
+ * file n'est pas pleine). L'octet part via serial_tx_pump().
+ * @param byte Octet a envoyer
  */
-void __fastcall__ serial_send(unsigned char byte);
+void serial_send(unsigned char byte);
+
+/**
+ * Emet au plus un octet de la file si le transmetteur est pret.
+ * A appeler regulierement depuis la boucle principale.
+ */
+void serial_tx_pump(void);
+
+/**
+ * Vide la file d'emission (bloquant). Reserve aux phases sans
+ * reception attendue (ex: commandes AT avant connexion).
+ */
+void serial_tx_flush(void);
+
+/**
+ * Ecriture directe ACIA, bloque sur TDRE (assembleur).
+ * Ne pas utiliser depuis le code applicatif: passer par serial_send().
+ */
+void __fastcall__ serial_send_raw(unsigned char byte);
+
+/**
+ * Etat du transmetteur (non bloquant).
+ * @return Non-zero si TDRE (transmetteur pret)
+ */
+unsigned char __fastcall__ serial_tx_ready(void);
 
 /**
  * Recoit un octet de l'ACIA (non-bloquant).
@@ -47,12 +78,5 @@ unsigned char __fastcall__ serial_recv(void);
  * @return Non-zero si donnee disponible
  */
 unsigned char __fastcall__ serial_poll(void);
-
-/**
- * Envoie un buffer d'octets via l'ACIA.
- * @param buf Pointeur vers les donnees
- * @param len Nombre d'octets a envoyer
- */
-void serial_send_buf(const unsigned char* buf, unsigned char len);
 
 #endif /* SERIAL_H */

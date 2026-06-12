@@ -1,5 +1,33 @@
 # CHANGELOG - OricTel
 
+## [0.2.19] - 2026-06-12
+
+### Ajout
+- serial_tx.c: file d'emission serie non bloquante (ring buffer 32).
+  serial_send() empile; serial_tx_pump() emet un octet quand TDRE est
+  pret, depuis la boucle principale. Motivation V23 reel: le canal
+  montant 75 bauds rend tout envoi bloquant fatal (ACK PRO3 5 octets
+  = ~660 ms pendant lesquels le flux 1200 bauds deborde l'ACIA qui n'a
+  qu'un octet de tampon RX, sans IRQ). Sous emulateur le FIFO masquait
+  le probleme.
+- serial_tx_flush() (bloquant) pour les phases sans reception attendue:
+  at_send() et l'envoi ATD l'utilisent avant d'attendre la reponse.
+
+### Modifie
+- serial_asm.s: _serial_send renomme _serial_send_raw (acces direct
+  reserve a la file TX), ajout _serial_tx_ready (TDRE non bloquant).
+- main.c: la boucle principale pompe la file TX entre les lectures RX;
+  suppression du filtre 'byte != 0xFF' (le contrat poll-puis-recv rend
+  le sentinel inutile; un vrai $FF est masque en $7F=DEL, ignore).
+
+### Corrige (documentation)
+- serial.h / serial_asm.s: la doc decrivait "1200 baud, 7 bits, parite
+  paire" alors que le code programme $1F = 19200 8N1. Les commentaires
+  refletent maintenant la configuration reelle et notent ce qu'exigerait
+  le V23 reel (Control=$18 + parite Command).
+- serial.h: suppression de serial_send_buf(), declaree mais jamais
+  implementee.
+
 ## [0.2.18] - 2026-06-12
 
 ### Ajout

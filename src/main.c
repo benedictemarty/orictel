@@ -310,7 +310,8 @@ static const char* server_names[] = {
 };
 #define NUM_SERVERS 2
 
-/* Envoyer une chaine AT via serie (pas de drain echo) */
+/* Envoyer une chaine AT via serie (pas de drain echo).
+ * Flush bloquant: avant connexion, aucune reception a ne pas rater. */
 static void at_send(const char* str)
 {
     while (*str) {
@@ -318,6 +319,7 @@ static void at_send(const char* str)
         ++str;
     }
     serial_send(0x0D);  /* CR */
+    serial_tx_flush();
 }
 
 /* Debug: position ecran pour afficher les octets recus */
@@ -536,6 +538,7 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
         serial_send('A'); serial_send('T'); serial_send('D');
         while (*srv) { serial_send(*srv); ++srv; }
         serial_send(0x0D);
+        serial_tx_flush();
     }
 
     /* Attendre CONNECT (~10s timeout) */
@@ -621,14 +624,19 @@ int main(void)
 
     for (;;) {
 
-        /* 1. Drainer le ring buffer ISR */
+        /* 0. Emettre un octet en attente si le transmetteur est pret.
+         * Les reponses protocole (ACK PRO, ENQROM...) sont empilees
+         * par vtx_process et partent ici, sans jamais bloquer la
+         * lecture RX sur l'attente TDRE. */
+        serial_tx_pump();
+
+        /* 1. Drainer le FIFO de reception */
         got_data = 0;
         while (serial_poll()) {
             byte = serial_recv();
-            if (byte != 0xFF) {
-                vtx_process(&vtx, byte);
-                got_data = 1;
-            }
+            vtx_process(&vtx, byte);
+            got_data = 1;
+            serial_tx_pump();
         }
 
         /* 2. Gestion indicateur connexion */

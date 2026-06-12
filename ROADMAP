@@ -32,6 +32,11 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Gestion des erreurs de connexion et reconnexion
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
+- [x] File d'emission TX non bloquante (prerequis vrai materiel V23:
+      le canal montant 75 bauds interdit tout envoi bloquant pendant
+      la reception 1200 bauds, l'ACIA n'ayant qu'un octet de tampon)
+- [ ] Configuration ACIA V23 reelle (1200/75, 7E1, Control=$18) avec
+      validation sur vrai Oric + modem
 - [ ] Compatibilite Oric-1 (ROM BASIC 1.0)
 - [ ] Mode Drapeaux francais sur ecran d'accueil
 - [ ] Sauvegarde/restauration de pages ecran

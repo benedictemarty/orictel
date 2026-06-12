@@ -23,7 +23,6 @@ static void tx_reset(void) { tx_len = 0; }
 void serial_send(unsigned char byte) {
     if (tx_len < (int)sizeof(tx_buf)) tx_buf[tx_len++] = byte;
 }
-void serial_send_buf(const unsigned char* buf, unsigned char len) { (void)buf; (void)len; }
 unsigned char serial_recv(void) { return 0xFF; }
 unsigned char serial_poll(void) { return 0; }
 void serial_init(void) {}
