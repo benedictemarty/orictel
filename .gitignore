@@ -22,3 +22,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+
+# Binaire Phosphoric local compile avec SDL2 (artefact, non versionne)
+tools/oric1-emu-sdl

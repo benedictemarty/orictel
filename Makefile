@@ -39,8 +39,16 @@ OBJS     = $(C_OBJS) $(ASM_OBJS)
 OUTPUT   = orictel.tap
 MAPFILE  = orictel.map
 
-# Emulateur Phosphoric
-EMU      = /home/bmarty/Oric1/oric1-emu
+# Emulateur Phosphoric (oric1-emu).
+# IMPORTANT: le binaire fourni par l'equipe Phosphoric est compile SANS SDL
+# (cible headless uniquement, aucune fenetre). Pour l'affichage graphique, on
+# utilise une copie locale compilee avec SDL2 (make SDL2=1 cote Phosphoric),
+# stockee dans tools/ pour ne PAS modifier le depot Phosphoric.
+# Regenerer si besoin :
+#   cd /home/bmarty/Oric1 && make clean && make SDL2=1 -j
+#   cp /home/bmarty/Oric1/oric1-emu tools/oric1-emu-sdl
+#   cd /home/bmarty/Oric1 && make clean   # restaure l'etat headless de l'equipe
+EMU      = ./tools/oric1-emu-sdl
 EMU_ROM  = /home/bmarty/Oric1/roms/basic11b.rom
 
 # Modem AT: OricTel choisit le serveur via ATD (recommande)
@@ -50,6 +58,17 @@ EMU_OPTS = --serial modem --serial-buffer 4096
 MINITEL_SERVER = pavi.3617.fr:3617
 EMU_OPTS_DIRECT = --serial tcp:$(MINITEL_SERVER) --serial-v23 --serial-buffer 4096
 
+# Backend Digitelec DTL 2000 de Phosphoric (modem V23 sur ACIA 6551 @ $031C,
+# gestion porteuse DCD/CTS, pas de commandes AT). Le mode V23 1200/75 est
+# auto-active par le backend. A utiliser avec OricTel en mode Direct (menu 2).
+EMU_OPTS_DIGITELEC = --serial digitelec:$(MINITEL_SERVER) --serial-buffer 4096
+
+# Backend PicoWiFiModemUSB (sodiumlb) de Phosphoric : modem AT WiFi sur ACIA
+# 6551, association WiFi simulee, connexions data = vraies sockets TCP. A
+# utiliser avec OricTel en mode Modem AT (menu 1), puis ATD vers un serveur.
+PICOWIFI_SSID = OricTel
+EMU_OPTS_PICOWIFI = --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 4096
+
 # Flags cc65
 CC65FLAGS = -t $(TARGET) -O --add-source
 CA65FLAGS = -t $(TARGET)
@@ -58,7 +77,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run bridge test help
+.PHONY: all clean run run-direct run-digitelec run-picowifi run-ws bridge test help
 
 all: $(OUTPUT)
 
@@ -101,6 +120,16 @@ run: $(OUTPUT)
 run-direct: $(OUTPUT)
 	@echo "=== OricTel -> $(MINITEL_SERVER) (TCP direct V23) ==="
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_DIRECT)
+
+run-digitelec: $(OUTPUT)
+	@echo "=== OricTel -> $(MINITEL_SERVER) (backend Digitelec DTL 2000, V23) ==="
+	@echo "    Dans OricTel : choisir le mode Direct (touche 2)"
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_DIGITELEC)
+
+run-picowifi: $(OUTPUT)
+	@echo "=== OricTel -> modem AT WiFi PicoWiFiModemUSB (SSID=$(PICOWIFI_SSID)) ==="
+	@echo "    Dans OricTel : mode Modem AT (touche 1), puis ATD vers un serveur"
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_PICOWIFI)
 
 # Lancer avec le bridge WebSocket (pour ws://3617.fr).
 # Une seule ligne shell: le PID du bridge est connu et tue a la sortie
@@ -160,6 +189,8 @@ help:
 	@echo "  all           Compiler orictel.tap (defaut)"
 	@echo "  run           Emulateur en mode modem AT (serveur choisi au menu)"
 	@echo "  run-direct    Emulateur en TCP direct V23 vers $(MINITEL_SERVER)"
+	@echo "  run-digitelec Backend Digitelec DTL 2000 (V23) vers $(MINITEL_SERVER)"
+	@echo "  run-picowifi  Modem AT WiFi PicoWiFiModemUSB (SSID=$(PICOWIFI_SSID))"
 	@echo "  run-ws        Bridge WebSocket + emulateur (ws://3617.fr)"
 	@echo "  bridge        Lancer uniquement le bridge"
 	@echo "  test          Executer tous les tests"

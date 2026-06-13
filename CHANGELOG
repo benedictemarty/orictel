@@ -1,5 +1,51 @@
 # CHANGELOG - OricTel
 
+## [0.2.35] - 2026-06-13
+
+### Valide (Phosphoric 1.19.1-alpha, branche fix/orictel-integration-feedback)
+- L'equipe Phosphoric a corrige les deux bugs signales (cf.
+  docs/REPONSE_PHOSPHORIC.md). Re-tests SDL temps reel vers
+  pavi.3617.fr:3617, les deux backends OK :
+  - `run-digitelec` : connexion automatique sur DTR (plus besoin de frappe
+    d'amorcage) -> page d'accueil Teletel decodee.
+  - `run-picowifi` : `ATDpavi.3617.fr:3617` compose tel quel (le `p` initial
+    n'est plus avale), CONNECT -> page Teletel decodee.
+- Chaine complete validee : connexion -> page d'accueil PAVI -> composition
+  du code de service `3617.fr` + ENVOI -> service atteint (session SDL
+  interactive). Aucune correction necessaire cote OricTel.
+
+## [0.2.34] - 2026-06-13
+
+### Ajoute
+- Cibles Makefile `run-digitelec` (backend Digitelec DTL 2000 de
+  Phosphoric, modem V23 sur ACIA 6551) et `run-picowifi` (modem AT WiFi
+  PicoWiFiModemUSB), avec entrees dans `make help` et `.PHONY`.
+
+### Documentation
+- Nouveau `docs/RAPPORT_PHOSPHORIC.md` a l'attention de l'equipe Phosphoric :
+  verrou DCD du backend digitelec (acia6551.c:434), prefixe ATDP qui tronque
+  les hotes commencant par 'p'/'t' (serial_picowifi.c:1071), binaire sans SDL
+  par defaut, CMakeLists obsolete. Aucune modification du depot Phosphoric.
+
+### Infrastructure
+- L'emulateur Phosphoric est desormais lance via une copie locale
+  compilee avec SDL2 (`tools/oric1-emu-sdl`, ignoree par git): le binaire
+  fourni par l'equipe Phosphoric est compile en headless (sans SDL,
+  aucune fenetre). Le depot Phosphoric n'est PAS modifie.
+
+### Valide (tests SDL temps reel vers pavi.3617.fr:3617)
+- `run-direct` (TCP V23) et `run-digitelec`: page d'accueil Teletel
+  decodee correctement en Videotex. Note: le backend Digitelec ne se
+  connecte qu'a la premiere emission d'octet (1ere frappe), a cause d'un
+  verrou cote Phosphoric (poll RX du backend conditionne par DCD, lui-meme
+  pose par la connexion -> il faut une frappe pour amorcer en mode direct
+  pur reception).
+- `run-picowifi`: dialogue AT correct (ATZ->OK, association WiFi simulee)
+  mais la connexion echoue: OricTel envoie `ATDpavi.3617.fr:3617` et le
+  modem PicoWiFi interprete le `p` initial comme prefixe de numerotation
+  impulsionnelle (ATDP), laissant `avi.3617.fr` -> getaddrinfo echoue.
+  Correctif a prevoir cote OricTel (prefixe `ATDT` ou separateur).
+
 ## [0.2.33] - 2026-06-13
 
 ### Infrastructure
