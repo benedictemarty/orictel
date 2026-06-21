@@ -25,9 +25,11 @@
 #define OFF_CONTROL 3
 
 static int failures = 0;
+static int total = 0;
 
 static void check(int cond, const char* msg)
 {
+    total++;
     if (cond) {
         printf("ok   : %s\n", msg);
     } else {
@@ -66,7 +68,48 @@ int main(void)
     check(((emu  & 0xFF) + OFF_CONTROL) <= 0xFF, "EMU  low byte +3 sans carry");
     check(((loci & 0xFF) + OFF_CONTROL) <= 0xFF, "LOCI low byte +3 sans carry");
 
-    printf("\n=== Resultats: %d/%d passes ===\n",
-           14 - failures, 14);
+    /* L'octet de poids faible de la base LOCI sert de discriminant dans
+     * serial_asm.s (cmp #$80) pour choisir la config Control/Command */
+    check((loci & 0xFF) == 0x80, "LOCI low byte == $80 (discriminant SMC)");
+    check((emu  & 0xFF) != 0x80, "EMU  low byte != $80");
+
+    /* Config Control/Command emulateur (instant transfer Phosphoric) */
+    check(ACIA_CTRL_EMU == 0x00, "Control EMU = $00 (horloge externe)");
+    check(ACIA_CMD_EMU  == 0x03, "Command EMU = $03 (DTR, sans IRQ)");
+
+    /* Config Control LOCI = $1E : decodage 6551 */
+    check(ACIA_CTRL_LOCI == 0x1E,              "Control LOCI = $1E");
+    check((ACIA_CTRL_LOCI & 0x0F) == 0x0E,     "  baud selector = $E (9600)");
+    check((ACIA_CTRL_LOCI & 0x10) != 0,        "  horloge interne (bit4=1)");
+    check((ACIA_CTRL_LOCI & 0x60) == 0,        "  longueur mot = 8 bits");
+    check((ACIA_CTRL_LOCI & 0x80) == 0,        "  1 bit de stop");
+
+    /* Config Command LOCI = $0B : decodage 6551 */
+    check(ACIA_CMD_LOCI == 0x0B,               "Command LOCI = $0B");
+    check((ACIA_CMD_LOCI & 0x01) != 0,         "  DTR actif (bit0=1)");
+    check((ACIA_CMD_LOCI & 0x02) != 0,         "  IRQ RX desactivee (bit1=1)");
+    check((ACIA_CMD_LOCI & 0xE0) == 0,         "  sans parite (bits5-7=0)");
+
+    /* --- Digitelec DTL 2000 : ACIA 6850 (puce distincte) --- */
+    check(ACIA_BASE_DTL == 0x03F8,             "Base DTL 2000 = $03F8");
+    check(ACIA_BASE_DTL != ACIA_BASE_EMU &&
+          ACIA_BASE_DTL != ACIA_BASE_LOCI,     "DTL distincte des bases 6551");
+
+    /* Bits Status 6850 != 6551 (mapping different) */
+    check(DTL_SR_RDRF == 0x01 && ACIA_RDRF == 0x08, "RDRF 6850=$01 vs 6551=$08");
+    check(DTL_SR_TDRE == 0x02 && ACIA_TDRE == 0x10, "TDRE 6850=$02 vs 6551=$10");
+
+    /* Control 6850 V23 = $09 : decodage Motorola */
+    check(DTL_ACIA_V23_EMIT == 0x09,           "Control DTL V23 = $09");
+    check((DTL_ACIA_V23_EMIT & 0x03) == 0x01,  "  diviseur = div16 (CDS=01)");
+    check(((DTL_ACIA_V23_EMIT >> 2) & 0x07) == 0x02, "  format = 7E1 (WS=010)");
+    check(((DTL_ACIA_V23_EMIT >> 5) & 0x03) == 0x00, "  RTS bas = emission (TC=00)");
+    check(DTL_ACIA_RESET == 0x03,              "Master reset 6850 = $03");
+
+    /* PIA : ORA de connexion $D0 (asym V23, ligne fermee) */
+    check((DTL_PIA_ORA_CONN & 0x04) == 0,      "ORA bit2=0 -> ligne connectee");
+    check((DTL_PIA_ORA_CONN & 0x10) != 0,      "ORA bit4=1 -> asym V23 (75/1200)");
+
+    printf("\n=== Resultats: %d/%d passes ===\n", total - failures, total);
     return failures ? 1 : 0;
 }

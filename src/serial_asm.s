@@ -21,16 +21,20 @@
 ; le surcout est nul apres l'init (les operandes restent absolues).
 ; ===========================================================================
 
-        .export _serial_init
-        .export _serial_send_raw
-        .export _serial_tx_ready
-        .export _serial_recv
-        .export _serial_poll
-        .export _serial_dcd
+        .export _acia6551_init
+        .export _acia6551_send_raw
+        .export _acia6551_tx_ready
+        .export _acia6551_recv
+        .export _acia6551_poll
+        .export _acia6551_dcd
 
-        .importzp ptr1, ptr2
+        .importzp ptr1, ptr2, tmp1, tmp2
 
         .segment "CODE"
+
+; Octet de poids faible de la base LOCI ($0380) : sert a distinguer la
+; configuration ACIA reelle (LOCI/materiel) de l'emulateur ($031C).
+ACIA_LOCI_LO = $80
 
 ; Valeurs par defaut (placeholders): operandes reecrites par serial_init.
 ; Conservees > $00FF pour forcer un encodage absolu (3 octets) a l'assemblage.
@@ -58,14 +62,15 @@ OFF_CONTROL  = 3
 ;          octets d'operande de l'instruction (self-modifying code).
 ; Etape 2: programmer l'ACIA (les instructions sont desormais patchees).
 ;
-; Control: $00 = horloge externe, 8 bits, 1 stop. Phosphoric traite
-;   l'horloge externe en "instant transfer": aucun cadencement baud,
-;   les octets sont disponibles des leur arrivee TCP. C'est le mode
-;   le plus rapide sous emulateur.
-;   Le V23 reel 1200/75 7E1 demanderait Control=$18 + parite Command.
-; Command: $03 = DTR on, RX IRQ off, no parity
+; La config Control/Command depend de la base (etape 3):
+;   - Emulateur ($031C) : Control=$00 (horloge externe -> "instant transfer"
+;     Phosphoric, le mode le plus rapide sous emulateur), Command=$03
+;     (DTR on, IRQ RX off, sans parite).
+;   - LOCI/materiel ($0380) : Control=$1E (9600 bauds, 8N1, horloge interne),
+;     Command=$0B (DTR+RTS actifs, sans parite, sans IRQ). Valeurs validees
+;     par Phosphoric avec un vrai PicoWiFiModemUSB (sprint 60b, --loci).
 ; ===========================================================================
-_serial_init:
+_acia6551_init:
         sta     ptr2            ; base poids faible
         stx     ptr2+1          ; base poids fort
 
@@ -90,14 +95,29 @@ _serial_init:
         cpx     #(3*12)         ; 12 sites patches ?
         bne     @patch
 
+        ; --- Choix Control/Command selon la base ACIA ---
+        lda     ptr2            ; base poids faible
+        cmp     #ACIA_LOCI_LO   ; $80 -> base $0380 = LOCI/materiel
+        bne     @cfg_emu
+        lda     #$1E            ; LOCI: 9600 bauds, 8N1, horloge interne
+        sta     tmp1            ; -> Control
+        lda     #$0B            ; LOCI: DTR+RTS actifs, sans parite, sans IRQ
+        sta     tmp2            ; -> Command
+        jmp     @prog
+@cfg_emu:
+        lda     #$00            ; Emu: horloge externe (instant transfer)
+        sta     tmp1
+        lda     #$03            ; Emu: DTR on, IRQ RX off
+        sta     tmp2
+@prog:
         ; --- Programmation ACIA (operandes deja patchees) ---
         lda     #$00
 i_st1:  sta     ACIA_STATUS     ; Programmed reset (efface OVRN, TDRE=1)
 
-        lda     #$00            ; Horloge externe = instant transfer
+        lda     tmp1
 i_ct1:  sta     ACIA_CONTROL
 
-        lda     #$03            ; DTR on, IRQ RX off
+        lda     tmp2
 i_cm1:  sta     ACIA_COMMAND
 
 i_st2:  lda     ACIA_STATUS     ; Lire status pour effacer IRQ pending
@@ -110,7 +130,7 @@ i_da1:  lda     ACIA_DATA       ; Clear RDR
 ; serial_send() (file TX logicielle, serial_tx.c) pour ne pas bloquer
 ; la reception pendant l'attente TDRE.
 ; ===========================================================================
-_serial_send_raw:
+_acia6551_send_raw:
         pha
 s_st1:  lda     ACIA_STATUS
         and     #TDRE
@@ -122,7 +142,7 @@ s_da1:  sta     ACIA_DATA
 ; ===========================================================================
 ; serial_tx_ready - TDRE set = transmetteur pret (non bloquant)
 ; ===========================================================================
-_serial_tx_ready:
+_acia6551_tx_ready:
 t_st1:  lda     ACIA_STATUS
         and     #TDRE
         rts
@@ -132,7 +152,7 @@ t_st1:  lda     ACIA_STATUS
 ; Avec --serial-buffer, RDRF=1 tant que FIFO non vide.
 ; Chaque lecture de DATA pop le prochain octet du FIFO.
 ; ===========================================================================
-_serial_recv:
+_acia6551_recv:
 r_st1:  lda     ACIA_STATUS
         and     #RDRF
         beq     r_empty
@@ -145,7 +165,7 @@ r_empty:
 ; ===========================================================================
 ; serial_poll - RDRF set = donnees dans le FIFO
 ; ===========================================================================
-_serial_poll:
+_acia6551_poll:
 p_st1:  lda     ACIA_STATUS
         and     #RDRF
         rts
@@ -153,7 +173,7 @@ p_st1:  lda     ACIA_STATUS
 ; ===========================================================================
 ; serial_dcd - Etat DCD
 ; ===========================================================================
-_serial_dcd:
+_acia6551_dcd:
 d_st1:  lda     ACIA_STATUS
         and     #DCD_BIT
         rts

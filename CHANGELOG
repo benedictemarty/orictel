@@ -1,5 +1,55 @@
 # CHANGELOG - OricTel
 
+## [0.2.39] - 2026-06-21
+
+### Ajoute
+- **Support de la carte Digitelec DTL 2000** (PIA 6821 + ACIA 6850 Motorola
+  @ $03F8-$03FD) comme 3e interface serie, en plus des MOS 6551 ($031C/$0380).
+  - Nouveau driver `src/serial6850_asm.s` : init V23 asymetrique + decroche
+    ligne via le PIA (sequence tiree de examples/dtl2000-test.bas de
+    Phosphoric), I/O ACIA 6850 ($03FC control/status, $03FD data, bits
+    RDRF=$01/TDRE=$02/DCD=$04).
+  - Nouvelle couche d'aiguillage `src/serial.c` : `serial_init(base)` memorise
+    la puce (6551 ou 6850) et chaque `serial_*()` est route vers le bon driver.
+    Le 6850 ayant un mapping et des bits incompatibles avec le 6551, le SMC
+    d'adresse ne suffisait pas -> driver dedie.
+  - Les routines 6551 de `serial_asm.s` renommees `acia6551_*` (pilotees par
+    l'aiguillage). `serial_dcd` deplace dans serial.h.
+- Menu Interface : 3e choix `3 - DTL 2000 ($03FC)`.
+- Cible `make run-dtl2000` (`--dtl2000 tcp:...`). A utiliser avec l'interface 3
+  et le mode Direct (le DTL compose par le PIA, pas en Hayes AT).
+
+### Tests
+- `tests/test_serial_smc.c` etendu (38 cas) : base DTL distincte des 6551,
+  bits Status 6850 vs 6551, decodage Control V23 $09 (div16/7E1/RTS bas),
+  ORA de connexion $D0 (asym, ligne fermee). Suite 219+38+23 passes.
+
+## [0.2.38] - 2026-06-21
+
+### Ajoute
+- Cible `make run-loci` : montage reel Oric + LOCI + PicoWiFiModemUSB. La
+  cartouche LOCI expose l'ACIA 6551 a $0380 et relaie le Pico USB
+  (`--loci --serial com:9600,8,N,1,/dev/ttyACM0`). Config authentique
+  validee par Phosphoric (sprint 60b). Interface 2 (LOCI) dans OricTel.
+- Cible `make run-loci-emu` : test du chemin LOCI $0380 SANS materiel, avec
+  le modem PicoWiFi emule relocalise a $0380 (`--serial picowifi:...
+  --acia-addr 0380`).
+
+### Modifie
+- `serial_init` applique desormais une config ACIA selon la base choisie :
+  - EMU ($031C) : Control=$00 (horloge externe, instant transfer), Command=$03
+  - LOCI ($0380) : Control=$1E (9600 bauds, 8N1, horloge interne), Command=$0B
+    (DTR+RTS, sans parite, sans IRQ). Valeurs validees par Phosphoric avec un
+    vrai PicoWiFiModemUSB. Discriminant : octet de poids faible de la base.
+- `run-pico-usb` : debit DTE par defaut corrige de 1200 a **9600** bauds
+  (vitesse reelle du PicoWiFiModemUSB, confirmee par Phosphoric sprint 60b) ;
+  reetiquete scenario "carte 6551 a $031C + Pico" (interface 1).
+
+### Tests
+- `tests/test_serial_smc.c` etendu (27 cas) : decodage 6551 des configs
+  Control/Command EMU et LOCI ($1E -> 9600/8N1/horloge interne ; $0B ->
+  DTR+RTS/sans parite), discriminant de base $80. Suite 219+27+23 passes.
+
 ## [0.2.37] - 2026-06-21
 
 ### Ajoute

@@ -31,9 +31,6 @@ unsigned char g_blink_phase;
 /* Mask global Videotex (ESC # $20 $58/$5F). 1 = cacher cellules concealed. */
 unsigned char g_global_mask = 1;
 
-/* Declaration serial_dcd (assembleur) */
-unsigned char __fastcall__ serial_dcd(void);
-
 /* ===================================================================
  *  Ecriture registre AY-3-8912 via VIA 6522
  *
@@ -332,12 +329,21 @@ static unsigned select_interface(vtx_context_t* ctx)
     ctx->screen[15][12].fg = VTX_CYAN;
     ctx->dirty[15] = 1;
 
+    p = "3 - DTL 2000   ($03FC)";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[17][12 + i].ch = p[i];
+        ctx->screen[17][12 + i].fg = VTX_YELLOW;
+    }
+    ctx->screen[17][12].fg = VTX_CYAN;
+    ctx->dirty[17] = 1;
+
     display_render_all(ctx);
 
     for (;;) {
         unsigned char key = keyboard_scan();
         if (key == '1') return ACIA_BASE_EMU;
         if (key == '2') return ACIA_BASE_LOCI;
+        if (key == '3') return ACIA_BASE_DTL;
     }
 }
 

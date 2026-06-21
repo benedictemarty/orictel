@@ -1,11 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.37
+## Version actuelle: 0.2.39
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.37     | 2026-06-21 | En cours    |
-| serial (ACIA+SMC)  | 0.2.37     | 2026-06-21 | Base configurable |
+| orictel.tap        | 0.2.39     | 2026-06-21 | En cours    |
+| serial (aiguillage)| 0.2.39     | 2026-06-21 | 6551 + 6850 |
+| serial 6850 (DTL)  | 0.2.39     | 2026-06-21 | Nouveau     |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
 | orictel_bridge.py  | 0.2.21    | 2026-06-12 | Stable      |
 | Videotex decoder   | 0.2.18     | 2026-06-12 | Stable      |
@@ -16,6 +17,19 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.39 (2026-06-21)
+- Support carte Digitelec DTL 2000 (PIA 6821 + ACIA 6850 @ $03FC) : driver
+  serial6850_asm.s + aiguillage serial.c (6551/6850), 3e interface menu,
+  cible run-dtl2000
+- Test SMC etendu (38 cas, decodage 6850)
+
+### 0.2.38 (2026-06-21)
+- Config ACIA par base : EMU $031C (Control=$00) / LOCI $0380 (Control=$1E
+  9600 8N1, Command=$0B), validee Phosphoric sprint 60b
+- Cibles run-loci (materiel reel --loci) et run-loci-emu (test $0380 sans
+  materiel) ; run-pico-usb corrige a 9600 bauds
+- Test SMC etendu (27 cas, decodage Control/Command)
 
 ### 0.2.37 (2026-06-21)
 - Interface serie selectionnable au menu (base ACIA $031C emulateur / $0380

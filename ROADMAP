@@ -35,15 +35,23 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [x] File d'emission TX non bloquante (prerequis vrai materiel V23:
       le canal montant 75 bauds interdit tout envoi bloquant pendant
       la reception 1200 bauds, l'ACIA n'ayant qu'un octet de tampon)
-- [ ] Configuration ACIA V23 reelle (1200/75, 7E1, Control=$18) avec
-      validation sur vrai Oric + modem
+- [~] Configuration ACIA reelle selon la base (0.2.38) : LOCI $0380 ->
+      Control=$1E (9600 8N1 horloge interne), Command=$0B, validee par
+      Phosphoric (sprint 60b) avec un vrai PicoWiFiModemUSB. Reste le V23
+      Minitel natif 1200/75 7E1 (Control=$18) pour modem V23 direct.
 - [x] Pilotage d'un PicoWiFiModemUSB physique via le backend serie `com:`
       de Phosphoric (cible `make run-pico-usb`, ACIA 6551 -> /dev/ttyACM0,
       0.2.36). Reste a valider de bout en bout avec le materiel branche.
 - [x] Base ACIA selectionnable au menu (self-modifying code, 0.2.37) :
       $031C emulateur OU $0380 cartouche LOCI reelle (modem USB CDC). Un
-      seul binaire pour emulateur et vrai Oric+LOCI+Pico. Reste a valider
-      la chaine sur materiel (choix "LOCI" + ATD via le Pico USB).
+      seul binaire pour emulateur et vrai Oric+LOCI+Pico.
+- [x] Cibles run-loci (materiel reel) et run-loci-emu (test sans materiel,
+      0.2.38), config ACIA LOCI $1E/$0B alignee sur Phosphoric sprint 60b.
+      Reste a valider la chaine de bout en bout sur le vrai LOCI+Pico.
+- [x] Support carte Digitelec DTL 2000 (PIA 6821 + ACIA 6850 @ $03FC,
+      0.2.39) : driver 6850 dedie + aiguillage 6551/6850, 3e interface menu,
+      cible run-dtl2000. Reste a valider de bout en bout (interface 3 +
+      mode Direct vers un serveur via --dtl2000 tcp:).
 - [ ] Support Telestrat natif facilite par la base ACIA configurable
       (verifier l'adresse de l'ACIA integree Telestrat)
 - [ ] Compatibilite Oric-1 (ROM BASIC 1.0)

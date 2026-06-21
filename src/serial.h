@@ -25,8 +25,12 @@
  * Les 4 registres sont contigus a partir de la base: DATA=+0, STATUS=+1,
  * COMMAND=+2, CONTROL=+3. serial_init(base) patche le driver en consequence
  * (self-modifying code, voir serial_asm.s). */
-#define ACIA_BASE_EMU  0x031C  /* ACIA emulee Phosphoric/Euphoric (defaut) */
-#define ACIA_BASE_LOCI 0x0380  /* ACIA emulee par la cartouche LOCI reelle */
+#define ACIA_BASE_EMU  0x031C  /* MOS 6551 emulee Phosphoric/Euphoric (defaut) */
+#define ACIA_BASE_LOCI 0x0380  /* MOS 6551 emulee par la cartouche LOCI reelle */
+#define ACIA_BASE_DTL  0x03F8  /* Carte Digitelec DTL 2000 : PIA 6821 + ACIA
+                                * 6850 ($03F8-$03FD). Puce et mapping differents
+                                * du 6551 -> driver serial6850_asm.s, aiguillage
+                                * dans serial.c. */
 
 /* Adresses des registres pour la base emulateur (reference/documentation) */
 #define ACIA_DATA    0x031C  /* R: donnee recue, W: donnee a envoyer */
@@ -37,6 +41,29 @@
 /* Bits du registre Status */
 #define ACIA_RDRF    0x08    /* Bit 3: Receiver Data Register Full */
 #define ACIA_TDRE    0x10    /* Bit 4: Transmitter Data Register Empty */
+
+/* Config Control/Command appliquee par serial_init selon la base (doc;
+ * les valeurs effectives sont dans serial_asm.s).
+ *   - EMU  : Control=$00 horloge externe (instant transfer Phosphoric)
+ *   - LOCI : Control=$1E 9600 bauds 8N1 horloge interne, Command=$0B
+ *     (DTR+RTS, sans parite, sans IRQ). Validee avec un vrai
+ *     PicoWiFiModemUSB (Phosphoric sprint 60b, --loci). */
+#define ACIA_CTRL_EMU  0x00
+#define ACIA_CMD_EMU   0x03
+#define ACIA_CTRL_LOCI 0x1E
+#define ACIA_CMD_LOCI  0x0B
+
+/* Config Digitelec DTL 2000 (PIA 6821 + ACIA 6850) appliquee par
+ * acia6850_init (doc ; valeurs effectives dans serial6850_asm.s). Sequence
+ * V23 asymetrique tiree de examples/dtl2000-test.bas (Phosphoric). */
+#define DTL_PIA_DDRA      0xF4  /* directions port A */
+#define DTL_PIA_ORA_CONN  0xD0  /* asym V23, ligne fermee (connectee) */
+#define DTL_ACIA_RESET    0x03  /* 6850 master reset */
+#define DTL_ACIA_V23_EMIT 0x09  /* 7E1, div16, RTS bas (emission porteuse) */
+/* Bits du Status 6850 (mapping different du 6551) */
+#define DTL_SR_RDRF       0x01
+#define DTL_SR_TDRE       0x02
+#define DTL_SR_DCD        0x04  /* 1 = porteuse perdue */
 
 /**
  * Initialise l'ACIA 6551 a la base donnee: 8N1, polling (pas d'IRQ).
@@ -88,5 +115,11 @@ unsigned char __fastcall__ serial_recv(void);
  * @return Non-zero si donnee disponible
  */
 unsigned char __fastcall__ serial_poll(void);
+
+/**
+ * Etat de la porteuse (DCD). Non utilise actuellement par la boucle
+ * principale ; conserve pour la symetrie d'API entre drivers.
+ */
+unsigned char __fastcall__ serial_dcd(void);
 
 #endif /* SERIAL_H */
