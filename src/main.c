@@ -283,7 +283,7 @@ static unsigned char select_mode(vtx_context_t* ctx)
     ctx->screen[13][12].fg = VTX_CYAN;
     ctx->dirty[13] = 1;
 
-    p = "2 - Direct (TCP/Digitelec)";
+    p = "2 - Direct (TCP)";
     for (i = 0; p[i]; ++i) {
         ctx->screen[15][12 + i].ch = p[i];
         ctx->screen[15][12 + i].fg = VTX_YELLOW;
@@ -297,6 +297,47 @@ static unsigned char select_mode(vtx_context_t* ctx)
         unsigned char key = keyboard_scan();
         if (key == '1') return MODE_MODEM;
         if (key == '2') return MODE_DIRECT;
+    }
+}
+
+/* Menu selection de l'interface serie (base ACIA).
+ * Retourne ACIA_BASE_EMU ($031C) ou ACIA_BASE_LOCI ($0380). */
+static unsigned select_interface(vtx_context_t* ctx)
+{
+    unsigned char i;
+    const char* p;
+
+    vtx_clear_page(ctx);
+
+    p = "Interface serie:";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[10][10 + i].ch = p[i];
+        ctx->screen[10][10 + i].fg = VTX_WHITE;
+    }
+    ctx->dirty[10] = 1;
+
+    p = "1 - Emulateur  ($031C)";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[13][12 + i].ch = p[i];
+        ctx->screen[13][12 + i].fg = VTX_YELLOW;
+    }
+    ctx->screen[13][12].fg = VTX_CYAN;
+    ctx->dirty[13] = 1;
+
+    p = "2 - LOCI reel  ($0380)";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[15][12 + i].ch = p[i];
+        ctx->screen[15][12 + i].fg = VTX_YELLOW;
+    }
+    ctx->screen[15][12].fg = VTX_CYAN;
+    ctx->dirty[15] = 1;
+
+    display_render_all(ctx);
+
+    for (;;) {
+        unsigned char key = keyboard_scan();
+        if (key == '1') return ACIA_BASE_EMU;
+        if (key == '2') return ACIA_BASE_LOCI;
     }
 }
 
@@ -599,6 +640,7 @@ int main(void)
     unsigned char got_data;         /* 1 si donnees recues cette iteration */
     unsigned int  idle_counter;     /* Compteur sans donnees */
     unsigned char connected;        /* 0=deconnecte, 1=connecte */
+    unsigned      acia_base;        /* Base ACIA choisie (emu/LOCI) */
 
     vtx_init(&vtx);
     display_init();
@@ -606,6 +648,10 @@ int main(void)
 
     /* Ecran splash avec jingle */
     splash_screen(&vtx);
+
+    /* Choix de l'interface serie: ACIA emulateur ($031C) ou LOCI ($0380).
+     * La base est reutilisee pour tout reset ulterieur (KEY_LOCAL_RESET). */
+    acia_base = select_interface(&vtx);
 
     {
         unsigned char mode = select_mode(&vtx);
@@ -618,14 +664,14 @@ int main(void)
         if (mode == MODE_MODEM) {
             /* Mode modem AT (le backend emule repond immediatement,
              * 100 ms suffisent pour la stabilisation) */
-            serial_init();
+            serial_init(acia_base);
             delay_ms(100);
             modem_connect(&vtx, srv_idx);
             vtx_clear_page(&vtx);
         } else {
             /* Mode direct (TCP + V23): connexion immediate.
              * Drainer les eventuelles donnees arrivees pendant les menus. */
-            serial_init();
+            serial_init(acia_base);
             while (serial_poll()) serial_recv();
             vtx_clear_page(&vtx);
         }
@@ -668,7 +714,7 @@ int main(void)
             vtx_clear_page(&vtx);
             vtx.full_refresh = 1;
         } else if (key == KEY_LOCAL_RESET) {
-            serial_init();
+            serial_init(acia_base);
             display_status("ACIA reset");
         } else if (key != KEY_NONE) {
             keyboard_process(&vtx, key);

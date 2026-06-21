@@ -1,5 +1,45 @@
 # CHANGELOG - OricTel
 
+## [0.2.37] - 2026-06-21
+
+### Ajoute
+- Choix de l'interface serie au demarrage (menu `select_interface`,
+  `main.c`) : base ACIA selectionnable sans recompiler entre
+  - `1 - Emulateur ($031C)` : ACIA emulee Phosphoric/Euphoric (defaut)
+  - `2 - LOCI reel ($0380)` : ACIA emulee par la cartouche LOCI (modem
+    USB CDC type PicoWiFiModemUSB, firmware sodiumlb `src/mia/oric/acia.h`).
+  Un seul binaire `orictel.tap` couvre l'emulateur ET le vrai materiel
+  Oric + LOCI + Pico.
+- `serial_init(unsigned base)` : l'adresse ACIA est desormais un parametre.
+  Le driver `serial_asm.s` patche les operandes absolues de ses 12 sites
+  d'acces par **self-modifying code** au boot (base + offsets registres
+  DATA=0/STATUS=1/COMMAND=2/CONTROL=3). Surcout runtime nul ; legitime car
+  le code reside en RAM ($0501+). La base est conservee pour les resets
+  (KEY_LOCAL_RESET).
+
+### Modifie
+- Menu `Mode de connexion` : libelle du choix 2 simplifie en `Direct (TCP)`
+  (mention `Digitelec` retiree). Comportement inchange : le mode Direct
+  draine la liaison deja etablie par le backend (tcp: comme digitelec:).
+
+### Tests
+- Nouveau `tests/test_serial_smc.c` + cible `make test-serial` : valide la
+  coherence des deux bases ACIA et de leurs offsets registres (EMU ->
+  $031C-$031F, LOCI -> $0380-$0383), et l'absence de retenue parasite sur
+  l'octet de poids faible. 14/14 passes. (L'execution reelle du SMC se
+  valide sur emulateur `--acia-addr` ou sur le vrai Oric+LOCI.)
+
+## [0.2.36] - 2026-06-21
+
+### Ajoute
+- Cible Makefile `run-pico-usb` : pilote un PicoWiFiModemUSB **physique**
+  branche en USB (et non l'emulation `run-picowifi`). Phosphoric route
+  l'ACIA 6551 @ $031C vers le vrai port serie via le backend `com:B,D,P,S,DEV`
+  (`--serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV)`). Variables `PICO_DEV`
+  (defaut `/dev/ttyACM0`) et `PICO_BAUD` (defaut `1200`) surchargeables.
+  Garde-fou : echec explicite si le peripherique est absent. Entrees ajoutees
+  dans `make help` et `.PHONY`. A utiliser en mode Modem AT (menu 1) + ATD.
+
 ## [0.2.35] - 2026-06-13
 
 ### Valide (Phosphoric 1.19.1-alpha, branche fix/orictel-integration-feedback)

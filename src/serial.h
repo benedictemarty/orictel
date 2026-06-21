@@ -21,7 +21,14 @@
 #define __fastcall__
 #endif
 
-/* Adresses des registres ACIA 6551 */
+/* Base de l'ACIA 6551 selon le materiel (choisie au runtime, menu Interface).
+ * Les 4 registres sont contigus a partir de la base: DATA=+0, STATUS=+1,
+ * COMMAND=+2, CONTROL=+3. serial_init(base) patche le driver en consequence
+ * (self-modifying code, voir serial_asm.s). */
+#define ACIA_BASE_EMU  0x031C  /* ACIA emulee Phosphoric/Euphoric (defaut) */
+#define ACIA_BASE_LOCI 0x0380  /* ACIA emulee par la cartouche LOCI reelle */
+
+/* Adresses des registres pour la base emulateur (reference/documentation) */
 #define ACIA_DATA    0x031C  /* R: donnee recue, W: donnee a envoyer */
 #define ACIA_STATUS  0x031D  /* R: statut, W: reset programme */
 #define ACIA_COMMAND 0x031E  /* R/W: registre commande */
@@ -32,9 +39,12 @@
 #define ACIA_TDRE    0x10    /* Bit 4: Transmitter Data Register Empty */
 
 /**
- * Initialise l'ACIA 6551: 19200 baud, 8N1, polling (pas d'IRQ).
+ * Initialise l'ACIA 6551 a la base donnee: 8N1, polling (pas d'IRQ).
+ * Patche les operandes du driver (self-modifying code) puis programme
+ * l'ACIA. A rappeler avec la meme base pour un reset.
+ * @param acia_base ACIA_BASE_EMU ($031C) ou ACIA_BASE_LOCI ($0380)
  */
-void __fastcall__ serial_init(void);
+void __fastcall__ serial_init(unsigned acia_base);
 
 /**
  * Empile un octet dans la file d'emission (non bloquant tant que la

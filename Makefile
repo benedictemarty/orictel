@@ -69,6 +69,16 @@ EMU_OPTS_DIGITELEC = --serial digitelec:$(MINITEL_SERVER) --serial-buffer 4096
 PICOWIFI_SSID = OricTel
 EMU_OPTS_PICOWIFI = --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 4096
 
+# PicoWiFiModemUSB PHYSIQUE branche en USB (et non l'emulation ci-dessus).
+# Phosphoric route l'ACIA 6551 @ $031C vers le vrai port serie via le backend
+# `com:B,D,P,S,DEV`. OricTel pilote l'ACIA en 8N1 -> format ligne 8,N,1. Le baud
+# DTE (PICO_BAUD) doit correspondre a la vitesse configuree sur le firmware du
+# Pico (typiquement 1200 pour un usage Minitel ; ajuster si caracteres mutiles).
+# A utiliser avec OricTel en mode Modem AT (menu 1), puis ATD vers un serveur.
+PICO_DEV  = /dev/ttyACM0
+PICO_BAUD = 1200
+EMU_OPTS_PICO_USB = --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) --serial-buffer 4096
+
 # Flags cc65
 CC65FLAGS = -t $(TARGET) -O --add-source
 CA65FLAGS = -t $(TARGET)
@@ -77,7 +87,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-direct run-digitelec run-picowifi run-ws bridge test help
+.PHONY: all clean run run-direct run-digitelec run-picowifi run-pico-usb run-ws bridge test help
 
 all: $(OUTPUT)
 
@@ -131,6 +141,12 @@ run-picowifi: $(OUTPUT)
 	@echo "    Dans OricTel : mode Modem AT (touche 1), puis ATD vers un serveur"
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_PICOWIFI)
 
+run-pico-usb: $(OUTPUT)
+	@echo "=== OricTel -> PicoWiFiModemUSB PHYSIQUE ($(PICO_DEV) @ $(PICO_BAUD) baud) ==="
+	@echo "    Dans OricTel : mode Modem AT (touche 1), puis ATD vers un serveur"
+	@test -c $(PICO_DEV) || { echo "ERREUR: $(PICO_DEV) introuvable (Pico branche ?)"; exit 1; }
+	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_PICO_USB)
+
 # Lancer avec le bridge WebSocket (pour ws://3617.fr).
 # Une seule ligne shell: le PID du bridge est connu et tue a la sortie
 # (chaque ligne de recette make tourne dans son propre shell, un kill %1
@@ -151,13 +167,19 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-bridge
+test: test-videotex test-serial test-bridge
 
 test-videotex: $(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_videotex \
 		$(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c \
 		$(SRCDIR)/fonts.c -DTEST_HOST
 	$(BLDDIR)/test_videotex
+
+# Coherence des bases ACIA / offsets registres (self-modifying code driver).
+test-serial: $(TESTDIR)/test_serial_smc.c $(SRCDIR)/serial.h
+	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_serial_smc \
+		$(TESTDIR)/test_serial_smc.c -DTEST_HOST
+	$(BLDDIR)/test_serial_smc
 
 # Le runner integre du script gere les tests async (pytest sans
 # pytest-asyncio ne sait pas les executer et echouait silencieusement
@@ -190,11 +212,13 @@ help:
 	@echo "  run           Emulateur en mode modem AT (serveur choisi au menu)"
 	@echo "  run-direct    Emulateur en TCP direct V23 vers $(MINITEL_SERVER)"
 	@echo "  run-digitelec Backend Digitelec DTL 2000 (V23) vers $(MINITEL_SERVER)"
-	@echo "  run-picowifi  Modem AT WiFi PicoWiFiModemUSB (SSID=$(PICOWIFI_SSID))"
+	@echo "  run-picowifi  Modem AT WiFi PicoWiFiModemUSB EMULE (SSID=$(PICOWIFI_SSID))"
+	@echo "  run-pico-usb  PicoWiFiModemUSB PHYSIQUE ($(PICO_DEV) @ $(PICO_BAUD) baud)"
 	@echo "  run-ws        Bridge WebSocket + emulateur (ws://3617.fr)"
 	@echo "  bridge        Lancer uniquement le bridge"
 	@echo "  test          Executer tous les tests"
 	@echo "  test-videotex Tests du decodeur Videotex"
+	@echo "  test-serial   Tests coherence bases ACIA (emu/LOCI, SMC)"
 	@echo "  test-bridge   Tests du bridge"
 	@echo "  test-server   Serveur Videotex local de demo (test manuel)"
 	@echo "  clean         Nettoyer les fichiers generes"

@@ -1,10 +1,11 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.33
+## Version actuelle: 0.2.37
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.32     | 2026-06-13 | En cours    |
+| orictel.tap        | 0.2.37     | 2026-06-21 | En cours    |
+| serial (ACIA+SMC)  | 0.2.37     | 2026-06-21 | Base configurable |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
 | orictel_bridge.py  | 0.2.21    | 2026-06-12 | Stable      |
 | Videotex decoder   | 0.2.18     | 2026-06-12 | Stable      |
@@ -15,6 +16,15 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.37 (2026-06-21)
+- Interface serie selectionnable au menu (base ACIA $031C emulateur / $0380
+  LOCI), driver patche par self-modifying code (`serial_init(base)`)
+- Test `test-serial` (coherence bases/offsets ACIA)
+
+### 0.2.36 (2026-06-21)
+- Cible Makefile `run-pico-usb` : PicoWiFiModemUSB physique via backend serie
+  `com:` de Phosphoric (ACIA 6551 @ $031C -> /dev/ttyACM0)
 
 ### 0.2.33 (2026-06-13)
 - README remis a niveau + nouveau manuel d'utilisation
