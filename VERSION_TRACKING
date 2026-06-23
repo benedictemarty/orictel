@@ -1,10 +1,11 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.39
+## Version actuelle: 0.2.40
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.39     | 2026-06-21 | En cours    |
+| orictel.tap        | 0.2.40     | 2026-06-24 | En cours    |
+| orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
 | serial (aiguillage)| 0.2.39     | 2026-06-21 | 6551 + 6850 |
 | serial 6850 (DTL)  | 0.2.39     | 2026-06-21 | Nouveau     |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
@@ -17,6 +18,13 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.40 (2026-06-24)
+- Image disquette Sedoric 3 (orictel.dsk, MFM_DISK) : cible `make dsk` via
+  outils OSDK embarques (tools/dsktools : tap2dsk + old2mfm), fichier
+  ORICTEL.COM auto-lance au boot (`LOAD"ORICTEL"`), boot Microdisc valide
+- src/tapehdr.s : nom de programme fixe ORICTEL (remplace le timestamp cc65)
+- Cible `make run-dsk` (boot disquette dans Phosphoric)
 
 ### 0.2.39 (2026-06-21)
 - Support carte Digitelec DTL 2000 (PIA 6821 + ACIA 6850 @ $03FC) : driver

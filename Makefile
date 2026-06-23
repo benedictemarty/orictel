@@ -28,7 +28,8 @@ C_SRCS  = $(SRCDIR)/main.c \
           $(SRCDIR)/serial_tx.c
 
 # Sources assembleur
-ASM_SRCS = $(SRCDIR)/serial_asm.s \
+ASM_SRCS = $(SRCDIR)/tapehdr.s \
+           $(SRCDIR)/serial_asm.s \
            $(SRCDIR)/serial6850_asm.s \
            $(SRCDIR)/display_asm.s
 
@@ -40,6 +41,20 @@ OBJS     = $(C_OBJS) $(ASM_OBJS)
 # Cible principale
 OUTPUT   = orictel.tap
 MAPFILE  = orictel.map
+
+# Image disquette Sedoric 3 (.dsk au format MFM_DISK)
+DSK         = orictel.dsk
+DSKTOOLSDIR = tools/dsktools
+TAP2DSK     = $(BLDDIR)/tap2dsk
+OLD2MFM     = $(BLDDIR)/old2mfm
+# Init string Sedoric executee au boot : charge et auto-lance ORICTEL.COM
+# (programme BASIC auto-executable -> LOAD declenche le RUN automatiquement).
+DSK_LABEL   = ORICTEL DISK
+DSK_INIT    = LOAD"ORICTEL"
+HOSTCC      = cc
+
+# ROM Microdisc pour booter une disquette Sedoric dans Phosphoric
+DISK_ROM = /home/bmarty/Oric1/roms/microdis.rom
 
 # Emulateur Phosphoric (oric1-emu).
 # IMPORTANT: le binaire fourni par l'equipe Phosphoric est compile SANS SDL
@@ -105,7 +120,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-direct run-digitelec run-picowifi run-pico-usb run-loci run-loci-emu run-dtl2000 run-ws bridge test help
+.PHONY: all clean run run-direct run-digitelec run-picowifi run-pico-usb run-loci run-loci-emu run-dtl2000 run-ws run-dsk bridge dsk test help
 
 all: $(OUTPUT)
 
@@ -114,6 +129,29 @@ $(OUTPUT): $(OBJS) $(CFG)
 		-m $(MAPFILE) $(TARGET).lib
 	@echo "=== OricTel compile: $(OUTPUT) ==="
 	@ls -la $(OUTPUT)
+
+# ============================================================================
+# Image disquette Sedoric 3 (.dsk)
+#
+# Chaine : orictel.tap --tap2dsk--> .dsk (ancien format ORICDISK)
+#                      --old2mfm--> .dsk (format MFM_DISK des emulateurs)
+# Les outils (OSDK de F.Frances) sont compiles avec le compilateur HOST.
+# Le fichier ORICTEL.COM (auto-executable) est lance au boot via l'init string.
+# ============================================================================
+
+$(TAP2DSK): $(DSKTOOLSDIR)/tap2dsk.c $(DSKTOOLSDIR)/sedoric3.h | $(BLDDIR)
+	$(HOSTCC) -O2 -w -I$(DSKTOOLSDIR) -o $@ $(DSKTOOLSDIR)/tap2dsk.c
+
+$(OLD2MFM): $(DSKTOOLSDIR)/old2mfm.c | $(BLDDIR)
+	$(HOSTCC) -O2 -w -o $@ $(DSKTOOLSDIR)/old2mfm.c
+
+dsk: $(DSK)
+
+$(DSK): $(OUTPUT) $(TAP2DSK) $(OLD2MFM)
+	$(TAP2DSK) -n'$(DSK_LABEL)' -i'$(DSK_INIT)' $(OUTPUT) $@
+	$(OLD2MFM) $@
+	@echo "=== OricTel disquette Sedoric: $(DSK) ==="
+	@ls -la $(DSK)
 
 # ============================================================================
 # Compilation C -> objet
@@ -181,6 +219,13 @@ run-dtl2000: $(OUTPUT)
 	@echo "    Dans OricTel : interface 3 (DTL 2000), mode Direct (touche 2)"
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_DTL2000)
 
+# Booter la disquette Sedoric (Microdisc) : OricTel se lance automatiquement.
+# Mode modem AT par defaut (serveur choisi dans le menu).
+run-dsk: $(DSK)
+	@echo "=== OricTel depuis disquette Sedoric (boot Microdisc) ==="
+	@test -f $(DISK_ROM) || { echo "ERREUR: ROM Microdisc introuvable: $(DISK_ROM)"; exit 1; }
+	$(EMU) --rom $(EMU_ROM) --disk-rom $(DISK_ROM) -d $(DSK) $(EMU_OPTS)
+
 # Lancer avec le bridge WebSocket (pour ws://3617.fr).
 # Une seule ligne shell: le PID du bridge est connu et tue a la sortie
 # (chaque ligne de recette make tourne dans son propre shell, un kill %1
@@ -231,7 +276,7 @@ test-server:
 # ============================================================================
 
 clean:
-	rm -rf $(BLDDIR) $(OUTPUT) $(MAPFILE)
+	rm -rf $(BLDDIR) $(OUTPUT) $(MAPFILE) $(DSK)
 	@echo "=== Nettoye ==="
 
 # ============================================================================
@@ -243,6 +288,8 @@ help:
 	@echo ""
 	@echo "Cibles:"
 	@echo "  all           Compiler orictel.tap (defaut)"
+	@echo "  dsk           Construire la disquette Sedoric orictel.dsk"
+	@echo "  run-dsk       Booter la disquette Sedoric (Microdisc, auto-lance OricTel)"
 	@echo "  run           Emulateur en mode modem AT (serveur choisi au menu)"
 	@echo "  run-direct    Emulateur en TCP direct V23 vers $(MINITEL_SERVER)"
 	@echo "  run-digitelec Backend Digitelec DTL 2000 (V23) vers $(MINITEL_SERVER)"

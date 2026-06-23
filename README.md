@@ -86,9 +86,31 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
 
 ```bash
 make                # Compile orictel.tap
+make dsk            # Construit la disquette Sedoric orictel.dsk
 make test           # Tests decodeur Videotex (host gcc) + bridge
 make test-server    # Serveur Videotex local de demo (test manuel)
 make clean          # Nettoyage
+```
+
+### Disquette Sedoric (.dsk)
+
+`make dsk` fabrique `orictel.dsk`, une disquette Sedoric 3 bootable
+(format `MFM_DISK`), a partir de la cassette `orictel.tap` :
+
+```
+orictel.tap --tap2dsk--> .dsk (ancien format) --old2mfm--> .dsk (MFM_DISK)
+```
+
+Les outils de conversion (OSDK de F.Frances) sont embarques en source dans
+`tools/dsktools/`. Le programme est stocke sous le nom `ORICTEL.COM` et le
+disque s'auto-lance au demarrage via l'init Sedoric `LOAD"ORICTEL"`. Pour le
+tester dans l'emulateur (boot Microdisc) :
+
+```bash
+make run-dsk
+# Equivalent a:
+# oric1-emu --rom basic11b.rom --disk-rom microdis.rom -d orictel.dsk \
+#     --serial modem --serial-buffer 4096
 ```
 
 ## Utilisation

@@ -1,5 +1,27 @@
 # CHANGELOG - OricTel
 
+## [0.2.40] - 2026-06-24
+
+### Ajoute
+- **Image disquette Sedoric 3** (`orictel.dsk`, format `MFM_DISK`) : nouvelle
+  cible `make dsk` qui fabrique une disquette bootable a partir de la cassette
+  `orictel.tap`.
+  - Chaine de conversion `orictel.tap --tap2dsk--> .dsk (ORICDISK)
+    --old2mfm--> .dsk (MFM_DISK)`. Outils OSDK (F.Frances) embarques en source
+    dans `tools/dsktools/` (tap2dsk.c, sedoric3.h, old2mfm.c), compiles avec le
+    compilateur host dans `build/`.
+  - Le fichier est stocke sous le nom `ORICTEL.COM` (auto-executable) et le
+    disque s'auto-lance au boot via l'init Sedoric `LOAD"ORICTEL"` (le stub
+    BASIC `CALL #50D` enchaine sur le code machine). Boot valide sous Microdisc
+    (Sedoric V3.0) : splash OricTel affiche.
+- **`src/tapehdr.s`** : en-tete cassette avec nom de programme fixe `ORICTEL`,
+  remplacant l'en-tete par defaut de cc65 (qui nommait le programme avec le
+  timestamp de compilation `.sprintf("%u", .time)`). Lie avant `atmos.lib`, il
+  resout `__TAPEHDR__` en premier. Le nom propre s'applique a la fois sur le
+  `.tap` et sur la disquette.
+- Cible `make run-dsk` : boot de la disquette Sedoric dans Phosphoric
+  (`--disk-rom microdis.rom -d orictel.dsk`), OricTel se lance automatiquement.
+
 ## [0.2.39] - 2026-06-21
 
 ### Ajoute

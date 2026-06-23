@@ -1,6 +1,7 @@
 # Build artifacts
 build/
 *.tap
+*.dsk
 *.map
 *.o
 *.s.bak

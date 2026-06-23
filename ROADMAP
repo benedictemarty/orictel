@@ -62,7 +62,10 @@ utilisable avec les serveurs Minitel modernes via Internet.
       budget adaptatif, table adresses HIRES - 0.2.25/0.2.26)
 
 ## Sprint 5 - Distribution (v1.0.0) [PLANIFIE]
-- [ ] Image disque Sedoric avec auto-boot
+- [x] Image disque Sedoric avec auto-boot (0.2.40) : `make dsk` ->
+      orictel.dsk (MFM_DISK), fichier ORICTEL.COM auto-lance via l'init
+      `LOAD"ORICTEL"`, boot Microdisc/Sedoric V3.0 valide. Outils OSDK
+      (tap2dsk + old2mfm) embarques dans tools/dsktools.
 - [x] Documentation utilisateur complete (docs/MANUEL_UTILISATION.md, 0.2.33)
 - [ ] Tests de compatibilite avec differents serveurs
 - [ ] Packaging et distribution
