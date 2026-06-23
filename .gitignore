@@ -2,6 +2,7 @@
 build/
 *.tap
 *.dsk
+!orictel.dsk
 *.map
 *.o
 *.s.bak
