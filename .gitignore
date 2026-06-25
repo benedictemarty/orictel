@@ -1,6 +1,7 @@
 # Build artifacts
 build/
 *.tap
+!orictel.tap
 *.dsk
 !orictel.dsk
 *.map
