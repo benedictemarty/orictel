@@ -28,8 +28,9 @@
 - ZP:    $00E2-$00FB (26 octets)
 - Code:  $0501-$9FFF (~39 Ko)
 - HIRES: $A000-$BF3F (8000 octets)
-- Stack: $0100-$01FF (256 octets CPU)
-- BSS:   apres CODE, avant $9800
+- Stack CPU: $0100-$01FF (256 octets)
+- Stack cc65: $9800-$A000 (2 Ko, sous le framebuffer HIRES)
+- BSS:   apres CODE, jusqu'a $9800 (__RAMEND__=$A000 depuis 0.2.41)
 
 ## Taille programme estimee
 - Code:   ~8 Ko

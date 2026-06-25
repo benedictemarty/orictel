@@ -1,5 +1,38 @@
 # CHANGELOG - OricTel
 
+## [0.2.41] - 2026-06-25
+
+### Ajoute
+- **Page de configuration WiFi du PicoWiFiModemUSB** (`main.c`) : nouvelle
+  entree `3 - Config WiFi` dans le menu Mode de connexion. Elle enchaine
+  scan radio -> selection du reseau -> saisie du mot de passe (masque) ->
+  connexion -> attente d'IP -> sauvegarde NVRAM, entierement depuis l'Oric.
+  - `wifi_scan()` : envoie `AT$SCAN` et parse la reponse ligne a ligne
+    (`<index> <ssid><TAB><sec>`), jusqu'a 8 reseaux, marque les reseaux
+    securises (`*` rouge).
+  - `wifi_input()` : saisie du mot de passe masquee par `*`, validation
+    ENVOI, effacement CORRECTION.
+  - Sequence de connexion : `AT$SSID=` / `AT$PASS=` / `ATC1` puis
+    `at_wait_ip()` ; en cas de succes `AT&W` sauve la config en NVRAM.
+  - Navigation : chiffre = choix, REPETITION = rescan, ANNULATION = retour.
+
+### Corrige
+- **`NO CARRIER (00:00:00)` sur LOCI + PicoWiFiModemUSB reel** : apres le
+  `OK` de `ATZ`, OricTel attend desormais l'obtention d'une IP DHCP avant de
+  composer `ATD`. `ATZ` relance l'association WiFi du modem ; la couche
+  liaison (`link up`) remonte avant le DHCP (`no ip`), et composer pendant
+  cette fenetre echouait instantanement. Nouvelle fonction `at_wait_ip()`
+  qui interroge `ATI` en boucle et guette le statut `no ip` (timeout 15 s,
+  inoffensif sur un modem deja connecte).
+
+### Modifie
+- **`cfg/orictel.cfg`** : `__RAMEND__` etendu de `$9800` a `$A000` pour
+  recuperer les 2 Ko de RAM libre situes sous le framebuffer HIRES
+  (`$9800-$9FFF`). La valeur `$9800` calquait le HIMEM BASIC par prudence,
+  mais OricTel s'execute en code machine sans utiliser cette zone. Necessaire
+  pour loger le code/donnees de la page WiFi (BSS finit a `$9565`, stack
+  `$9800-$A000`).
+
 ## [0.2.40] - 2026-06-24
 
 ### Ajoute

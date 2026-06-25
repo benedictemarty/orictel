@@ -23,13 +23,16 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [x] 3 modes de rendu (hybride, dithering, brut)
 - [x] Menu mode connexion (Modem AT / Direct TCP V23)
 - [x] Support backend modem Hayes + TCP direct V23
+- [x] Page Config WiFi PicoWiFiModemUSB (scan/selection/mot de passe/NVRAM)
+- [x] Attente IP DHCP avant ATD (fix NO CARRIER sur LOCI+Pico reel)
 
 ## Sprint 3 - Experience utilisateur (v0.3.0) [PLANIFIE]
 - [ ] Jeu de caracteres G2 (supplementaire/accents)
 - [ ] Clignotement (flash) anime
 - [ ] Texte masque (concealed) avec revele au clic
 - [ ] Barre de statut interactive
-- [ ] Gestion des erreurs de connexion et reconnexion
+- [x] Gestion des erreurs de connexion WiFi (statut no ip / link up)
+- [ ] Reconnexion automatique apres perte de porteuse
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
 - [x] File d'emission TX non bloquante (prerequis vrai materiel V23:

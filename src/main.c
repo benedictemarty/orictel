@@ -255,6 +255,7 @@ static void splash_screen(vtx_context_t* ctx)
 /* Mode de connexion */
 #define MODE_MODEM  0
 #define MODE_DIRECT 1
+#define MODE_WIFI   2   /* page de configuration WiFi du PicoWiFiModemUSB */
 
 /* Menu selection du mode de connexion.
  * Retourne MODE_MODEM ou MODE_DIRECT. */
@@ -288,12 +289,21 @@ static unsigned char select_mode(vtx_context_t* ctx)
     ctx->screen[15][12].fg = VTX_CYAN;
     ctx->dirty[15] = 1;
 
+    p = "3 - Config WiFi";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[17][12 + i].ch = p[i];
+        ctx->screen[17][12 + i].fg = VTX_YELLOW;
+    }
+    ctx->screen[17][12].fg = VTX_CYAN;
+    ctx->dirty[17] = 1;
+
     display_render_all(ctx);
 
     for (;;) {
         unsigned char key = keyboard_scan();
         if (key == '1') return MODE_MODEM;
         if (key == '2') return MODE_DIRECT;
+        if (key == '3') return MODE_WIFI;
     }
 }
 
@@ -366,6 +376,16 @@ static void at_send(const char* str)
         serial_send(*str);
         ++str;
     }
+    serial_send(0x0D);  /* CR */
+    serial_tx_flush();
+}
+
+/* Envoyer "prefixe" suivi de "valeur" puis CR (ex: AT$SSID=MonReseau).
+ * Sert aux commandes de configuration WiFi du PicoWiFiModemUSB. */
+static void at_send_kv(const char* prefix, const char* value)
+{
+    while (*prefix) { serial_send(*prefix); ++prefix; }
+    while (*value)  { serial_send(*value);  ++value; }
     serial_send(0x0D);  /* CR */
     serial_tx_flush();
 }
@@ -444,6 +464,292 @@ static unsigned char at_wait_response(const char* keyword, unsigned int timeout_
         }
     }
     return 0;
+}
+
+/* Attendre que le PicoWiFiModemUSB ait obtenu une adresse IP DHCP.
+ *
+ * ATZ relance l'association WiFi du modem: la couche liaison ("link up")
+ * remonte avant que le DHCP n'ait fourni une IP ("no ip"). Composer ATD
+ * pendant cette fenetre echoue instantanement par NO CARRIER (00:00:00).
+ * On interroge ATI en boucle et on guette le statut "no ip" dans la
+ * reponse: tant qu'il est present le DHCP n'a pas abouti; son absence
+ * (jusqu'au OK final de ATI) signale une IP prete.
+ *
+ * Retourne 1 si IP obtenue, 0 sur timeout. L'appelant compose ATD malgre
+ * un timeout: un firmware qui n'emet jamais "no ip" ne doit pas bloquer. */
+static unsigned char at_wait_ip(unsigned int timeout_ms)
+{
+    static const char S_NOIP[] = "no ip";
+    unsigned int elapsed = 0;
+
+    while (elapsed < timeout_ms) {
+        unsigned char noip = 0;     /* "no ip" vu dans la reponse ATI */
+        unsigned char ni = 0;       /* index matcher "no ip" */
+        unsigned char ok = 0;       /* index matcher "OK" terminateur */
+        unsigned char done = 0;     /* OK final recu */
+        unsigned int  rwait = 0;    /* budget lecture d'une reponse ATI */
+
+        at_send("ATI");
+
+        /* Lire la reponse ATI jusqu'au OK final (ou ~2s de silence) */
+        for (;;) {
+            if (serial_poll()) {
+                do {
+                    unsigned char b = serial_recv();
+                    dbg_byte(dbg_ctx, b);
+
+                    /* matcher "no ip" (marqueur DHCP non abouti) */
+                    if (b == S_NOIP[ni]) {
+                        if (S_NOIP[++ni] == 0) { noip = 1; ni = 0; }
+                    } else {
+                        ni = (b == S_NOIP[0]) ? 1 : 0;
+                    }
+
+                    /* matcher "OK" final (fin de reponse ATI) */
+                    if (b == 'K' && ok == 1) { ok = 0; done = 1; }
+                    else if (b == 'O') { ok = 1; }
+                    else { ok = 0; }
+                } while (serial_poll() && !done);
+                display_render_all(dbg_ctx);
+                if (done) break;
+            } else {
+                if (rwait >= 2000) break;
+                delay_ms(10);
+                rwait += 10;
+            }
+        }
+
+        if (!noip) return 1;        /* ATI ne reporte plus "no ip" => IP prete */
+
+        delay_ms(500);
+        elapsed += rwait + 500;
+    }
+    return 0;
+}
+
+/* ===================================================================
+ *  Page de configuration WiFi du PicoWiFiModemUSB
+ *
+ *  Scan (AT$SCAN) -> selection -> mot de passe -> connexion (ATC1)
+ *  -> attente IP (at_wait_ip) -> sauvegarde (AT&W).
+ * =================================================================== */
+
+#define WIFI_MAX 8                  /* reseaux affichables a l'ecran */
+static char wifi_ssid[WIFI_MAX][33];/* SSID (<=32 car + nul) */
+static char wifi_sec[WIFI_MAX];     /* 'S'=securise, 'O'=ouvert */
+static unsigned char wifi_count;    /* reseaux trouves */
+static char wifi_pass[40];          /* mot de passe saisi */
+
+/* Scanner les reseaux WiFi via AT$SCAN. Le firmware liste un point
+ * d'acces par ligne sous la forme "<index> <ssid><TAB><sec>". On lit
+ * ligne par ligne jusqu'au "OK" final (ou timeout: le scan radio prend
+ * plusieurs secondes). Remplit wifi_ssid/wifi_sec, retourne le nombre. */
+static unsigned char wifi_scan(void)
+{
+    char line[40];
+    unsigned char lp = 0;
+    unsigned int  elapsed = 0;
+
+    wifi_count = 0;
+    at_send("AT$SCAN");
+
+    while (elapsed < 9000) {
+        if (serial_poll()) {
+            unsigned char b = serial_recv();
+            if (b == 0x0D || b == 0x0A) {
+                line[lp] = 0;
+                if (lp >= 2 && line[0] == 'O' && line[1] == 'K') {
+                    return wifi_count;          /* fin du scan */
+                }
+                if (lp > 0 && line[0] >= '0' && line[0] <= '9'
+                    && wifi_count < WIFI_MAX) {
+                    unsigned char k = 0;
+                    unsigned char d = 0;
+                    while (line[k] >= '0' && line[k] <= '9') ++k;  /* index */
+                    while (line[k] == ' ') ++k;                    /* espaces */
+                    while (line[k] && line[k] != 0x09 && d < 32) { /* ssid */
+                        wifi_ssid[wifi_count][d++] = line[k++];
+                    }
+                    wifi_ssid[wifi_count][d] = 0;
+                    if (line[k] == 0x09) ++k;                      /* TAB */
+                    wifi_sec[wifi_count] = (line[k] == 'S') ? 'S' : 'O';
+                    if (d > 0) ++wifi_count;
+                }
+                lp = 0;
+            } else if (lp < 39) {
+                line[lp++] = b;
+            }
+        } else {
+            delay_ms(10);
+            elapsed += 10;
+        }
+    }
+    return wifi_count;
+}
+
+/* Afficher un message centre-ish sur une ligne et attendre une touche. */
+static void wifi_msg_wait(vtx_context_t* ctx, unsigned char row,
+                          unsigned char col, const char* msg)
+{
+    unsigned char i;
+    for (i = 0; msg[i]; ++i) {
+        ctx->screen[row][col + i].ch = msg[i];
+        ctx->screen[row][col + i].fg = VTX_WHITE;
+    }
+    ctx->dirty[row] = 1;
+    display_render_all(ctx);
+    while (keyboard_scan() == KEY_NONE) { /* attente touche */ }
+}
+
+/* Saisie d'une chaine (mot de passe) dans 'buf' (taille max len+1).
+ * ENVOI valide, CORRECTION/DELETE efface. Retourne la longueur. */
+static unsigned char wifi_input(vtx_context_t* ctx, unsigned char row,
+                                char* buf, unsigned char maxlen)
+{
+    unsigned char pos = 0;
+    for (;;) {
+        unsigned char key = keyboard_scan();
+        if (key == KEY_NONE) continue;
+        if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ENVOI) {
+            buf[pos] = 0;
+            return pos;
+        } else if (key == 0x7F || key == 0x08 ||
+                   ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_CORRECTION)) {
+            if (pos > 0) {
+                --pos;
+                ctx->screen[row][3 + pos].ch = ' ';
+                ctx->dirty[row] = 1;
+                display_render_all(ctx);
+            }
+        } else if (key >= 0x20 && key < 0x7F && pos < maxlen) {
+            buf[pos] = key;
+            ctx->screen[row][3 + pos].ch = '*';   /* masque le mot de passe */
+            ctx->screen[row][3 + pos].fg = VTX_GREEN;
+            ctx->dirty[row] = 1;
+            display_render_all(ctx);
+            ++pos;
+        }
+    }
+}
+
+/* Page complete de configuration WiFi. Suppose serial_init() deja fait. */
+static void wifi_config_page(vtx_context_t* ctx)
+{
+    unsigned char i, sel;
+    const char* p;
+
+    dbg_ctx = ctx;
+
+    for (;;) {                                  /* boucle scan/rescan */
+        vtx_clear_page(ctx);
+        p = "Scan WiFi en cours...";
+        for (i = 0; p[i]; ++i) {
+            ctx->screen[10][9 + i].ch = p[i];
+            ctx->screen[10][9 + i].fg = VTX_WHITE;
+        }
+        ctx->dirty[10] = 1;
+        display_render_all(ctx);
+
+        if (wifi_scan() == 0) {
+            vtx_clear_page(ctx);
+            wifi_msg_wait(ctx, 10, 6, "Aucun reseau. Touche=retour");
+            return;
+        }
+
+        /* Liste des reseaux */
+        vtx_clear_page(ctx);
+        p = "Reseaux WiFi:";
+        for (i = 0; p[i]; ++i) {
+            ctx->screen[2][3 + i].ch = p[i];
+            ctx->screen[2][3 + i].fg = VTX_WHITE;
+        }
+        ctx->dirty[2] = 1;
+        for (i = 0; i < wifi_count; ++i) {
+            unsigned char row = 4 + i;
+            unsigned char d;
+            ctx->screen[row][3].ch = '1' + i;
+            ctx->screen[row][3].fg = VTX_CYAN;
+            ctx->screen[row][5].ch = '-';
+            ctx->screen[row][5].fg = VTX_WHITE;
+            for (d = 0; wifi_ssid[i][d]; ++d) {
+                ctx->screen[row][7 + d].ch = wifi_ssid[i][d];
+                ctx->screen[row][7 + d].fg = VTX_YELLOW;
+            }
+            if (wifi_sec[i] == 'S') {            /* cadenas = securise */
+                ctx->screen[row][7 + d + 1].ch = '*';
+                ctx->screen[row][7 + d + 1].fg = VTX_RED;
+            }
+            ctx->dirty[row] = 1;
+        }
+        p = "Chiffre=choix REPET=rescan ANNUL=retour";
+        for (i = 0; p[i]; ++i) {
+            ctx->screen[22][0 + i].ch = p[i];
+            ctx->screen[22][0 + i].fg = VTX_GREEN;
+        }
+        ctx->dirty[22] = 1;
+        display_render_all(ctx);
+
+        /* Selection */
+        sel = 0xFF;
+        for (;;) {
+            unsigned char key = keyboard_scan();
+            if (key == KEY_NONE) continue;
+            if (key >= '1' && key < '1' + wifi_count) {
+                sel = key - '1';
+                break;
+            }
+            if ((key & KEY_FUNC_FLAG) &&
+                (key & 0x7F) == KEY_REPETITION) {
+                break;                          /* rescan */
+            }
+            if ((key & KEY_FUNC_FLAG) &&
+                (key & 0x7F) == KEY_ANNULATION) {
+                return;                         /* annuler */
+            }
+        }
+        if (sel == 0xFF) continue;              /* rescan demande */
+
+        /* Mot de passe si reseau securise */
+        wifi_pass[0] = 0;
+        if (wifi_sec[sel] == 'S') {
+            vtx_clear_page(ctx);
+            p = "Mot de passe WiFi:";
+            for (i = 0; p[i]; ++i) {
+                ctx->screen[8][3 + i].ch = p[i];
+                ctx->screen[8][3 + i].fg = VTX_WHITE;
+            }
+            ctx->dirty[8] = 1;
+            display_render_all(ctx);
+            wifi_input(ctx, 10, wifi_pass, 38);
+        }
+
+        /* Configuration + connexion */
+        vtx_clear_page(ctx);
+        p = "Connexion WiFi...";
+        for (i = 0; p[i]; ++i) {
+            ctx->screen[10][11 + i].ch = p[i];
+            ctx->screen[10][11 + i].fg = VTX_WHITE;
+        }
+        ctx->dirty[10] = 1;
+        display_render_all(ctx);
+        dbg_init(12);
+
+        at_send_kv("AT$SSID=", wifi_ssid[sel]);
+        at_wait_response("OK", 3000);
+        at_send_kv("AT$PASS=", wifi_pass);
+        at_wait_response("OK", 3000);
+        at_send("ATC1");
+        at_wait_response("OK", 8000);
+
+        if (at_wait_ip(20000)) {
+            at_send("AT&W");                    /* sauver en NVRAM */
+            at_wait_response("OK", 3000);
+            wifi_msg_wait(ctx, 18, 5, "Connecte! Config sauvee.");
+        } else {
+            wifi_msg_wait(ctx, 18, 3, "Echec IP. Verifier mot de passe.");
+        }
+        return;
+    }
 }
 
 /* Buffer pour saisie libre du serveur */
@@ -564,6 +870,21 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
         return 0;  /* Pas de modem (mode TCP direct) */
     }
 
+    /* ATZ a relance l'association WiFi du PicoWiFiModemUSB: patienter
+     * jusqu'a l'obtention d'une IP DHCP avant de composer (sinon ATD
+     * echoue par NO CARRIER "no ip"). Inoffensif sur un modem deja
+     * connecte: ATI ne reporte pas "no ip" -> retour quasi immediat. */
+    vtx_clear_page(ctx);
+    msg = "Attente IP WiFi...";
+    for (i = 0; msg[i]; ++i) {
+        ctx->screen[10][11 + i].ch = msg[i];
+        ctx->screen[10][11 + i].fg = VTX_WHITE;
+    }
+    ctx->dirty[10] = 1;
+    display_render_all(ctx);
+    dbg_init(12);
+    at_wait_ip(15000);
+
     /* Determiner le serveur */
     {
         const char* srv;
@@ -660,8 +981,22 @@ int main(void)
     acia_base = select_interface(&vtx);
 
     {
-        unsigned char mode = select_mode(&vtx);
+        unsigned char mode;
         unsigned char srv_idx;
+
+        /* ACIA montee avant les menus: la page Config WiFi (AT$SCAN...)
+         * dialogue avec le PicoWiFiModemUSB des le menu. */
+        serial_init(acia_base);
+
+        /* La page Config WiFi (mode 3) revient au menu une fois terminee. */
+        for (;;) {
+            mode = select_mode(&vtx);
+            if (mode == MODE_WIFI) {
+                wifi_config_page(&vtx);
+                continue;
+            }
+            break;
+        }
 
         vtx_clear_page(&vtx);
         srv_idx = select_server(&vtx);
@@ -670,14 +1005,12 @@ int main(void)
         if (mode == MODE_MODEM) {
             /* Mode modem AT (le backend emule repond immediatement,
              * 100 ms suffisent pour la stabilisation) */
-            serial_init(acia_base);
             delay_ms(100);
             modem_connect(&vtx, srv_idx);
             vtx_clear_page(&vtx);
         } else {
             /* Mode direct (TCP + V23): connexion immediate.
              * Drainer les eventuelles donnees arrivees pendant les menus. */
-            serial_init(acia_base);
             while (serial_poll()) serial_recv();
             vtx_clear_page(&vtx);
         }

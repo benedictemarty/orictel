@@ -19,7 +19,8 @@ avec OricTel en mode **modem AT**. Le programme se charge et se lance
 automatiquement (fast-load + RUN). Ensuite :
 
 1. **Ecran d'accueil** (jingle) - appuyez sur une touche (ou attendez 5 s).
-2. **Mode de connexion** - tapez `1` (Modem AT, recommande) ou `2` (Direct).
+2. **Mode de connexion** - tapez `1` (Modem AT, recommande), `2` (Direct)
+   ou `3` (Config WiFi, voir section 2bis pour le materiel PicoWiFiModemUSB).
 3. **Serveur** - tapez `1` (PAVI 3617), `2` (MiniPavi) ou `3` (saisie libre
    d'un `hote:port`, validee par RETURN).
 4. La sequence ATZ/ATD s'execute (~2 s) et la page d'accueil du serveur
@@ -50,6 +51,30 @@ Phosphoric a ete lance avec `--serial tcp:...` ou `digitelec:...`.
 `make run-ws` lance le bridge Python (`orictel_bridge.py`) qui relaie
 TCP (port 3615) vers le serveur WebSocket `ws://3617.fr/ws`, puis
 l'emulateur en mode TCP. Dans OricTel, choisir alors le mode Direct.
+
+## 2bis. Config WiFi (materiel PicoWiFiModemUSB)
+
+Sur un montage reel **LOCI + PicoWiFiModemUSB**, le modem doit etre
+associe a un reseau WiFi (avec une adresse IP) avant de pouvoir composer.
+Sinon `ATD` echoue immediatement par `NO CARRIER (00:00:00)` (statut
+`no ip`). Le menu `3 - Config WiFi` realise toute la configuration depuis
+l'Oric :
+
+1. **Scan** : OricTel envoie `AT$SCAN` ; les reseaux 2,4 GHz a portee
+   s'affichent, numerotes. Un `*` rouge signale un reseau securise.
+2. **Selection** : tapez le **chiffre** du reseau. **REPETITION** relance
+   le scan, **ANNULATION** revient au menu.
+3. **Mot de passe** : pour un reseau securise, saisissez le mot de passe
+   (masque par des `*`), **ENVOI** valide, **CORRECTION** efface.
+4. **Connexion** : OricTel envoie `AT$SSID=` / `AT$PASS=` / `ATC1`, puis
+   attend l'IP DHCP. En cas de succes, `AT&W` sauve la config en NVRAM du
+   Pico (« Connecte! Config sauvee. ») - elle sera rechargee aux demarrages
+   suivants. Sinon « Echec IP. Verifier mot de passe. ».
+
+Une fois le WiFi configure, revenez au menu et choisissez `1 - Modem AT`
+pour vous connecter normalement. Note : apres un `ATZ`, OricTel patiente
+desormais jusqu'a l'obtention de l'IP avant de composer, ce qui evite le
+`NO CARRIER` du a un DHCP encore en cours.
 
 ## 3. L'ecran
 
@@ -128,6 +153,7 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 | Symptome | Cause probable | Remede |
 |---|---|---|
 | « PAS DE MODEM » / retour direct apres ATZ | l'emulateur n'est pas en `--serial modem` | utiliser `make run`, ou choisir le mode Direct |
+| `NO CARRIER (00:00:00)` (Pico reel) | WiFi non associe / pas d'IP (`no ip`, echec en 0 s) | menu `3 - Config WiFi` : scanner, choisir le reseau, saisir le mot de passe (config sauvee en NVRAM) |
 | Indicateur `F` permanent | pas de donnees du serveur | verifier la connexion Internet ; CTRL+F puis CTRL+E (repetition) |
 | Caracteres perdus a la frappe | n'arrive plus depuis 0.2.24 | verifier que le tap est a jour (`make`) |
 | Cartouches inverses illisibles | echelle d'affichage 1x | F3 (echelle x2-x4) |
