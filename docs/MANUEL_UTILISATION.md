@@ -153,7 +153,7 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 | Symptome | Cause probable | Remede |
 |---|---|---|
 | « PAS DE MODEM » / retour direct apres ATZ | l'emulateur n'est pas en `--serial modem` | utiliser `make run`, ou choisir le mode Direct |
-| `NO CARRIER (00:00:00)` (Pico reel) | WiFi non associe / pas d'IP (`no ip`, echec en 0 s) | menu `3 - Config WiFi` : scanner, choisir le reseau, saisir le mot de passe (config sauvee en NVRAM) |
+| `NO CARRIER (00:00:00)` (Pico reel) | format de numerotation (`ATD<hote>` : le 1er car. de l'hote pris pour un modificateur Hayes) ou WiFi non associe | corrige en 0.2.42 (OricTel compose `ATDT<hote>`) ; si ca persiste : menu `3 - Config WiFi` pour (re)configurer le reseau |
 | Indicateur `F` permanent | pas de donnees du serveur | verifier la connexion Internet ; CTRL+F puis CTRL+E (repetition) |
 | Caracteres perdus a la frappe | n'arrive plus depuis 0.2.24 | verifier que le tap est a jour (`make`) |
 | Cartouches inverses illisibles | echelle d'affichage 1x | F3 (echelle x2-x4) |

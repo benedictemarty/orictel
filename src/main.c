@@ -466,25 +466,25 @@ static unsigned char at_wait_response(const char* keyword, unsigned int timeout_
     return 0;
 }
 
-/* Attendre que le PicoWiFiModemUSB ait obtenu une adresse IP DHCP.
+/* Attendre que le PicoWiFiModemUSB soit associe au WiFi avec une IP.
  *
- * ATZ relance l'association WiFi du modem: la couche liaison ("link up")
- * remonte avant que le DHCP n'ait fourni une IP ("no ip"). Composer ATD
- * pendant cette fenetre echoue instantanement par NO CARRIER (00:00:00).
- * On interroge ATI en boucle et on guette le statut "no ip" dans la
- * reponse: tant qu'il est present le DHCP n'a pas abouti; son absence
- * (jusqu'au OK final de ATI) signale une IP prete.
+ * ATZ peut relancer l'association WiFi: composer ATD avant que le DHCP
+ * ait fourni une IP echoue instantanement par NO CARRIER (00:00:00).
+ * On interroge ATI en boucle et on guette le marqueur positif "TO WIFI"
+ * (firmware v0.3.x: "WiFi status: CONNECTED TO WIFI"), unique au statut
+ * WiFi connecte - absent de "Call status: NOT CONNECTED". Sa presence
+ * dans la reponse ATI signale un lien WiFi etabli (donc une IP).
  *
- * Retourne 1 si IP obtenue, 0 sur timeout. L'appelant compose ATD malgre
- * un timeout: un firmware qui n'emet jamais "no ip" ne doit pas bloquer. */
+ * Retourne 1 si connecte, 0 sur timeout. Sert aussi a valider la
+ * connexion apres ATC1 dans la page Config WiFi. */
 static unsigned char at_wait_ip(unsigned int timeout_ms)
 {
-    static const char S_NOIP[] = "no ip";
+    static const char S_UP[] = "TO WIFI";
     unsigned int elapsed = 0;
 
     while (elapsed < timeout_ms) {
-        unsigned char noip = 0;     /* "no ip" vu dans la reponse ATI */
-        unsigned char ni = 0;       /* index matcher "no ip" */
+        unsigned char up = 0;       /* "TO WIFI" vu => WiFi connecte (IP) */
+        unsigned char si = 0;       /* index matcher "TO WIFI" */
         unsigned char ok = 0;       /* index matcher "OK" terminateur */
         unsigned char done = 0;     /* OK final recu */
         unsigned int  rwait = 0;    /* budget lecture d'une reponse ATI */
@@ -498,11 +498,11 @@ static unsigned char at_wait_ip(unsigned int timeout_ms)
                     unsigned char b = serial_recv();
                     dbg_byte(dbg_ctx, b);
 
-                    /* matcher "no ip" (marqueur DHCP non abouti) */
-                    if (b == S_NOIP[ni]) {
-                        if (S_NOIP[++ni] == 0) { noip = 1; ni = 0; }
+                    /* matcher "TO WIFI" (WiFi associe + IP) */
+                    if (b == S_UP[si]) {
+                        if (S_UP[++si] == 0) { up = 1; si = 0; }
                     } else {
-                        ni = (b == S_NOIP[0]) ? 1 : 0;
+                        si = (b == S_UP[0]) ? 1 : 0;
                     }
 
                     /* matcher "OK" final (fin de reponse ATI) */
@@ -519,7 +519,7 @@ static unsigned char at_wait_ip(unsigned int timeout_ms)
             }
         }
 
-        if (!noip) return 1;        /* ATI ne reporte plus "no ip" => IP prete */
+        if (up) return 1;           /* ATI signale "CONNECTED TO WIFI" */
 
         delay_ms(500);
         elapsed += rwait + 500;
@@ -870,10 +870,9 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
         return 0;  /* Pas de modem (mode TCP direct) */
     }
 
-    /* ATZ a relance l'association WiFi du PicoWiFiModemUSB: patienter
-     * jusqu'a l'obtention d'une IP DHCP avant de composer (sinon ATD
-     * echoue par NO CARRIER "no ip"). Inoffensif sur un modem deja
-     * connecte: ATI ne reporte pas "no ip" -> retour quasi immediat. */
+    /* ATZ a pu relancer l'association WiFi du PicoWiFiModemUSB: patienter
+     * jusqu'a "CONNECTED TO WIFI" (IP prete) avant de composer, sinon ATD
+     * echoue par NO CARRIER. Quasi immediat si le modem est deja connecte. */
     vtx_clear_page(ctx);
     msg = "Attente IP WiFi...";
     for (i = 0; msg[i]; ++i) {
@@ -896,23 +895,26 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
             srv = servers[server_idx];
         }
 
-        /* Afficher "ATD serveur..." */
+        /* Afficher "ATDT serveur..." */
         vtx_clear_page(ctx);
-        msg = "ATD ";
+        msg = "ATDT ";
         for (i = 0; msg[i]; ++i) {
             ctx->screen[10][5 + i].ch = msg[i];
             ctx->screen[10][5 + i].fg = VTX_WHITE;
         }
         for (j = 0; srv[j]; ++j) {
-            ctx->screen[10][9 + j].ch = srv[j];
-            ctx->screen[10][9 + j].fg = VTX_CYAN;
+            ctx->screen[10][10 + j].ch = srv[j];
+            ctx->screen[10][10 + j].fg = VTX_CYAN;
         }
         ctx->dirty[10] = 1;
         display_render_all(ctx);
 
-        /* ATD serveur:port */
+        /* ATDT serveur:port : le 'T' (tonalite) est INDISPENSABLE. Sans lui,
+         * le PicoWiFiModemUSB prend le 1er caractere de l'hote pour un
+         * modificateur Hayes (ex: "ATDpavi..." -> 'p' = pulse, l'hote devient
+         * "avi.3617.fr" -> NO CARRIER 00:00:00). "ATDT" + hote se connecte. */
         dbg_init(12);
-        serial_send('A'); serial_send('T'); serial_send('D');
+        serial_send('A'); serial_send('T'); serial_send('D'); serial_send('T');
         while (*srv) { serial_send(*srv); ++srv; }
         serial_send(0x0D);
         serial_tx_flush();

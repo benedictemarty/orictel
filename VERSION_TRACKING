@@ -1,12 +1,13 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.41
+## Version actuelle: 0.2.42
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.41     | 2026-06-25 | En cours    |
+| orictel.tap        | 0.2.42     | 2026-06-25 | En cours    |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
-| config WiFi/at_wait_ip| 0.2.41 | 2026-06-25 | Nouveau     |
+| numerotation ATDT  | 0.2.42     | 2026-06-25 | Fix PAVI    |
+| config WiFi/at_wait_ip| 0.2.42 | 2026-06-25 | v0.3.x      |
 | serial (aiguillage)| 0.2.39     | 2026-06-21 | 6551 + 6850 |
 | serial 6850 (DTL)  | 0.2.39     | 2026-06-21 | Nouveau     |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
@@ -19,6 +20,12 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.42 (2026-06-25)
+- Fix racine NO CARRIER (00:00:00) sur PAVI : numerotation ATDT<hote> au lieu
+  de ATD<hote> (le Pico v0.3.x prenait le 1er car. de l'hote pour un
+  modificateur Hayes pulse). Valide materiel reel : ATDT -> CONNECT 9600
+- at_wait_ip() : marqueur "TO WIFI" (ATI v0.3.x) au lieu de "no ip"
 
 ### 0.2.41 (2026-06-25)
 - Page Config WiFi du PicoWiFiModemUSB (menu Mode 3) : scan AT$SCAN ->

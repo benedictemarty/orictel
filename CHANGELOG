@@ -1,5 +1,22 @@
 # CHANGELOG - OricTel
 
+## [0.2.42] - 2026-06-25
+
+### Corrige
+- **`NO CARRIER (00:00:00)` sur PAVI 3617 (cause racine)** : OricTel composait
+  `ATD<hote>` colle (ex. `ATDpavi.3617.fr:3617`). Le PicoWiFiModemUSB (firmware
+  v0.3.x) interprete alors le 1er caractere de l'hote comme un modificateur
+  Hayes : le `p` de `pavi` est pris pour « pulse » (`ATDP`), l'hote devient
+  `avi.3617.fr` (inexistant) -> `NO CARRIER (00:00:00)`. La numerotation passe
+  desormais par **`ATDT<hote>`** : le `T` (tonalite) protege le 1er caractere
+  de l'hote. Verifie sur materiel reel (LOCI + Pico v0.3.3) : `ATDT` ->
+  `CONNECT 9600` + page Videotex PAVI ; `ATD` -> NO CARRIER ; `ATD <hote>`
+  (espace) -> `ERROR`.
+- **`at_wait_ip()` adapte au firmware v0.3.x** : ATI ne reporte pas `no ip`
+  mais `WiFi status: CONNECTED TO WIFI` / `IP address: ...`. La detection passe
+  du marqueur negatif `no ip` au marqueur positif **`TO WIFI`** (unique au
+  statut WiFi connecte, absent de `Call status: NOT CONNECTED`).
+
 ## [0.2.41] - 2026-06-25
 
 ### Ajoute
