@@ -1,13 +1,14 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.42
+## Version actuelle: 0.2.43
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.42     | 2026-06-25 | En cours    |
+| orictel.tap        | 0.2.43     | 2026-06-25 | En cours    |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
+| handshake AT (anti-overrun)| 0.2.43 | 2026-06-25 | Fix HW reel |
 | numerotation ATDT  | 0.2.42     | 2026-06-25 | Fix PAVI    |
-| config WiFi/at_wait_ip| 0.2.42 | 2026-06-25 | v0.3.x      |
+| config WiFi/at_wait_ip| 0.2.43 | 2026-06-25 | v0.3.x      |
 | serial (aiguillage)| 0.2.39     | 2026-06-21 | 6551 + 6850 |
 | serial 6850 (DTL)  | 0.2.39     | 2026-06-21 | Nouveau     |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
@@ -20,6 +21,13 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.43 (2026-06-25)
+- Fix connexion impossible sur PicoWiFiModemUSB reel (retour Dbug, forum
+  Defence-Force t=2894) : overrun du registre RX 1 octet du 6551 reel pendant
+  les rendus HIRES de la phase AT. at_wait_response/at_wait_ip drainent
+  desormais sans rendu (rendu differe aux creux, jamais sur match). Impacte
+  uniquement OricTel (src/main.c). Build OK, tests 38/38 + 23/23.
 
 ### 0.2.42 (2026-06-25)
 - Fix racine NO CARRIER (00:00:00) sur PAVI : numerotation ATDT<hote> au lieu

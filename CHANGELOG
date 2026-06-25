@@ -1,5 +1,28 @@
 # CHANGELOG - OricTel
 
+## [0.2.43] - 2026-06-25
+
+### Corrige
+- **Connexion impossible sur PicoWiFiModemUSB reel malgre IP valide (overrun
+  6551)** : suite au retour de Dbug (forum Defence-Force, t=2894) — OricTel
+  echouait sur materiel reel (LOCI + Pico) alors qu'Oricomms passait sur le
+  meme modem. Cause racine : la phase de handshake AT (`at_wait_response`,
+  `at_wait_ip`) appelait `display_render_all()` (rendu HIRES de plusieurs ms)
+  **en pleine reception**. Le code reposait sur le FIFO 4096 octets de
+  l'emulateur Phosphoric (`--serial-buffer 4096`), absent du 6551 reel qui n'a
+  qu'un registre RX de **1 octet** : pendant chaque rendu, les octets suivants
+  etaient ecrases (overrun, bit OVRN) et perdus. Les mots-cles `OK`/`CONNECT`
+  arrivaient tronques -> timeout -> connexion reputee echouee alors que le
+  modem avait repondu.
+  - `at_wait_response()` : la rafale est desormais drainee a pleine vitesse
+    sans aucun rendu ; le rendu est differe aux **creux** (ligne au repos) et
+    n'a **jamais lieu sur match** (apres `CONNECT`, le serveur envoie aussitot
+    le flux Videotex qu'un rendu ferait deborder).
+  - `at_wait_ip()` : meme schema (drain sans rendu, rendu differe aux creux).
+- Impacte uniquement l'application **OricTel** (`src/main.c`) ; ni le bridge,
+  ni le driver `serial_asm.s`, ni la session Videotex (boucle principale qui
+  draine deja avant de rendre) ne sont modifies.
+
 ## [0.2.42] - 2026-06-25
 
 ### Corrige

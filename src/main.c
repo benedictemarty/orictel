@@ -438,27 +438,36 @@ static unsigned char at_wait_response(const char* keyword, unsigned int timeout_
 {
     unsigned int elapsed = 0;
     unsigned char ki = 0;
+    unsigned char pending = 0;      /* octets recus, rendu differe */
 
     while (elapsed < timeout_ms) {
         if (serial_poll()) {
-            /* Drainer la rafale entiere, puis UN rendu */
+            /* Drainer la rafale A PLEINE VITESSE: aucun display_render_all
+             * ici. Le 6551 reel (LOCI/PicoWiFiModemUSB) n'a qu'un registre
+             * RX de 1 octet, pas le FIFO 4096 de l'emulateur: un rendu HIRES
+             * (plusieurs ms) pendant la reception perd des octets par overrun
+             * et le mot-cle est manque -> timeout alors que le modem a
+             * repondu. On rend uniquement dans les creux (branche else),
+             * et jamais sur match (apres CONNECT le serveur envoie aussitot
+             * le flux Videotex qu'un rendu ferait deborder). */
             do {
                 unsigned char b = serial_recv();
                 dbg_byte(dbg_ctx, b);
                 if (b == keyword[ki]) {
                     ++ki;
-                    if (keyword[ki] == 0) {
-                        display_render_all(dbg_ctx);
-                        return 1;
-                    }
+                    if (keyword[ki] == 0) return 1;
                 } else if (b == keyword[0]) {
                     ki = 1;
                 } else {
                     ki = 0;
                 }
             } while (serial_poll());
-            display_render_all(dbg_ctx);
+            pending = 1;
         } else {
+            if (pending) {              /* creux: ligne au repos, rendu sur */
+                display_render_all(dbg_ctx);
+                pending = 0;
+            }
             delay_ms(10);
             elapsed += 10;
         }
@@ -488,10 +497,13 @@ static unsigned char at_wait_ip(unsigned int timeout_ms)
         unsigned char ok = 0;       /* index matcher "OK" terminateur */
         unsigned char done = 0;     /* OK final recu */
         unsigned int  rwait = 0;    /* budget lecture d'une reponse ATI */
+        unsigned char pending = 0;  /* octets recus, rendu differe */
 
         at_send("ATI");
 
-        /* Lire la reponse ATI jusqu'au OK final (ou ~2s de silence) */
+        /* Lire la reponse ATI jusqu'au OK final (ou ~2s de silence).
+         * Comme at_wait_response: drainer sans rendu (le 6551 reel n'a pas
+         * de FIFO), rendu differe aux creux pour ne pas perdre d'octets. */
         for (;;) {
             if (serial_poll()) {
                 do {
@@ -510,9 +522,13 @@ static unsigned char at_wait_ip(unsigned int timeout_ms)
                     else if (b == 'O') { ok = 1; }
                     else { ok = 0; }
                 } while (serial_poll() && !done);
-                display_render_all(dbg_ctx);
+                pending = 1;
                 if (done) break;
             } else {
+                if (pending) {          /* creux: rendu sur */
+                    display_render_all(dbg_ctx);
+                    pending = 0;
+                }
                 if (rwait >= 2000) break;
                 delay_ms(10);
                 rwait += 10;
