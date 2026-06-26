@@ -3,6 +3,9 @@
 ## [0.2.47] - 2026-06-26
 
 ### Corrige
+- **Splash : version affichee figee a v0.2.46** (`main.c`). `ORICTEL_VERSION`
+  n'avait pas suivi le bump 0.2.47 (lot initialement tooling-only, `.tap` non
+  recompile). Macro passee a `v0.2.47` et `orictel.tap`/`.dsk` reconstruits.
 - **`make run` : le scan WiFi ne trouvait aucun reseau** (`Makefile`). La cible
   lancait le backend Hayes generique `--serial modem`, qui n'implemente pas
   `AT$SCAN` : la page Config WiFi restait vide. `make run` emule desormais le

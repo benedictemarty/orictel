@@ -4,7 +4,7 @@
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.46     | 2026-06-26 | inchange (firmware) |
+| orictel.tap        | 0.2.47     | 2026-06-26 | splash v0.2.47 |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
 | Makefile (lancements --loci)| 0.2.47 | 2026-06-26 | canonique |
 | tools/oric1-emu-sdl (non versionne)| 1.27.6 | 2026-06-26 | SDL2 |
