@@ -47,6 +47,8 @@
   a `1 - Modem AT` / `2 - Config WiFi` (section et depannage "Direct" retires,
   renumerotation Config WiFi 3 -> 2) ; prerequis et specs serie a jour (ACIA
   `$0380`, Control=$1E 9600 8N1, plus de backend Digitelec).
+- **Compte-rendu obsolete `docs/RAPPORT_PHOSPHORIC.md` supprime** (instantane
+  d'investigation date, sans objet apres le retrait DTL/$031C).
 
 ## [0.2.45] - 2026-06-26
 
