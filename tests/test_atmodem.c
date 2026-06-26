@@ -116,10 +116,21 @@ int main(void)
     CHECK(tx_len >= 3 && tx_cap[0] == 'A' && tx_cap[1] == 'T' && tx_cap[2] == 'I',
           "at_wait_ip a bien emis ATI");
 
-    /* 9. at_wait_ip: 'NOT CONNECTED' -> pas d'IP */
+    /* 9. at_wait_ip: 'NOT CONNECTED' -> pas d'IP (Pico associe en cours: le
+     *    vocabulaire "CONNECT" est present, donc on continue d'attendre) */
     modem_reset();
     rx_push("Call status: NOT CONNECTED\r\nOK\r\n");
     CHECK(at_wait_ip(100) == 0, "ATI: NOT CONNECTED -> pas d'IP");
+
+    /* 9b. at_wait_ip: modem SANS WiFi (ATI sans "WIFI"/"CONNECT", ex backend
+     *     Phosphoric --serial modem) -> sortie immediate (retour 0) apres UNE
+     *     seule sonde ATI, sans attendre les 15 s du timeout. */
+    modem_reset();
+    rx_push("PHOSPHORIC MODEM V1\r\nOK\r\n");
+    CHECK(at_wait_ip(15000) == 0, "ATI sans WiFi -> sortie immediate (0)");
+    CHECK(tx_len == 4 && tx_cap[0]=='A' && tx_cap[1]=='T' &&
+          tx_cap[2]=='I' && tx_cap[3]==0x0D,
+          "ATI sans WiFi -> une seule sonde (pas de boucle 15s)");
 
     /* 10. at_send: termine bien par CR */
     modem_reset();

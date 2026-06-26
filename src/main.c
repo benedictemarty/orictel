@@ -2,13 +2,17 @@
  * @file main.c
  * @brief OricTel - Terminal Minitel 1B pour Oric 1/Atmos
  *
- * Supporte deux modes de connexion:
+ * Montage materiel unique: LOCI + PicoWiFiModemUSB (ACIA 6551 @ $0380). Le
+ * Pico est un modem Hayes; la connexion passe TOUJOURS par les commandes AT
+ * (ATZ/ATDT). Pas de mode "Direct"/V23 brut.
  *
- * 1. Backend Digitelec DTL 2000 (recommande):
- *    ./oric1-emu --serial digitelec:pavi.3617.fr:3617
- *    Connexion TCP directe, buffer 512, V23 auto. Pas de bridge.
+ * Transports possibles cote hote (tous via le modem AT du Pico):
  *
- * 2. Backend TCP + bridge WebSocket:
+ * 1. PicoWiFiModemUSB reel via LOCI, ou son emulation Phosphoric:
+ *    ./oric1-emu --serial picowifi:OricTel --acia-addr 0380
+ *    ou --loci --serial com:9600,8,N,1,/dev/ttyACM0 (Pico physique).
+ *
+ * 2. Backend TCP + bridge WebSocket (ws://3617.fr):
  *    python3 bridge/orictel_bridge.py &
  *    ./oric1-emu --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
  */
@@ -18,6 +22,10 @@
 #include "display.h"
 #include "keyboard.h"
 #include "at_modem.h"
+
+/* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
+ * VERSION_TRACKING a chaque release. */
+#define ORICTEL_VERSION "v0.2.46"
 
 /* Contexte Videotex global */
 static vtx_context_t vtx;
@@ -186,7 +194,7 @@ static void splash_screen(vtx_context_t* ctx)
     ctx->dirty[5] = 1;
 
     /* Version */
-    ui_print(ctx, 7, 18, "v0.2", VTX_WHITE);
+    ui_print(ctx, 7, 17, ORICTEL_VERSION, VTX_WHITE);
 
     /* Trait de separation */
     for (c = 5; c < 35; ++c) {
@@ -196,11 +204,10 @@ static void splash_screen(vtx_context_t* ctx)
     }
     ctx->dirty[9] = 1;
 
-    /* Auteur / email / licence / credits */
+    /* Auteur / email / licence */
     ui_print(ctx, 11, 10, "par Benedicte Marty", VTX_WHITE);
     ui_print(ctx, 13, 12, "bmarty@mailo.com", VTX_CYAN);
     ui_print(ctx, 15, 12, "Licence EUPL 1.2", VTX_YELLOW);
-    ui_print(ctx, 17, 14, "Telenet 2026", VTX_GREEN);
 
     /* Cadre bas */
     for (c = 5; c < 35; ++c) {
@@ -246,26 +253,26 @@ static void splash_screen(vtx_context_t* ctx)
  *  reel via LOCI).
  *
  *  Envoie ATZ puis ATDT pour se connecter au serveur.
- *  Si pas de modem (TCP direct Phosphoric), les commandes AT
- *  sont ignorees par le serveur Videotex (pas de reponse "OK").
- *  Timeout rapide: si pas de "OK" en ~3s, on passe en mode direct.
+ *  Si aucun modem ne repond "OK" en ~3s (timeout rapide), on abandonne
+ *  le handshake et on entre quand meme en session (indicateur "F").
  * =================================================================== */
 
-/* Mode de connexion */
+/* Mode de connexion. Le PicoWiFiModemUSB est un modem AT : la connexion
+ * passe OBLIGATOIREMENT par les commandes Hayes (ATD...). L'ancien mode
+ * "Direct (TCP)" (ligne V23 brute sans AT) ne s'applique pas a ce montage
+ * et a ete retire. */
 #define MODE_MODEM  0
-#define MODE_DIRECT 1
 #define MODE_WIFI   2   /* page de configuration WiFi du PicoWiFiModemUSB */
 
 /* Menu selection du mode de connexion.
- * Retourne MODE_MODEM ou MODE_DIRECT. */
+ * Retourne MODE_MODEM ou MODE_WIFI. */
 static unsigned char select_mode(vtx_context_t* ctx)
 {
     vtx_clear_page(ctx);
 
     ui_print(ctx, 10, 10, "Mode de connexion:", VTX_WHITE);
     ui_menu_item(ctx, 13, "1 - Modem AT");
-    ui_menu_item(ctx, 15, "2 - Direct (TCP)");
-    ui_menu_item(ctx, 17, "3 - Config WiFi");
+    ui_menu_item(ctx, 15, "2 - Config WiFi");
 
     display_render_all(ctx);
 
@@ -273,34 +280,32 @@ static unsigned char select_mode(vtx_context_t* ctx)
     for (;;) {
         unsigned char key = keyboard_scan();
         if (key == '1') return MODE_MODEM;
-        if (key == '2') return MODE_DIRECT;
-        if (key == '3') return MODE_WIFI;
+        if (key == '2') return MODE_WIFI;
     }
 }
 
-/* Menu selection de l'interface serie. Les deux montages supportes reposent
- * sur le meme ACIA 6551 a la base LOCI ($0380) : la cartouche LOCI seule (son
- * modem propre) ou LOCI + PicoWiFiModemUSB (le Pico se branche TOUJOURS via le
- * LOCI, il n'existe pas de "PicoWiFi seul"). Chacun est utilisable en emulation
- * Phosphoric comme sur le vrai materiel. Le menu retourne donc toujours
- * ACIA_BASE_LOCI ; le choix est informatif (rappel du montage cote
- * utilisateur). */
+/* Ecran d'interface serie. OricTel ne connait qu'un seul montage materiel :
+ * LOCI + PicoWiFiModemUSB sur l'ACIA 6551 a la base LOCI ($0380). Les 3
+ * variantes d'exploitation (tout physique ; Phosphoric tout emule ; Phosphoric
+ * LOCI emule + Pico physique sur USB de l'hote) sont identiques cote firmware,
+ * d'ou un simple ecran de rappel : aucune selection, une touche pour continuer.
+ * Retourne toujours ACIA_BASE_LOCI. */
 static unsigned select_interface(vtx_context_t* ctx)
 {
     vtx_clear_page(ctx);
 
-    ui_print(ctx, 10, 10, "Interface serie:", VTX_WHITE);
-    ui_menu_item(ctx, 13, "1 - LOCI seul       (emule/reel)");
-    ui_menu_item(ctx, 15, "2 - LOCI + PicoWiFi (emule/reel)");
+    ui_print(ctx, 8, 10, "Interface serie:", VTX_WHITE);
+    ui_print(ctx, 11, 12, "LOCI + PicoWiFiModemUSB", VTX_YELLOW);
+    ui_print(ctx, 12, 12, "($0380)", VTX_CYAN);
+    ui_print(ctx, 16, 8, "[une touche] pour continuer", VTX_WHITE);
 
     display_render_all(ctx);
 
     keyboard_flush();           /* anti-rebond: attendre relachement avant lecture */
-    for (;;) {
-        unsigned char key = keyboard_scan();
-        if (key == '1') return ACIA_BASE_LOCI;
-        if (key == '2') return ACIA_BASE_LOCI;
+    while (keyboard_scan() == KEY_NONE) {
+        /* attente d'un appui */
     }
+    return ACIA_BASE_LOCI;
 }
 
 /* Serveurs disponibles */
@@ -663,12 +668,15 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
     DBG_AT_BEGIN(ctx, 12);
     at_send("ATZ");
     if (!at_wait_response("OK", 3000)) {
-        return 0;  /* Pas de modem (mode TCP direct) */
+        return 0;  /* Aucun modem ne repond -> on entre en session sans connexion */
     }
 
     /* ATZ a pu relancer l'association WiFi du PicoWiFiModemUSB: patienter
      * jusqu'a "CONNECTED TO WIFI" (IP prete) avant de composer, sinon ATD
-     * echoue par NO CARRIER. Quasi immediat si le modem est deja connecte. */
+     * echoue par NO CARRIER. Quasi immediat si le modem est deja connecte,
+     * et immediat aussi sur un modem SANS WiFi (backend --serial modem):
+     * at_wait_ip detecte l'absence de sous-systeme WiFi et sort tout de
+     * suite au lieu d'attendre les 15 s. */
     vtx_clear_page(ctx);
     ui_print(ctx, 10, 11, "Attente IP WiFi...", VTX_WHITE);
     display_render_all(ctx);
@@ -760,8 +768,8 @@ int main(void)
     /* Ecran splash avec jingle */
     splash_screen(&vtx);
 
-    /* Choix de l'interface serie: LOCI seul ou LOCI + PicoWiFi, tous deux sur
-     * l'ACIA 6551 a la base LOCI ($0380). La base est reutilisee pour tout
+    /* Ecran interface serie (rappel): unique montage LOCI + PicoWiFiModemUSB
+     * sur l'ACIA 6551 a la base LOCI ($0380). La base est reutilisee pour tout
      * reset ulterieur (KEY_LOCAL_RESET). */
     acia_base = select_interface(&vtx);
 
@@ -787,18 +795,14 @@ int main(void)
         srv_idx = select_server(&vtx);
         vtx_clear_page(&vtx);
 
-        if (mode == MODE_MODEM) {
-            /* Mode modem AT (le backend emule repond immediatement,
-             * 100 ms suffisent pour la stabilisation) */
-            delay_ms(100);
-            modem_connect(&vtx, srv_idx);
-            vtx_clear_page(&vtx);
-        } else {
-            /* Mode direct (TCP + V23): connexion immediate.
-             * Drainer les eventuelles donnees arrivees pendant les menus. */
-            while (serial_poll()) serial_recv();
-            vtx_clear_page(&vtx);
-        }
+        /* Mode modem AT uniquement (PicoWiFiModemUSB = modem Hayes) : a la
+         * sortie de la boucle ci-dessus, mode vaut toujours MODE_MODEM (la
+         * page Config WiFi reboucle). Le backend emule repond immediatement,
+         * 100 ms suffisent pour la stabilisation. */
+        (void)mode;
+        delay_ms(100);
+        modem_connect(&vtx, srv_idx);
+        vtx_clear_page(&vtx);
     }
 
     /* Indicateur initial: F */

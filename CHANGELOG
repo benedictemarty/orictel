@@ -1,5 +1,45 @@
 # CHANGELOG - OricTel
 
+## [0.2.46] - 2026-06-26
+
+### Corrige
+- **`make run` : attente "IP WiFi" trop longue** (`at_modem.c`, `main.c`,
+  `tests/test_atmodem.c`). Le backend Phosphoric `--serial modem` (modem Hayes
+  generique, sans WiFi) ne repond jamais "CONNECTED TO WIFI" : `at_wait_ip`
+  bouclait sur ATI jusqu'au timeout (~15 s) avant de composer. Desormais, si la
+  reponse ATI ne contient aucun vocabulaire WiFi/connexion (`WIFI`/`CONNECT`),
+  on conclut a un modem sans sous-systeme WiFi et on sort immediatement apres
+  une seule sonde. Le PicoWiFiModemUSB reste gere : meme non associe, son ATI
+  mentionne ce vocabulaire (`...NOT CONNECTED`), donc l'attente d'association
+  est preservee. Nouveau test (9b) couvrant la sortie immediate.
+
+### Modifie
+- **Splash : version reelle affichee, credit "Telenet 2026" retire**
+  (`main.c`). L'ecran d'accueil montrait un generique `v0.2` ; il affiche
+  desormais la version exacte via la macro `ORICTEL_VERSION` (`v0.2.46`, a
+  synchroniser au CHANGELOG). La ligne "Telenet 2026" est supprimee.
+- **Ecran "Interface serie" reduit a un rappel** (`main.c`). Le seul montage
+  materiel possible est LOCI + PicoWiFiModemUSB (ACIA 6551 @ `$0380`), decline
+  en 3 variantes d'exploitation strictement identiques cote firmware : tout
+  physique (Oric + LOCI + Pico reel), tout emule (Phosphoric), ou Phosphoric +
+  LOCI emule + Pico physique sur USB de l'hote. `select_interface` n'offre donc
+  plus de choix : un ecran de confirmation (`LOCI + PicoWiFiModemUSB ($0380)`,
+  une touche pour continuer) qui retourne toujours `ACIA_BASE_LOCI`.
+
+### Retire
+- **Mode "Direct (TCP)" / V23 brut** (`main.c`, `Makefile`, `README.md`). Le
+  PicoWiFiModemUSB est un modem Hayes : la connexion passe OBLIGATOIREMENT par
+  les commandes AT (ATZ/ATDT). Le montage cible ne sait pas ouvrir une ligne
+  V23 directe, le mode Direct etait donc inutilisable. Consequences :
+  * menu Mode reduit a `1 - Modem AT` et `2 - Config WiFi` (constante
+    `MODE_DIRECT` et sa branche de traitement supprimees) ;
+  * cibles Makefile `run-direct` et `run-digitelec` retirees (backends
+    `--serial tcp:/--serial-v23` et `digitelec:`, exploitables seulement via
+    l'ancien mode Direct), avec leurs variables `EMU_OPTS_DIRECT`,
+    `EMU_OPTS_DIGITELEC`, `MINITEL_SERVER` ;
+  * en-tete `main.c` et README reecrits autour du seul chemin AT (+ transport
+    WebSocket via le bridge).
+
 ## [0.2.45] - 2026-06-26
 
 ### Retire

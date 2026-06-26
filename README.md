@@ -15,12 +15,12 @@ capable de se connecter aux serveurs Minitel encore en activite sur Internet
 |:---:|:---:|
 | ![Accueil Teletel sur PAVI 3617](assets/screenshot-accueil-pavi.png) | ![Splash OricTel](assets/screenshot-splash.png) |
 
-Trois modes de connexion :
+Modes de connexion :
 
-1. **Modem AT** (recommande) : le backend modem de Phosphoric emule un modem
-   Hayes ; OricTel compose le serveur choisi au menu via ATD host:port.
-2. **TCP direct V23** : connexion TCP directe vers un serveur fixe.
-3. **WebSocket** : relais Python asyncio entre l'emulateur et un serveur
+1. **Modem AT** (unique montage materiel : LOCI + PicoWiFiModemUSB) : le Pico
+   est un modem Hayes ; OricTel compose le serveur choisi au menu via ATD
+   host:port. C'est la seule methode de connexion (pas de ligne V23 brute).
+2. **WebSocket** : relais Python asyncio entre l'emulateur et un serveur
    Minitel WebSocket (ws://3617.fr/ws).
 
 Voir le **[Manuel d'utilisation](docs/MANUEL_UTILISATION.md)** pour le guide
@@ -122,15 +122,6 @@ make run
 # Equivalent a:
 # oric1-emu --rom basic11b.rom --tape orictel.tap -f \
 #     --serial modem --serial-buffer 4096
-```
-
-### Mode TCP direct V23 (serveur fixe, sans bridge)
-
-```bash
-make run-direct
-# Equivalent a:
-# oric1-emu --rom basic11b.rom --tape orictel.tap -f \
-#     --serial tcp:pavi.3617.fr:3617 --serial-v23 --serial-buffer 4096
 ```
 
 ### Mode WebSocket (avec bridge)

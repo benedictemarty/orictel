@@ -137,6 +137,7 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
     while (elapsed < timeout_ms) {
         unsigned char up = 0;           /* "TO WIFI" vu => WiFi associe (IP) */
         unsigned char done = 0;         /* "OK" final (fin de reponse ATI) */
+        unsigned char vocab = 0;        /* reponse ATI mentionne le WiFi/connexion */
         unsigned char pending = 0;
         unsigned int  rwait = 0;        /* budget lecture d'une reponse ATI */
         static char   line[AT_LINE_MAX];
@@ -149,7 +150,11 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
          * differe aux creux. Matcher par ligne :
          *   - "TO WIFI" en SOUS-CHAINE (il est au milieu de la ligne
          *     "WiFi status: CONNECTED TO WIFI"),
-         *   - "OK" en PREFIXE de ligne (terminateur de la reponse). */
+         *   - "OK" en PREFIXE de ligne (terminateur de la reponse),
+         *   - "WIFI"/"CONNECT" en SOUS-CHAINE => le modem a un sous-systeme
+         *     WiFi (Pico, meme non encore associe : "...NOT CONNECTED").
+         *     Son absence signale un modem SANS WiFi (backend Phosphoric
+         *     --serial modem, modem Hayes generique) : inutile d'attendre. */
         for (;;) {
             if (serial_poll()) {
                 do {
@@ -158,6 +163,8 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
                     if (b == 0x0D || b == 0x0A) {
                         line[lp] = 0;
                         if (str_contains(line, S_UP)) up = 1;
+                        if (str_contains(line, "WIFI") ||
+                            str_contains(line, "CONNECT")) vocab = 1;
                         if (str_prefix(line, "OK"))   done = 1;
                         lp = 0;
                     } else if (lp < AT_LINE_MAX - 1) {
@@ -178,6 +185,10 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
         }
 
         if (up) return 1;               /* ATI signale "CONNECTED TO WIFI" */
+
+        /* Modem sans sous-systeme WiFi: on n'attendra jamais d'IP, on sort
+         * tout de suite (au lieu de re-sonder ATI jusqu'a timeout_ms). */
+        if (!vocab) return 0;
 
         at_delay_ms(500);
         elapsed += rwait + 500;

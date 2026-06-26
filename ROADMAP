@@ -56,6 +56,11 @@ utilisable avec les serveurs Minitel modernes via Internet.
       0.2.39)~~ RETIRE en 0.2.45 : driver 6850 (serial6850_asm.s),
       aiguillage 6551/6850, 3e entree de menu et cible run-dtl2000 supprimes.
       Egalement retire : l'entree menu "Emulateur $031C" (base 6551 emulateur).
+- [x] Simplification des menus pour coller a l'unique montage LOCI + PicoWiFi
+      (0.2.46) : ecran Interface reduit a un rappel ($0380), mode "Direct (TCP)"
+      / V23 brut retire (le Pico est un modem AT -> connexion toujours via ATD),
+      cibles run-direct/run-digitelec supprimees. Splash : version reelle
+      (ORICTEL_VERSION) au lieu de "v0.2", credit "Telenet 2026" retire.
 - [~] Robustesse anti-overrun RX sur 6551 reel (0.2.43/0.2.44) :
       * FAIT : la phase de handshake AT (at_modem.c) ne rend plus pendant
         la reception (drain a pleine vitesse, rendu differe aux creux) ;
