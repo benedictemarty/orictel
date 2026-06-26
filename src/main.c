@@ -22,10 +22,11 @@
 #include "display.h"
 #include "keyboard.h"
 #include "at_modem.h"
+#include "ui.h"
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.2.51"
+#define ORICTEL_VERSION "v0.2.52"
 
 /* Contexte Videotex global */
 static vtx_context_t vtx;
@@ -148,35 +149,8 @@ static void play_jingle(void)
     ay_write(7, 0x7F);  /* Mixer: tout off, Port A input */
 }
 
-/* ===================================================================
- *  Helper d'affichage texte des menus
- *
- *  Ecrit une chaine nul-terminee a (row,col) avec la couleur fg et
- *  marque la ligne dirty. Centralise le motif jusque-la duplique des
- *  dizaines de fois dans les menus (splash, mode, interface, serveur,
- *  WiFi, modem). Les cas speciaux (double hauteur, charset G1,
- *  ATTR_FLASH, 1er caractere colore) restent traites par l'appelant
- *  apres l'appel. */
-static void ui_print(vtx_context_t* ctx, unsigned char row,
-                     unsigned char col, const char* s, unsigned char fg)
-{
-    unsigned char i;
-    /* Clip sur la largeur ecran: une chaine dont col+longueur depasse
-     * VTX_COLS deborderait sinon sur la ligne suivante (UB / corruption). */
-    for (i = 0; s[i] && (col + i) < VTX_COLS; ++i) {
-        ctx->screen[row][col + i].ch = s[i];
-        ctx->screen[row][col + i].fg = fg;
-    }
-    ctx->dirty[row] = 1;
-}
-
-/* Item de menu standard a la colonne 12: texte jaune, 1er caractere
- * (le chiffre de selection) en cyan. */
-static void ui_menu_item(vtx_context_t* ctx, unsigned char row, const char* s)
-{
-    ui_print(ctx, row, 12, s, VTX_YELLOW);
-    ctx->screen[row][12].fg = VTX_CYAN;
-}
+/* Les helpers d'affichage/saisie des menus (ui_print, ui_menu_item,
+ * ui_text_input) vivent desormais dans ui.c (testables host: tests/test_ui.c). */
 
 /* Ecran splash: titre, auteur, licence, email, jingle */
 static void splash_screen(vtx_context_t* ctx)
@@ -450,52 +424,6 @@ static void wifi_msg_wait(vtx_context_t* ctx, unsigned char row,
     ui_print(ctx, row, col, msg, VTX_WHITE);
     display_render_all(ctx);
     while (keyboard_scan() == KEY_NONE) { /* attente touche */ }
-}
-
-/* Saisie de texte bornee a partir de (row, col), avec echo a l'ecran.
- *  - buf     : tampon de sortie, taille 'bufsize' (terminaison incluse).
- *  - mask    : si != 0, caractere d'echo (ex. '*' pour un mot de passe) ;
- *              0 => echo du caractere tape.
- *  - ENVOI   : valide -> retourne la longueur saisie (0..maxlen).
- *  - ANNULATION : annule -> retourne 0xFF (buf vide).
- *  - CORRECTION / DELETE / BS : efface le dernier caractere.
- *
- * La longueur saisie est bornee A LA FOIS par le tampon (bufsize-1) ET par la
- * largeur ecran restante (VTX_COLS - col), ce qui garantit que ni 'buf' ni
- * 'screen[row][...]' ne sont jamais ecrits hors limites (col suppose < VTX_COLS). */
-static unsigned char ui_text_input(vtx_context_t* ctx, unsigned char row,
-                                   unsigned char col, char* buf,
-                                   unsigned char bufsize, unsigned char mask)
-{
-    unsigned char pos = 0;
-    unsigned char maxlen = bufsize - 1;
-    if ((unsigned)col + maxlen > VTX_COLS) maxlen = (unsigned char)(VTX_COLS - col);
-    for (;;) {
-        unsigned char key = keyboard_scan();
-        if (key == KEY_NONE) continue;
-        if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ENVOI) {
-            buf[pos] = 0;
-            return pos;
-        } else if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ANNULATION) {
-            buf[0] = 0;
-            return 0xFF;                          /* annulation */
-        } else if (key == 0x7F || key == 0x08 ||
-                   ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_CORRECTION)) {
-            if (pos > 0) {
-                --pos;
-                ctx->screen[row][col + pos].ch = ' ';
-                ctx->dirty[row] = 1;
-                display_render_all(ctx);
-            }
-        } else if (key >= 0x20 && key < 0x7F && pos < maxlen) {
-            buf[pos] = key;
-            ctx->screen[row][col + pos].ch = mask ? mask : key;
-            ctx->screen[row][col + pos].fg = VTX_GREEN;
-            ctx->dirty[row] = 1;
-            display_render_all(ctx);
-            ++pos;
-        }
-    }
 }
 
 /* Page complete de configuration WiFi. Suppose serial_init() deja fait. */

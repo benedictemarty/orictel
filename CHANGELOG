@@ -1,5 +1,20 @@
 # CHANGELOG - OricTel
 
+## [0.2.52] - 2026-06-26
+
+### Refactor / testabilite
+- **Helpers UI extraits dans `src/ui.c` + `src/ui.h`** : `ui_print`,
+  `ui_menu_item` et `ui_text_input` quittent `main.c` (toujours `static`,
+  intestables) pour une unite de compilation dediee, testable host. `main.c`
+  allege d'autant ; comportement inchange.
+
+### Ajoute
+- **Tests host des helpers UI** (`tests/test_ui.c`, cible `make test-ui`,
+  integre a `make test` — 9 checks). Verrouille la **non-regression des bornes
+  de saisie** (findings revue #2-#5) : `ui_print` clippe a la colonne 39, et
+  `ui_text_input` ne deborde jamais sur la ligne suivante (longueur bornee par
+  `VTX_COLS - col`), plus ENVOI/ANNULATION/CORRECTION et le masque '*'.
+
 ## [0.2.51] - 2026-06-26
 
 ### Corrige (revue qualite — finition)

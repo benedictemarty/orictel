@@ -97,11 +97,11 @@ automatisée** (CI, analyse statique, couverture, fuzzing).
 
 ## Reste à faire (optionnel, faible priorité)
 
-1. Tests host de `ui_text_input` pour verrouiller la non-régression des bornes
-   de saisie (#2–#5) — la logique est désormais factorisée, donc facile à
-   couvrir.
+1. ✅ **Fait (0.2.52)** — Helpers UI extraits dans `src/ui.c` + tests host
+   `tests/test_ui.c` (9 checks) verrouillant la non-régression des bornes de
+   saisie (#2–#5).
 2. Cap de version produit (0.3 / 1.0) à acter quand le périmètre fonctionnel
-   est jugé stable.
+   est jugé stable — **décision produit, à ta main**.
 
 > Tous les findings de la revue (P0 #1–#5, mineurs #6–#8) sont **corrigés** ;
 > la chaîne qualité (CI build+test+cppcheck+fuzz+coverage) est en place.
