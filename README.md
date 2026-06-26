@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml/badge.svg)](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml)
 
-**Version:** 0.2.48
+**Version:** 0.3.0
 **Date:** 2026-06-26
 **Auteur:** bmarty <bmarty@mailo.com>
 **Depot public:** https://github.com/benedictemarty/orictel

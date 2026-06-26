@@ -1,10 +1,10 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.52
+## Version actuelle: 0.3.0 (jalon)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.52     | 2026-06-26 | extraction ui.c |
+| orictel.tap        | 0.3.0      | 2026-06-26 | jalon maturite |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
 | ui.c (+ test_ui)   | 0.2.52     | 2026-06-26 | bornes saisie, 9 checks |
 | serial_asm (TDRE borne)| 0.2.51 | 2026-06-26 | anti-freeze HW |

@@ -1,5 +1,25 @@
 # CHANGELOG - OricTel
 
+## [0.3.0] - 2026-06-26 — Jalon
+
+Cap de version actant un palier de maturite. Aucune fonctionnalite nouvelle
+par rapport a 0.2.52 : ce tag marque la consolidation accumulee sur la serie
+0.2.4x-0.2.5x.
+
+### Points cles du jalon
+- **Firmware mono-montage** : une seule interface serie (ACIA 6551 base LOCI
+  `$0380`), partagee par LOCI + PicoWiFiModemUSB (emule ou physique). Suppression
+  de l'emulateur `$031C` et du DTL 2000 (6850). Connexion exclusivement par
+  modem AT (mode Direct/V23 retire).
+- **Qualite durcie** (revue senior) : findings P0 #1-#5 et mineurs #6-#8 tous
+  corriges ; saisies UI bornees (`ui.c`) ; attentes AT et spin TDRE plafonnes.
+- **Chaine qualite complete** : CI GitHub Actions (build cc65 + tests host +
+  cppcheck + fuzzing ASAN/UBSAN + couverture gcov), toute verte.
+- **Tests** : Videotex 219, ACIA/SMC 21, modem AT 18, clavier 22, UI 9,
+  bridge 23. Decodeur reseau fuzze (>1,2 M entrees, 0 crash).
+- **Outillage** : lancements `--loci` canoniques, binaire emulateur local 1.27.6,
+  Makefile portable, rapport de revue archive (`docs/REVUE_QUALITE.md`).
+
 ## [0.2.52] - 2026-06-26
 
 ### Refactor / testabilite
