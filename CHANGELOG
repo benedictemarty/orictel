@@ -1,5 +1,35 @@
 # CHANGELOG - OricTel
 
+## [0.2.47] - 2026-06-26
+
+### Corrige
+- **`make run` : le scan WiFi ne trouvait aucun reseau** (`Makefile`). La cible
+  lancait le backend Hayes generique `--serial modem`, qui n'implemente pas
+  `AT$SCAN` : la page Config WiFi restait vide. `make run` emule desormais le
+  seul device reel, le **PicoWiFiModemUSB** (`--loci --serial picowifi:OricTel`),
+  dont le backend repond a `AT$SCAN` (liste les vrais reseaux de l'hote via
+  `nmcli`, repli simule si absent) et demarre deja associe au SSID fourni
+  (numerotation ATD immediate). `run-picowifi` et `run-loci-emu` deviennent des
+  alias de `run`.
+
+### Build / outillage
+- **Lancements alignes sur la forme canonique `--loci`** (`Makefile`). Le flag
+  `--loci` de Phosphoric (>= 1.27) mappe l'ACIA modem a `$0380` : il remplace
+  l'ancien `--acia-addr 0380` dans toutes les cibles (`run`, `run-picowifi`,
+  `run-loci-emu`, ...). Les deux montages PicoWiFi se distinguent uniquement
+  par le backend serie :
+  * **emule** : `--loci --serial picowifi` (modem simule, ACIA `$0380`) ;
+  * **physique** : `--loci --serial com:115200,8,N,1,/dev/ttyACM0` (vrai
+    PicoWiFiModemUSB en USB-CDC, l'emulateur ne fait que transporter les octets).
+- **Binaire local `tools/oric1-emu-sdl` regenere en Phosphoric 1.27.6 + SDL2**
+  (Phosphoric >= 1.27 est requis pour `--loci => $0380` ; l'ancienne copie
+  etait en 1.19.1, ou `--loci` laissait l'ACIA a `$031C`). `run-loci-real`
+  utilise desormais ce binaire local (plus de dependance au build headless du
+  depot Phosphoric). Note : le binaire n'est pas versionne (gitignore).
+- **Debit serie porte a 115200 bauds** (`PICO_BAUD`) cote DTE (USB-CDC du
+  PicoWiFiModemUSB). Rappel : l'ordre des champs `com:` est
+  `baud,databits,parite,stop,device` (baud en premier, device en dernier).
+
 ## [0.2.46] - 2026-06-26
 
 ### Corrige

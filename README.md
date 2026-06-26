@@ -112,19 +112,24 @@ tester dans l'emulateur (boot Microdisc) :
 make run-dsk
 # Equivalent a:
 # oric1-emu --rom basic11b.rom --disk-rom microdis.rom -d orictel.dsk \
-#     --serial modem --serial-buffer 4096
+#     --loci --serial picowifi:OricTel --serial-buffer 4096
 ```
 
 ## Utilisation
 
-### Mode modem AT (recommande, serveur choisi dans le menu)
+### Mode modem AT (PicoWiFiModemUSB emule, serveur choisi dans le menu)
 
 ```bash
 make run
 # Equivalent a:
 # oric1-emu --rom basic11b.rom --tape orictel.tap -f \
-#     --serial modem --serial-buffer 4096
+#     --loci --serial picowifi:OricTel --serial-buffer 4096
 ```
+
+`make run` emule fidelement le PicoWiFiModemUSB : la page Config WiFi
+(`AT$SCAN`) liste les vrais reseaux de l'hote (via `nmcli`), et le Pico
+demarre deja associe au SSID indique (numerotation immediate). Pour le
+materiel physique, voir `make run-loci` (Pico en USB sur `/dev/ttyACM0`).
 
 ### Mode WebSocket (avec bridge)
 

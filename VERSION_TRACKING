@@ -1,11 +1,13 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.46
+## Version actuelle: 0.2.47
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.46     | 2026-06-26 | En cours    |
+| orictel.tap        | 0.2.46     | 2026-06-26 | inchange (firmware) |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
+| Makefile (lancements --loci)| 0.2.47 | 2026-06-26 | canonique |
+| tools/oric1-emu-sdl (non versionne)| 1.27.6 | 2026-06-26 | SDL2 |
 | menus (interface/mode/splash)| 0.2.46 | 2026-06-26 | AT only |
 | serial (mono-6551 LOCI)| 0.2.45 | 2026-06-26 | DTL+EMU retires |
 | at_modem (module + tests)| 0.2.44 | 2026-06-26 | Decouple    |
