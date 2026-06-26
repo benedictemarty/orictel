@@ -45,16 +45,34 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [x] Pilotage d'un PicoWiFiModemUSB physique via le backend serie `com:`
       de Phosphoric (cible `make run-pico-usb`, ACIA 6551 -> /dev/ttyACM0,
       0.2.36). Reste a valider de bout en bout avec le materiel branche.
-- [x] Base ACIA selectionnable au menu (self-modifying code, 0.2.37) :
-      $031C emulateur OU $0380 cartouche LOCI reelle (modem USB CDC). Un
-      seul binaire pour emulateur et vrai Oric+LOCI+Pico.
+- [x] Base ACIA selectionnable au menu (self-modifying code, 0.2.37),
+      simplifiee en 0.2.45 : OricTel ne cible plus que la base LOCI ($0380),
+      partagee par le materiel LOCI reel et le PicoWiFiModemUSB (emule ou
+      physique). Un seul binaire, un seul driver 6551.
 - [x] Cibles run-loci (materiel reel) et run-loci-emu (test sans materiel,
       0.2.38), config ACIA LOCI $1E/$0B alignee sur Phosphoric sprint 60b.
       Reste a valider la chaine de bout en bout sur le vrai LOCI+Pico.
-- [x] Support carte Digitelec DTL 2000 (PIA 6821 + ACIA 6850 @ $03FC,
-      0.2.39) : driver 6850 dedie + aiguillage 6551/6850, 3e interface menu,
-      cible run-dtl2000. Reste a valider de bout en bout (interface 3 +
-      mode Direct vers un serveur via --dtl2000 tcp:).
+- [x] ~~Support carte Digitelec DTL 2000 (PIA 6821 + ACIA 6850 @ $03FC,
+      0.2.39)~~ RETIRE en 0.2.45 : driver 6850 (serial6850_asm.s),
+      aiguillage 6551/6850, 3e entree de menu et cible run-dtl2000 supprimes.
+      Egalement retire : l'entree menu "Emulateur $031C" (base 6551 emulateur).
+- [~] Robustesse anti-overrun RX sur 6551 reel (0.2.43/0.2.44) :
+      * FAIT : la phase de handshake AT (at_modem.c) ne rend plus pendant
+        la reception (drain a pleine vitesse, rendu differe aux creux) ;
+        la boucle de session draine deja entierement avant tout rendu et
+        cede le rendu des qu'un octet arrive -> fenetre d'overrun bornee a
+        une passe de rendu.
+      * ANALYSE : un ring buffer RX purement *polling* n'aide PAS - sans
+        IRQ, l'octet est ecrase dans le registre 1-octet du 6551 avant que
+        le logiciel ne le lise ; un tampon logiciel ne peut pas le recuperer.
+      * RESTE (necessite materiel reel) : elimination COMPLETE via controle
+        de flux RTS (desasserter RTS pendant un rendu long pour mettre le
+        Pico en pause, si le firmware l'honore) OU reception par IRQ sur
+        RDRF remplissant un ring. A valider sur vrai LOCI+Pico.
+- [x] Decouplage de la machine d'etats modem AT dans at_modem.c (0.2.44),
+      testable sur l'hote (faux modem) : matcher ancre sur les lignes
+      (anti-faux-positif OK/CONNECT), trace de debug derriere #ifdef DEBUG,
+      14 tests unitaires (OK/CONNECT/NO CARRIER/timeout/overrun/ATI).
 - [ ] Support Telestrat natif facilite par la base ACIA configurable
       (verifier l'adresse de l'ACIA integree Telestrat)
 - [ ] Compatibilite Oric-1 (ROM BASIC 1.0)

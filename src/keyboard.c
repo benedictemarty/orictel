@@ -107,6 +107,54 @@ unsigned char keyboard_pending(void)
     return kbhit() ? 1 : 0;
 }
 
+/* Fenetre de "silence" (en iterations de polling) au-dela de laquelle on
+ * considere la touche physiquement relachee. Doit depasser l'intervalle
+ * d'auto-repeat de la ROM Oric. Ajustable si le defilement persiste
+ * (augmenter) ou si la transition entre menus traine (diminuer). */
+#define KBD_QUIET_MAX 8000u
+
+void keyboard_flush(void)
+{
+    /* Purge le tampon clavier ROM PUIS attend un relachement stable.
+     *
+     * Deux problemes resolus:
+     *  1) Burst accumule pendant une phase sans lecture clavier (timeouts
+     *     AT de plusieurs secondes): sans purge, ces frappes se vident d'un
+     *     coup en entrant dans la boucle session et "deroulent" les ecrans.
+     *  2) Auto-repeat ROM entre deux menus enchaines: tant que la touche de
+     *     selection reste enfoncee, la ROM la repete et l'ecran suivant la
+     *     consomme aussitot. On attend donc le relachement effectif.
+     *
+     * A appeler a l'entree de chaque menu et avant la boucle session. */
+    unsigned int quiet = 0;
+    unsigned char saw = 0;
+
+    /* 1) Vider ce qui est deja en tampon. */
+    while (kbhit()) {
+        cgetc();
+        saw = 1;
+    }
+
+    /* 2) Si rien n'attendait, NE PAS imposer de pause: cas normal d'une
+     *    transition d'ecran sans touche maintenue. */
+    if (!saw) {
+        funct_pressed = 0;
+        return;
+    }
+
+    /* 3) Des frappes etaient presentes (touche maintenue / burst): attendre
+     *    un silence stable = relachement effectif (l'auto-repeat ROM cesse). */
+    while (quiet < KBD_QUIET_MAX) {
+        if (kbhit()) {
+            cgetc();
+            quiet = 0;
+        } else {
+            ++quiet;
+        }
+    }
+    funct_pressed = 0;
+}
+
 unsigned char keyboard_scan(void)
 {
     unsigned char ch;

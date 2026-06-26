@@ -14,9 +14,11 @@
 ; ----------------------------------------------------------
 ; serial_init(base) recoit la base de l'ACIA dans A (poids faible) / X
 ; (poids fort) et patche les operandes absolues des instructions de ce
-; driver AVANT de programmer l'ACIA. Cela permet le meme binaire pour:
-;   - $031C : ACIA emulee Phosphoric/Euphoric
-;   - $0380 : ACIA emulee par la cartouche LOCI reelle (modem USB CDC)
+; driver AVANT de programmer l'ACIA. OricTel n'utilise plus que la base
+; LOCI ($0380), partagee par le materiel LOCI reel et le PicoWiFiModemUSB
+; (emule ou physique). Le mecanisme SMC et le discriminant de configuration
+; sont conserves (la branche "horloge externe" reste du code mort inoffensif,
+; jamais atteinte tant que la base vaut $0380).
 ; Le code etant en RAM ($0501+), le self-modifying code est legitime et
 ; le surcout est nul apres l'init (les operandes restent absolues).
 ; ===========================================================================

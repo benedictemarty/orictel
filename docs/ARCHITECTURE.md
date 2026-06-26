@@ -27,7 +27,7 @@ Serveur Minitel (ws://3617.fr/ws)
 | Mode V23          |  --serial-v23 (1200/75 baud)
 +-------------------+
         |
-        | Registres ACIA 6551 @ $031C-$031F
+        | Registres ACIA 6551 @ $0380-$0383 (base LOCI)
         | Timing cycle-accurate
         v
 +-------------------+
@@ -48,7 +48,7 @@ $0000-$00FB  Zero Page (cc65: $00E2-$00FB)
 $0100-$01FF  Pile 6502
 $0200-$02FF  Variables systeme
 $0300-$030F  VIA 6522 (miroir $0300-$03FF)
-$031C-$031F  ACIA 6551 (serie)
+$0380-$0383  ACIA 6551 (serie, base LOCI)
 $0400-$0500  Zone systeme Oric
 $0501-$97FF  CODE + DATA OricTel (~37 Ko)
 $9800-$9FFF  BSS / Pile cc65 (2 Ko)
@@ -61,10 +61,10 @@ $C000-$FFFF  ROM (16 Ko)
 
 | Adresse | Lecture          | Ecriture          |
 |---------|------------------|-------------------|
-| $031C   | Donnee recue     | Donnee a envoyer  |
-| $031D   | Registre statut  | Reset programme   |
-| $031E   | Registre commande| Registre commande |
-| $031F   | Registre controle| Registre controle |
+| $0380   | Donnee recue     | Donnee a envoyer  |
+| $0381   | Registre statut  | Reset programme   |
+| $0382   | Registre commande| Registre commande |
+| $0383   | Registre controle| Registre controle |
 
 ### Configuration V23 Minitel
 - Controle: $28 = 1200 baud, 7 bits, 1 stop

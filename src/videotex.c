@@ -16,6 +16,30 @@
 extern unsigned char g_global_mask;
 
 /* ===================================================================
+ *  Constantes du protocole (STUM 1B / CEPT) - evite les nombres magiques
+ * =================================================================== */
+
+/* Marqueurs de sequence protocole apres ESC (STUM 1B) :
+ * PRO1 = ESC $39 + 1 octet, PRO2 = ESC $3A + 2, PRO3 = ESC $3B + 3. */
+#define VTX_PRO1_MARK   0x39
+#define VTX_PRO3_MARK   0x3B
+#define VTX_PRO_BASE    0x38    /* pro_kind = marqueur - base (1/2/3) */
+
+/* Decodage d'adresse curseur US (norme STUM p.91) : ligne/colonne sont
+ * codees a partir de $40 ($40 = 0). */
+#define VTX_ADDR_BASE   0x40
+
+/* Codes accent du single-shift G2 (ESC $19 + code) : sous-ensemble CEPT
+ * des diacritiques utilises par le Minitel. Plage valide $41..$4F. */
+#define SS2_ACC_MIN     0x41
+#define SS2_ACC_MAX     0x4F
+#define SS2_ACC_GRAVE   0x41
+#define SS2_ACC_ACUTE   0x42
+#define SS2_ACC_CIRC    0x43
+#define SS2_ACC_TREMA   0x48
+#define SS2_ACC_CEDILLA 0x4B
+
+/* ===================================================================
  *  Identification terminal (ENQ et PRO1 ENQROM)
  *  Reponse STUM 1B: SOH + constructeur + type + version + EOT
  * =================================================================== */
@@ -436,9 +460,9 @@ static void process_esc(vtx_context_t* ctx, unsigned char byte)
      * PRO2: ESC $3A + 2 octets (commande + parametre)
      * PRO3: ESC $3B + 3 octets (commande + 2 parametres)
      * Reference: STUM 1B (specification technique du Minitel) */
-    if (byte >= 0x39 && byte <= 0x3B) {
+    if (byte >= VTX_PRO1_MARK && byte <= VTX_PRO3_MARK) {
         ctx->state = VTX_STATE_PRO;
-        ctx->pro_kind = byte - 0x38;  /* $39->1, $3A->2, $3B->3 */
+        ctx->pro_kind = byte - VTX_PRO_BASE;  /* $39->1, $3A->2, $3B->3 */
         ctx->pro_idx = 0;
         return;
     }
@@ -723,7 +747,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         return;
 
     case VTX_STATE_US_ROW:
-        ctx->us_row = byte - 0x40;
+        ctx->us_row = byte - VTX_ADDR_BASE;
         ctx->state = VTX_STATE_US_COL;
         return;
 
@@ -731,7 +755,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         /* Col = byte - $41. Si byte=$40, col=0 (pas -1).
          * Le Minitel utilise $40 pour col 0. */
         vtx_set_cursor(ctx, ctx->us_row,
-                        (byte >= 0x41) ? (byte - 0x41) : 0);
+                        (byte > VTX_ADDR_BASE) ? (byte - (VTX_ADDR_BASE + 1)) : 0);
         /* US reset tous les attributs (norme STUM p.91)
          * Ref: telenet emulateur.js lignes 785-795 */
         ctx->charset = CHARSET_G0;      /* modeG1 = false */
@@ -745,7 +769,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
 
     case VTX_STATE_SS2:
         /* Single shift G2: diacritiques ou caractere G2 standalone */
-        if (byte >= 0x41 && byte <= 0x4F) {
+        if (byte >= SS2_ACC_MIN && byte <= SS2_ACC_MAX) {
             /* Code accent: sauver et attendre le caractere base */
             ctx->ss2_accent = byte;
             ctx->state = VTX_STATE_SS2_ACC;
@@ -765,18 +789,18 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
             unsigned char acc_ch = 0;
             /* Mapper (accent, base) -> code interne G2 accentue */
             switch (ctx->ss2_accent) {
-                case 0x42: /* aigu */
+                case SS2_ACC_ACUTE: /* aigu */
                     if (byte == 0x65)      acc_ch = 0x80; /* e' */
                     else if (byte == 0x45) acc_ch = 0x8E; /* E' */
                     break;
-                case 0x41: /* grave */
+                case SS2_ACC_GRAVE: /* grave */
                     if (byte == 0x65)      acc_ch = 0x81; /* e` */
                     else if (byte == 0x61) acc_ch = 0x83; /* a` */
                     else if (byte == 0x75) acc_ch = 0x84; /* u` */
                     else if (byte == 0x41) acc_ch = 0x8D; /* A` */
                     else if (byte == 0x45) acc_ch = 0x8F; /* E` */
                     break;
-                case 0x43: /* circonflexe */
+                case SS2_ACC_CIRC: /* circonflexe */
                     if (byte == 0x65)      acc_ch = 0x82; /* e^ */
                     else if (byte == 0x61) acc_ch = 0x86; /* a^ */
                     else if (byte == 0x69) acc_ch = 0x87; /* i^ */
@@ -785,13 +809,13 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                     else if (byte == 0x41) acc_ch = 0x93; /* A^ */
                     else if (byte == 0x45) acc_ch = 0x90; /* E^ */
                     break;
-                case 0x48: /* trema */
+                case SS2_ACC_TREMA: /* trema */
                     if (byte == 0x65)      acc_ch = 0x8A; /* e" */
                     else if (byte == 0x69) acc_ch = 0x8B; /* i" */
                     else if (byte == 0x75) acc_ch = 0x8C; /* u" */
                     else if (byte == 0x45) acc_ch = 0x91; /* E" */
                     break;
-                case 0x4B: /* cedille */
+                case SS2_ACC_CEDILLA: /* cedille */
                     if (byte == 0x63)      acc_ch = 0x85; /* c, */
                     else if (byte == 0x43) acc_ch = 0x92; /* C, */
                     break;
@@ -809,7 +833,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
     case VTX_STATE_REP:
         /* Repeter le dernier caractere N fois */
         {
-            unsigned char count = byte - 0x40;
+            unsigned char count = byte - VTX_ADDR_BASE;
             if (count > 40) count = 40;
             while (count-- > 0) {
                 put_char(ctx, ctx->last_char, ctx->last_charset);

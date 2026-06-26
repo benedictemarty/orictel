@@ -35,7 +35,7 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
          |                                            |
          v                                   [orictel_bridge.py]
    [Phosphoric]                                       |
-  ACIA 6551 @ $031C                           TCP :3615
+  ACIA 6551 @ $0380 (LOCI)                    TCP :3615
          |                                            |
          +--------------------------------------------+
          |

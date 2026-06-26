@@ -1,16 +1,18 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.43
+## Version actuelle: 0.2.45
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.43     | 2026-06-25 | En cours    |
+| orictel.tap        | 0.2.45     | 2026-06-26 | En cours    |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
+| serial (mono-6551 LOCI)| 0.2.45 | 2026-06-26 | DTL+EMU retires |
+| at_modem (module + tests)| 0.2.44 | 2026-06-26 | Decouple    |
+| ui_print (dedup menus)| 0.2.44 | 2026-06-26 | -4.3 Ko     |
 | handshake AT (anti-overrun)| 0.2.43 | 2026-06-25 | Fix HW reel |
 | numerotation ATDT  | 0.2.42     | 2026-06-25 | Fix PAVI    |
-| config WiFi/at_wait_ip| 0.2.43 | 2026-06-25 | v0.3.x      |
-| serial (aiguillage)| 0.2.39     | 2026-06-21 | 6551 + 6850 |
-| serial 6850 (DTL)  | 0.2.39     | 2026-06-21 | Nouveau     |
+| config WiFi/at_wait_ip| 0.2.44 | 2026-06-26 | v0.3.x      |
+| serial 6850 (DTL)  | 0.2.39     | 2026-06-21 | RETIRE 0.2.45 |
 | serial_tx (file TX)| 0.2.19    | 2026-06-12 | Nouveau     |
 | orictel_bridge.py  | 0.2.21    | 2026-06-12 | Stable      |
 | Videotex decoder   | 0.2.18     | 2026-06-12 | Stable      |
@@ -21,6 +23,15 @@
 | Font data (G2)     | 0.2.15    | 2026-05-07 | Etendu CEPT |
 
 ## Historique des versions
+
+### 0.2.44 (2026-06-26)
+- Refactor suite a la revue d'ingenierie: extraction de la machine d'etats
+  modem AT dans at_modem.c (decouplee du rendu, testable hote, 14 tests),
+  matcher de reponse ancre sur les lignes (anti-faux-positif OK/CONNECT),
+  trace debug derriere #ifdef DEBUG, helpers ui_print/ui_menu_item
+  (orictel.tap -4.3 Ko), constantes nommees videotex.c, serial_send borne
+  (anti-deadlock TDRE). Anti-overrun RX: borne documentee + RTS/IRQ identifie
+  comme correctif complet (ROADMAP). Tests 219+38+14+23.
 
 ### 0.2.43 (2026-06-25)
 - Fix connexion impossible sur PicoWiFiModemUSB reel (retour Dbug, forum

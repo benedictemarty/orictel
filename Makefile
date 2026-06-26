@@ -25,12 +25,12 @@ C_SRCS  = $(SRCDIR)/main.c \
           $(SRCDIR)/fonts.c \
           $(SRCDIR)/keyboard.c \
           $(SRCDIR)/serial.c \
-          $(SRCDIR)/serial_tx.c
+          $(SRCDIR)/serial_tx.c \
+          $(SRCDIR)/at_modem.c
 
 # Sources assembleur
 ASM_SRCS = $(SRCDIR)/tapehdr.s \
            $(SRCDIR)/serial_asm.s \
-           $(SRCDIR)/serial6850_asm.s \
            $(SRCDIR)/display_asm.s
 
 # Objets
@@ -68,23 +68,28 @@ DISK_ROM = /home/bmarty/Oric1/roms/microdis.rom
 EMU      = ./tools/oric1-emu-sdl
 EMU_ROM  = /home/bmarty/Oric1/roms/basic11b.rom
 
+# OricTel pilote desormais l'ACIA 6551 a la base LOCI ($0380) uniquement.
+# Les backends emules de Phosphoric (modem/tcp/picowifi/digitelec) sont donc
+# tous relocalises a $0380 via --acia-addr 0380 pour rester en phase.
+ACIA_ADDR = --acia-addr 0380
+
 # Modem AT: OricTel choisit le serveur via ATD (recommande)
-EMU_OPTS = --serial modem --serial-buffer 4096
+EMU_OPTS = --serial modem $(ACIA_ADDR) --serial-buffer 4096
 
 # TCP direct vers un serveur fixe (pas de choix serveur dans OricTel)
 MINITEL_SERVER = pavi.3617.fr:3617
-EMU_OPTS_DIRECT = --serial tcp:$(MINITEL_SERVER) --serial-v23 --serial-buffer 4096
+EMU_OPTS_DIRECT = --serial tcp:$(MINITEL_SERVER) --serial-v23 $(ACIA_ADDR) --serial-buffer 4096
 
-# Backend Digitelec DTL 2000 de Phosphoric (modem V23 sur ACIA 6551 @ $031C,
-# gestion porteuse DCD/CTS, pas de commandes AT). Le mode V23 1200/75 est
-# auto-active par le backend. A utiliser avec OricTel en mode Direct (menu 2).
-EMU_OPTS_DIGITELEC = --serial digitelec:$(MINITEL_SERVER) --serial-buffer 4096
+# Backend Digitelec de Phosphoric (modem V23 sur ACIA 6551, gestion porteuse
+# DCD/CTS, pas de commandes AT). Le mode V23 1200/75 est auto-active par le
+# backend. A utiliser avec OricTel en mode Direct (menu 2).
+EMU_OPTS_DIGITELEC = --serial digitelec:$(MINITEL_SERVER) $(ACIA_ADDR) --serial-buffer 4096
 
 # Backend PicoWiFiModemUSB (sodiumlb) de Phosphoric : modem AT WiFi sur ACIA
 # 6551, association WiFi simulee, connexions data = vraies sockets TCP. A
 # utiliser avec OricTel en mode Modem AT (menu 1), puis ATD vers un serveur.
 PICOWIFI_SSID = OricTel
-EMU_OPTS_PICOWIFI = --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 4096
+EMU_OPTS_PICOWIFI = --serial picowifi:$(PICOWIFI_SSID) $(ACIA_ADDR) --serial-buffer 4096
 
 # PicoWiFiModemUSB PHYSIQUE branche en USB (et non l'emulation ci-dessus).
 # Phosphoric route l'ACIA vers le vrai port serie via le backend
@@ -94,23 +99,28 @@ EMU_OPTS_PICOWIFI = --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 4096
 PICO_DEV  = /dev/ttyACM0
 PICO_BAUD = 9600
 
-# Scenario A : carte serie 6551 a $031C + Pico sur son UART (interface 1 dans
-# OricTel). ACIA a l'adresse par defaut $031C.
-EMU_OPTS_PICO_USB = --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) --serial-buffer 4096
-
 # Scenario B : montage reel Oric + LOCI + Pico. La cartouche LOCI expose l'ACIA
 # 6551 a $0380 et relaie le PicoWiFiModemUSB branche sur son port USB. Config
-# authentique Phosphoric (sprint 60b). Choisir l'interface 2 (LOCI) dans OricTel.
+# authentique Phosphoric (sprint 60b). Choisir l'interface 1 (LOCI) dans OricTel.
 EMU_OPTS_LOCI = --loci --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) --serial-buffer 4096
 
 # Scenario C : test du chemin LOCI ($0380) SANS materiel, avec le modem
 # PicoWiFi emule par Phosphoric relocalise a $0380. Choisir l'interface 2.
 EMU_OPTS_LOCI_EMU = --serial picowifi:$(PICOWIFI_SSID) --acia-addr 0380 --serial-buffer 4096
 
-# Carte Digitelec DTL 2000 (PIA 6821 + ACIA 6850 @ $03F8-$03FD) emulee par
-# Phosphoric. Transport V23 brut, pas de Hayes AT : la connexion est etablie
-# par le backend. Dans OricTel : interface 3 (DTL 2000), mode Direct (2).
-EMU_OPTS_DTL2000 = --dtl2000 tcp:$(MINITEL_SERVER)
+# Scenario B' (run-loci-real) : montage REEL Oric-1 + LOCI + Pico, avec le
+# binaire Phosphoric FIDELE. Le binaire local tools/ (1.19.1) place seulement
+# la MIA LOCI a $03A0 et laisse l'ACIA a $031C ; la modelisation fidele du
+# modem LOCI a $0380 n'arrive qu'en Phosphoric >= 1.27 (--loci => ACIA $0380).
+# On vise donc l'emulateur du depot /home/bmarty/Oric1 (1.27.3, SDL), ROM
+# Oric-1 (basic10), et AUCUN --serial-buffer : le 6551 garde son unique octet
+# RX, conditions proches du vrai materiel (le correctif anti-overrun a un sens).
+# Ajouter LOCI_BUFFER=512 (ou autre) si la reception est trop instable.
+EMU_LOCI_REAL  = /home/bmarty/Oric1/oric1-emu
+ROM_ORIC1      = /home/bmarty/Oric1/roms/basic10.rom
+LOCI_BUFFER    =
+EMU_OPTS_LOCI_REAL = --loci --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) \
+                     $(if $(LOCI_BUFFER),--serial-buffer $(LOCI_BUFFER),)
 
 # Flags cc65
 CC65FLAGS = -t $(TARGET) -O --add-source
@@ -120,7 +130,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-direct run-digitelec run-picowifi run-pico-usb run-loci run-loci-emu run-dtl2000 run-ws run-dsk bridge dsk test help
+.PHONY: all clean run run-direct run-digitelec run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk test test-videotex test-serial test-atmodem test-bridge help
 
 all: $(OUTPUT)
 
@@ -197,27 +207,28 @@ run-picowifi: $(OUTPUT)
 	@echo "    Dans OricTel : mode Modem AT (touche 1), puis ATD vers un serveur"
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_PICOWIFI)
 
-run-pico-usb: $(OUTPUT)
-	@echo "=== OricTel -> 6551 a \$$031C + PicoWiFiModemUSB ($(PICO_DEV) @ $(PICO_BAUD) baud) ==="
-	@echo "    Dans OricTel : interface 1 (Emulateur \$$031C), mode Modem AT, ATD"
-	@test -c $(PICO_DEV) || { echo "ERREUR: $(PICO_DEV) introuvable (Pico branche ?)"; exit 1; }
-	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_PICO_USB)
-
 run-loci: $(OUTPUT)
 	@echo "=== OricTel -> LOCI reel ($(PICO_DEV) @ $(PICO_BAUD) baud, ACIA \$$0380) ==="
-	@echo "    Dans OricTel : interface 2 (LOCI \$$0380), mode Modem AT, ATD"
+	@echo "    Dans OricTel : interface 1 (LOCI), mode Modem AT, ATD"
 	@test -c $(PICO_DEV) || { echo "ERREUR: $(PICO_DEV) introuvable (Pico branche ?)"; exit 1; }
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_LOCI)
 
 run-loci-emu: $(OUTPUT)
 	@echo "=== OricTel -> ACIA LOCI emulee \$$0380 + modem PicoWiFi emule (test sans materiel) ==="
-	@echo "    Dans OricTel : interface 2 (LOCI \$$0380), mode Modem AT, ATD"
+	@echo "    Dans OricTel : interface 2 (LOCI + PicoWiFi), mode Modem AT, ATD"
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_LOCI_EMU)
 
-run-dtl2000: $(OUTPUT)
-	@echo "=== OricTel -> Digitelec DTL 2000 (ACIA 6850 @ \$$03FC) -> $(MINITEL_SERVER) ==="
-	@echo "    Dans OricTel : interface 3 (DTL 2000), mode Direct (touche 2)"
-	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_DTL2000)
+# Montage REEL Oric-1 + LOCI + PicoWiFiModemUSB physique, emulateur FIDELE
+# (Phosphoric 1.27.3 du depot /home/bmarty/Oric1, --loci => ACIA $0380).
+run-loci-real: $(OUTPUT)
+	@echo "=== OricTel -> LOCI reel FIDELE (Oric-1, ACIA \$$0380, $(PICO_DEV)) ==="
+	@echo "    Emulateur : $(EMU_LOCI_REAL)"
+	@echo "    Dans OricTel : interface 1 (LOCI), mode Modem AT"
+	@echo "    (Pico non associe au WiFi ? -> menu 3 Config WiFi d'abord)"
+	@test -x $(EMU_LOCI_REAL) || { echo "ERREUR: $(EMU_LOCI_REAL) introuvable/non executable"; exit 1; }
+	@test -f $(ROM_ORIC1) || { echo "ERREUR: ROM Oric-1 $(ROM_ORIC1) introuvable"; exit 1; }
+	@test -c $(PICO_DEV) || { echo "ERREUR: $(PICO_DEV) introuvable (Pico branche ?)"; exit 1; }
+	$(EMU_LOCI_REAL) --rom $(ROM_ORIC1) --tape $(OUTPUT) -f $(EMU_OPTS_LOCI_REAL)
 
 # Booter la disquette Sedoric (Microdisc) : OricTel se lance automatiquement.
 # Mode modem AT par defaut (serveur choisi dans le menu).
@@ -246,7 +257,7 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-serial test-bridge
+test: test-videotex test-serial test-atmodem test-bridge
 
 test-videotex: $(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_videotex \
@@ -259,6 +270,13 @@ test-serial: $(TESTDIR)/test_serial_smc.c $(SRCDIR)/serial.h
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_serial_smc \
 		$(TESTDIR)/test_serial_smc.c -DTEST_HOST
 	$(BLDDIR)/test_serial_smc
+
+# Machine d'etats modem AT (faux modem en memoire): OK/CONNECT/NO CARRIER,
+# timeout, matcher ancre (anti-faux-positif), regression overrun, ATI/IP.
+test-atmodem: $(TESTDIR)/test_atmodem.c $(SRCDIR)/at_modem.c
+	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_atmodem \
+		$(TESTDIR)/test_atmodem.c $(SRCDIR)/at_modem.c -DTEST_HOST
+	$(BLDDIR)/test_atmodem
 
 # Le runner integre du script gere les tests async (pytest sans
 # pytest-asyncio ne sait pas les executer et echouait silencieusement
@@ -294,15 +312,15 @@ help:
 	@echo "  run-direct    Emulateur en TCP direct V23 vers $(MINITEL_SERVER)"
 	@echo "  run-digitelec Backend Digitelec DTL 2000 (V23) vers $(MINITEL_SERVER)"
 	@echo "  run-picowifi  Modem AT WiFi PicoWiFiModemUSB EMULE (SSID=$(PICOWIFI_SSID))"
-	@echo "  run-pico-usb  6551 \$$031C + Pico physique ($(PICO_DEV) @ $(PICO_BAUD) baud)"
 	@echo "  run-loci      LOCI reel + Pico physique (ACIA \$$0380, $(PICO_DEV))"
 	@echo "  run-loci-emu  Chemin LOCI \$$0380 teste sans materiel (PicoWiFi emule)"
-	@echo "  run-dtl2000   Carte Digitelec DTL 2000 (ACIA 6850 \$$03FC) -> $(MINITEL_SERVER)"
+	@echo "  run-loci-real Oric-1 + LOCI + Pico physique, emulateur fidele 1.27.3 (\$$0380)"
 	@echo "  run-ws        Bridge WebSocket + emulateur (ws://3617.fr)"
 	@echo "  bridge        Lancer uniquement le bridge"
 	@echo "  test          Executer tous les tests"
 	@echo "  test-videotex Tests du decodeur Videotex"
 	@echo "  test-serial   Tests coherence bases ACIA (emu/LOCI, SMC)"
+	@echo "  test-atmodem  Tests machine d'etats modem AT (faux modem)"
 	@echo "  test-bridge   Tests du bridge"
 	@echo "  test-server   Serveur Videotex local de demo (test manuel)"
 	@echo "  clean         Nettoyer les fichiers generes"

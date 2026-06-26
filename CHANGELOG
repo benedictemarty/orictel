@@ -1,5 +1,89 @@
 # CHANGELOG - OricTel
 
+## [0.2.45] - 2026-06-26
+
+### Retire
+- **Interface "Emulateur 6551 ($031C)" et carte "Digitelec DTL 2000"**
+  (`main.c`, `serial.c`, `serial.h`, `serial6850_asm.s`, `Makefile`,
+  `tests/test_serial_smc.c`). OricTel ne pilote plus qu'une seule puce serie :
+  l'ACIA 6551 a la base LOCI (`$0380`), partagee par le materiel LOCI reel et
+  le PicoWiFiModemUSB (emule comme physique). Concretement :
+  * le menu Interface ne propose plus que deux montages, tous deux sur `$0380` :
+    `1 - LOCI seul (emule/reel)` et `2 - LOCI + PicoWiFi (emule/reel)` (le
+    PicoWiFiModemUSB passe TOUJOURS par le LOCI, il n'existe pas de "PicoWiFi
+    seul") ;
+  * le driver Motorola 6850 `serial6850_asm.s` est supprime, ainsi que
+    l'aiguillage 6551/6850 dans `serial.c` (devenu un simple renvoi vers
+    `acia6551_*`) ;
+  * suppression des constantes `ACIA_BASE_EMU`, `ACIA_BASE_DTL`,
+    `ACIA_CTRL_EMU`, `ACIA_CMD_EMU` et de tous les `DTL_*` dans `serial.h` ;
+  * `Makefile` : retrait des cibles `run-dtl2000` et `run-pico-usb` (scenario
+    6551 a `$031C`), retrait de `serial6850_asm.s` des sources ; les backends
+    emules (`run`, `run-direct`, `run-picowifi`, `run-digitelec`) sont
+    relocalises a `$0380` via `--acia-addr 0380` pour rester en phase ;
+  * `tests/test_serial_smc.c` : ne teste plus que la coherence de la base LOCI
+    (21 verifications, EMU et 6850 retirees).
+  Documentation alignee (README, docs/ARCHITECTURE, ROADMAP, CLAUDE.md :
+  ACIA `$0380-$0383`). Le mecanisme self-modifying code de `serial_asm.s` est
+  conserve (la branche "horloge externe" devient du code mort inoffensif).
+
+## [0.2.44] - 2026-06-26
+
+### Corrige
+- **Clavier: latence puis defilement intempestif des ecrans** (`keyboard.c`,
+  `main.c`). Deux causes :
+  * pendant la connexion, `modem_connect` attend les reponses AT (jusqu'a
+    ~25 s cumulees: `at_wait_ip` + `CONNECT`) SANS lire le clavier -> les
+    frappes (et l'auto-repeat de la ROM Oric) s'accumulent, puis se vident
+    d'un coup en entrant en session et "deroulent" les ecrans ;
+  * les menus enchaines n'avaient AUCUN anti-rebond -> une touche maintenue
+    cascadait d'un menu au suivant.
+  Nouvelle fonction `keyboard_flush()` : vide le tampon ROM puis attend le
+  relachement effectif (silence stable) UNIQUEMENT si des frappes etaient
+  presentes (pas de pause ajoutee dans le cas normal). Appelee a l'entree de
+  chaque menu et avant la boucle session. Seuil `KBD_QUIET_MAX` ajustable.
+
+### Ajoute
+- **Cible `make run-loci-real`** : lance OricTel sur le montage REEL Oric-1 +
+  LOCI + PicoWiFiModemUSB physique, avec l'emulateur Phosphoric FIDELE 1.27.3
+  (depot /home/bmarty/Oric1) ou `--loci` mappe l'ACIA modem a `$0380`. ROM
+  Oric-1 (basic10), AUCUN `--serial-buffer` par defaut (6551 = 1 octet RX,
+  conditions proches du vrai materiel ; `LOCI_BUFFER=512` pour assouplir).
+  Le `tools/oric1-emu-sdl` local (1.19.1) ne modelise pas le `$0380` fidele
+  (seulement la MIA a $03A0) -> cible dediee plutot que `run-loci`.
+- **Module `at_modem.c` + tests** : la machine d'etats modem AT est extraite
+  de `main.c` dans un module decouple du rendu, testable sur l'hote avec un
+  faux modem en memoire. Nouvelle cible `make test-atmodem` (14 tests :
+  OK/CONNECT/NO CARRIER/timeout, matcher ancre, regression overrun, ATI/IP).
+
+### Modifie / Refactor (suite a la revue d'ingenierie)
+- **Matcher de reponse AT ancre sur les lignes** (CR/LF) au lieu d'une
+  recherche en sous-chaine : un SSID ou un echo de commande contenant
+  "OK"/"CONNECT" ne provoque plus de faux positif. Conforme aux reponses
+  Hayes (toujours delimitees CR/LF).
+- **Trace de debug du handshake AT derriere `#ifdef DEBUG`** : en production
+  la phase AT est muette et ne declenche aucun rendu (l'affichage hex/ASCII
+  des octets recus n'apparait plus a l'ecran utilisateur). Branchee via des
+  hooks `at_set_trace()`, sans coupler `at_modem.c` au moteur de rendu.
+- **`ui_print()` / `ui_menu_item()`** : factorisation du motif d'affichage
+  des menus duplique ~30 fois -> `orictel.tap` reduit de ~4,3 Ko.
+- **Constantes nommees** dans `videotex.c` (marqueurs PRO1/2/3, codes accent
+  SS2, offset d'adresse US/REP) a la place des nombres magiques.
+- **`serial_send` / `serial_tx_flush` bornes** : abandon de l'octet apres
+  ~65536 tours plutot qu'un blocage infini si TDRE n'est jamais pret
+  (ACIA absente / panne materielle).
+- **Invariant `chip_is_6850` documente** : re-derive a chaque `serial_init`,
+  donc coherent apres un KEY_LOCAL_RESET (verifie, pas un bug).
+- **Commentaire obsolete "Oricutron" -> "Phosphoric / PicoWiFiModemUSB"**.
+
+### Note d'ingenierie (anti-overrun RX)
+- La boucle de session etait deja correcte (drain complet avant rendu, rendu
+  cede des qu'un octet arrive : fenetre d'overrun bornee a une passe). Un ring
+  buffer purement *polling* a ete ANALYSE puis REJETE : sans IRQ, l'octet est
+  ecrase dans le registre 1-octet du 6551 avant que le logiciel ne le lise.
+  L'elimination complete demande un controle de flux RTS ou une RX par IRQ
+  (a valider sur materiel reel) - documente dans ROADMAP.
+
 ## [0.2.43] - 2026-06-25
 
 ### Corrige

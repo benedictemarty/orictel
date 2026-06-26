@@ -65,6 +65,14 @@ void keyboard_init(void);
 unsigned char keyboard_pending(void);
 
 /**
+ * Purge le tampon clavier ROM puis attend le relachement effectif de la
+ * touche (anti-rebond / anti-auto-repeat). A appeler a l'entree de chaque
+ * menu et avant la boucle session pour eviter le defilement intempestif
+ * des ecrans (frappes accumulees pendant les timeouts AT, auto-repeat ROM).
+ */
+void keyboard_flush(void);
+
+/**
  * Scanne le clavier Oric et retourne la touche pressee.
  * @return Code ASCII (7 bits) ou KEY_FUNC_FLAG | code_fonction,
  *         ou KEY_NONE si aucune touche.

@@ -17,6 +17,7 @@
 #include "videotex.h"
 #include "display.h"
 #include "keyboard.h"
+#include "at_modem.h"
 
 /* Contexte Videotex global */
 static vtx_context_t vtx;
@@ -139,6 +140,34 @@ static void play_jingle(void)
     ay_write(7, 0x7F);  /* Mixer: tout off, Port A input */
 }
 
+/* ===================================================================
+ *  Helper d'affichage texte des menus
+ *
+ *  Ecrit une chaine nul-terminee a (row,col) avec la couleur fg et
+ *  marque la ligne dirty. Centralise le motif jusque-la duplique des
+ *  dizaines de fois dans les menus (splash, mode, interface, serveur,
+ *  WiFi, modem). Les cas speciaux (double hauteur, charset G1,
+ *  ATTR_FLASH, 1er caractere colore) restent traites par l'appelant
+ *  apres l'appel. */
+static void ui_print(vtx_context_t* ctx, unsigned char row,
+                     unsigned char col, const char* s, unsigned char fg)
+{
+    unsigned char i;
+    for (i = 0; s[i]; ++i) {
+        ctx->screen[row][col + i].ch = s[i];
+        ctx->screen[row][col + i].fg = fg;
+    }
+    ctx->dirty[row] = 1;
+}
+
+/* Item de menu standard a la colonne 12: texte jaune, 1er caractere
+ * (le chiffre de selection) en cyan. */
+static void ui_menu_item(vtx_context_t* ctx, unsigned char row, const char* s)
+{
+    ui_print(ctx, row, 12, s, VTX_YELLOW);
+    ctx->screen[row][12].fg = VTX_CYAN;
+}
+
 /* Ecran splash: titre, auteur, licence, email, jingle */
 static void splash_screen(vtx_context_t* ctx)
 {
@@ -157,12 +186,7 @@ static void splash_screen(vtx_context_t* ctx)
     ctx->dirty[5] = 1;
 
     /* Version */
-    p = "v0.2";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[7][18 + i].ch = p[i];
-        ctx->screen[7][18 + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[7] = 1;
+    ui_print(ctx, 7, 18, "v0.2", VTX_WHITE);
 
     /* Trait de separation */
     for (c = 5; c < 35; ++c) {
@@ -172,37 +196,11 @@ static void splash_screen(vtx_context_t* ctx)
     }
     ctx->dirty[9] = 1;
 
-    /* Auteur */
-    p = "par Benedicte Marty";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[11][10 + i].ch = p[i];
-        ctx->screen[11][10 + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[11] = 1;
-
-    /* Email */
-    p = "bmarty@mailo.com";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[13][12 + i].ch = p[i];
-        ctx->screen[13][12 + i].fg = VTX_CYAN;
-    }
-    ctx->dirty[13] = 1;
-
-    /* Licence */
-    p = "Licence EUPL 1.2";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[15][12 + i].ch = p[i];
-        ctx->screen[15][12 + i].fg = VTX_YELLOW;
-    }
-    ctx->dirty[15] = 1;
-
-    /* Credits */
-    p = "Telenet 2026";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[17][14 + i].ch = p[i];
-        ctx->screen[17][14 + i].fg = VTX_GREEN;
-    }
-    ctx->dirty[17] = 1;
+    /* Auteur / email / licence / credits */
+    ui_print(ctx, 11, 10, "par Benedicte Marty", VTX_WHITE);
+    ui_print(ctx, 13, 12, "bmarty@mailo.com", VTX_CYAN);
+    ui_print(ctx, 15, 12, "Licence EUPL 1.2", VTX_YELLOW);
+    ui_print(ctx, 17, 14, "Telenet 2026", VTX_GREEN);
 
     /* Cadre bas */
     for (c = 5; c < 35; ++c) {
@@ -244,12 +242,13 @@ static void splash_screen(vtx_context_t* ctx)
 }
 
 /* ===================================================================
- *  Initialisation modem AT (pour Oricutron --serial modem)
+ *  Initialisation modem AT (Phosphoric --serial modem, ou PicoWiFiModemUSB
+ *  reel via LOCI).
  *
- *  Envoie ATZ puis ATD pour se connecter au serveur.
+ *  Envoie ATZ puis ATDT pour se connecter au serveur.
  *  Si pas de modem (TCP direct Phosphoric), les commandes AT
  *  sont ignorees par le serveur Videotex (pas de reponse "OK").
- *  Timeout rapide: si pas de "OK" en ~2s, on passe en mode direct.
+ *  Timeout rapide: si pas de "OK" en ~3s, on passe en mode direct.
  * =================================================================== */
 
 /* Mode de connexion */
@@ -261,44 +260,16 @@ static void splash_screen(vtx_context_t* ctx)
  * Retourne MODE_MODEM ou MODE_DIRECT. */
 static unsigned char select_mode(vtx_context_t* ctx)
 {
-    unsigned char i;
-    const char* p;
-
     vtx_clear_page(ctx);
 
-    p = "Mode de connexion:";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[10][10 + i].ch = p[i];
-        ctx->screen[10][10 + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[10] = 1;
-
-    p = "1 - Modem AT";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[13][12 + i].ch = p[i];
-        ctx->screen[13][12 + i].fg = VTX_YELLOW;
-    }
-    ctx->screen[13][12].fg = VTX_CYAN;
-    ctx->dirty[13] = 1;
-
-    p = "2 - Direct (TCP)";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[15][12 + i].ch = p[i];
-        ctx->screen[15][12 + i].fg = VTX_YELLOW;
-    }
-    ctx->screen[15][12].fg = VTX_CYAN;
-    ctx->dirty[15] = 1;
-
-    p = "3 - Config WiFi";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[17][12 + i].ch = p[i];
-        ctx->screen[17][12 + i].fg = VTX_YELLOW;
-    }
-    ctx->screen[17][12].fg = VTX_CYAN;
-    ctx->dirty[17] = 1;
+    ui_print(ctx, 10, 10, "Mode de connexion:", VTX_WHITE);
+    ui_menu_item(ctx, 13, "1 - Modem AT");
+    ui_menu_item(ctx, 15, "2 - Direct (TCP)");
+    ui_menu_item(ctx, 17, "3 - Config WiFi");
 
     display_render_all(ctx);
 
+    keyboard_flush();           /* anti-rebond: attendre relachement avant lecture */
     for (;;) {
         unsigned char key = keyboard_scan();
         if (key == '1') return MODE_MODEM;
@@ -307,53 +278,28 @@ static unsigned char select_mode(vtx_context_t* ctx)
     }
 }
 
-/* Menu selection de l'interface serie (base ACIA).
- * Retourne ACIA_BASE_EMU ($031C) ou ACIA_BASE_LOCI ($0380). */
+/* Menu selection de l'interface serie. Les deux montages supportes reposent
+ * sur le meme ACIA 6551 a la base LOCI ($0380) : la cartouche LOCI seule (son
+ * modem propre) ou LOCI + PicoWiFiModemUSB (le Pico se branche TOUJOURS via le
+ * LOCI, il n'existe pas de "PicoWiFi seul"). Chacun est utilisable en emulation
+ * Phosphoric comme sur le vrai materiel. Le menu retourne donc toujours
+ * ACIA_BASE_LOCI ; le choix est informatif (rappel du montage cote
+ * utilisateur). */
 static unsigned select_interface(vtx_context_t* ctx)
 {
-    unsigned char i;
-    const char* p;
-
     vtx_clear_page(ctx);
 
-    p = "Interface serie:";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[10][10 + i].ch = p[i];
-        ctx->screen[10][10 + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[10] = 1;
-
-    p = "1 - Emulateur  ($031C)";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[13][12 + i].ch = p[i];
-        ctx->screen[13][12 + i].fg = VTX_YELLOW;
-    }
-    ctx->screen[13][12].fg = VTX_CYAN;
-    ctx->dirty[13] = 1;
-
-    p = "2 - LOCI reel  ($0380)";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[15][12 + i].ch = p[i];
-        ctx->screen[15][12 + i].fg = VTX_YELLOW;
-    }
-    ctx->screen[15][12].fg = VTX_CYAN;
-    ctx->dirty[15] = 1;
-
-    p = "3 - DTL 2000   ($03FC)";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[17][12 + i].ch = p[i];
-        ctx->screen[17][12 + i].fg = VTX_YELLOW;
-    }
-    ctx->screen[17][12].fg = VTX_CYAN;
-    ctx->dirty[17] = 1;
+    ui_print(ctx, 10, 10, "Interface serie:", VTX_WHITE);
+    ui_menu_item(ctx, 13, "1 - LOCI seul       (emule/reel)");
+    ui_menu_item(ctx, 15, "2 - LOCI + PicoWiFi (emule/reel)");
 
     display_render_all(ctx);
 
+    keyboard_flush();           /* anti-rebond: attendre relachement avant lecture */
     for (;;) {
         unsigned char key = keyboard_scan();
-        if (key == '1') return ACIA_BASE_EMU;
+        if (key == '1') return ACIA_BASE_LOCI;
         if (key == '2') return ACIA_BASE_LOCI;
-        if (key == '3') return ACIA_BASE_DTL;
     }
 }
 
@@ -368,40 +314,27 @@ static const char* server_names[] = {
 };
 #define NUM_SERVERS 2
 
-/* Envoyer une chaine AT via serie (pas de drain echo).
- * Flush bloquant: avant connexion, aucune reception a ne pas rater. */
-static void at_send(const char* str)
-{
-    while (*str) {
-        serial_send(*str);
-        ++str;
-    }
-    serial_send(0x0D);  /* CR */
-    serial_tx_flush();
-}
-
-/* Envoyer "prefixe" suivi de "valeur" puis CR (ex: AT$SSID=MonReseau).
- * Sert aux commandes de configuration WiFi du PicoWiFiModemUSB. */
-static void at_send_kv(const char* prefix, const char* value)
-{
-    while (*prefix) { serial_send(*prefix); ++prefix; }
-    while (*value)  { serial_send(*value);  ++value; }
-    serial_send(0x0D);  /* CR */
-    serial_tx_flush();
-}
-
-/* Debug: position ecran pour afficher les octets recus */
+/* ===================================================================
+ *  Trace de debug de la phase AT (compilee uniquement si DEBUG)
+ *
+ *  Les primitives AT (at_send, at_wait_response, at_wait_ip) vivent
+ *  desormais dans at_modem.c, decouplees du rendu. L'affichage des
+ *  octets recus est branche ici via les hooks at_set_trace() et n'est
+ *  compile qu'en build DEBUG. En production, aucune trace n'est posee:
+ *  la phase AT est muette et ne declenche aucun rendu (donc aucun risque
+ *  d'overrun du 6551 reel).
+ *
+ *  Macros utilisees par modem_connect / wifi_config_page :
+ *    DBG_AT_BEGIN(ctx, row) : arme la trace a partir de la ligne 'row'
+ *    (no-op hors DEBUG).
+ * =================================================================== */
+#ifdef DEBUG
 static unsigned char dbg_col;
 static unsigned char dbg_row;
+static vtx_context_t* dbg_ctx;
 
-static void dbg_init(unsigned char row)
-{
-    dbg_col = 1;
-    dbg_row = row;
-}
-
-/* Afficher un octet en hex + ASCII sur l'ecran */
-static void dbg_byte(vtx_context_t* ctx, unsigned char b)
+/* Afficher un octet recu en hex + ASCII (hook at_trace_byte). */
+static void dbg_byte(unsigned char b)
 {
     static const char hex[] = "0123456789ABCDEF";
 
@@ -410,138 +343,38 @@ static void dbg_byte(vtx_context_t* ctx, unsigned char b)
         dbg_row++;
         if (dbg_row >= 24) dbg_row = 20;
     }
-
-    /* Afficher en ASCII si imprimable, sinon en hex */
     if (b >= 0x20 && b < 0x7F) {
-        ctx->screen[dbg_row][dbg_col].ch = b;
-        ctx->screen[dbg_row][dbg_col].fg = VTX_GREEN;
+        dbg_ctx->screen[dbg_row][dbg_col].ch = b;
+        dbg_ctx->screen[dbg_row][dbg_col].fg = VTX_GREEN;
         dbg_col++;
     } else {
-        ctx->screen[dbg_row][dbg_col].ch = hex[b >> 4];
-        ctx->screen[dbg_row][dbg_col].fg = VTX_RED;
+        dbg_ctx->screen[dbg_row][dbg_col].ch = hex[b >> 4];
+        dbg_ctx->screen[dbg_row][dbg_col].fg = VTX_RED;
         dbg_col++;
-        ctx->screen[dbg_row][dbg_col].ch = hex[b & 0x0F];
-        ctx->screen[dbg_row][dbg_col].fg = VTX_RED;
+        dbg_ctx->screen[dbg_row][dbg_col].ch = hex[b & 0x0F];
+        dbg_ctx->screen[dbg_row][dbg_col].fg = VTX_RED;
         dbg_col++;
     }
-    ctx->dirty[dbg_row] = 1;
-    /* Pas de rendu ici: l'appelant (at_wait_response) rend une fois
-     * par rafale drainee, pas une fois par octet. */
+    dbg_ctx->dirty[dbg_row] = 1;
 }
 
-/* Contexte global pour debug (accessible depuis at_wait_response) */
-static vtx_context_t* dbg_ctx;
-
-/* Attendre une reponse contenant un mot-cle dans le flux.
- * Affiche chaque octet recu sur l'ecran pour debug. */
-static unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms)
+/* Rendu differe au creux de reception (hook at_idle): seul moment ou un
+ * rendu est sans danger pour l'overrun. */
+static void dbg_idle(void)
 {
-    unsigned int elapsed = 0;
-    unsigned char ki = 0;
-    unsigned char pending = 0;      /* octets recus, rendu differe */
-
-    while (elapsed < timeout_ms) {
-        if (serial_poll()) {
-            /* Drainer la rafale A PLEINE VITESSE: aucun display_render_all
-             * ici. Le 6551 reel (LOCI/PicoWiFiModemUSB) n'a qu'un registre
-             * RX de 1 octet, pas le FIFO 4096 de l'emulateur: un rendu HIRES
-             * (plusieurs ms) pendant la reception perd des octets par overrun
-             * et le mot-cle est manque -> timeout alors que le modem a
-             * repondu. On rend uniquement dans les creux (branche else),
-             * et jamais sur match (apres CONNECT le serveur envoie aussitot
-             * le flux Videotex qu'un rendu ferait deborder). */
-            do {
-                unsigned char b = serial_recv();
-                dbg_byte(dbg_ctx, b);
-                if (b == keyword[ki]) {
-                    ++ki;
-                    if (keyword[ki] == 0) return 1;
-                } else if (b == keyword[0]) {
-                    ki = 1;
-                } else {
-                    ki = 0;
-                }
-            } while (serial_poll());
-            pending = 1;
-        } else {
-            if (pending) {              /* creux: ligne au repos, rendu sur */
-                display_render_all(dbg_ctx);
-                pending = 0;
-            }
-            delay_ms(10);
-            elapsed += 10;
-        }
-    }
-    return 0;
+    display_render_all(dbg_ctx);
 }
 
-/* Attendre que le PicoWiFiModemUSB soit associe au WiFi avec une IP.
- *
- * ATZ peut relancer l'association WiFi: composer ATD avant que le DHCP
- * ait fourni une IP echoue instantanement par NO CARRIER (00:00:00).
- * On interroge ATI en boucle et on guette le marqueur positif "TO WIFI"
- * (firmware v0.3.x: "WiFi status: CONNECTED TO WIFI"), unique au statut
- * WiFi connecte - absent de "Call status: NOT CONNECTED". Sa presence
- * dans la reponse ATI signale un lien WiFi etabli (donc une IP).
- *
- * Retourne 1 si connecte, 0 sur timeout. Sert aussi a valider la
- * connexion apres ATC1 dans la page Config WiFi. */
-static unsigned char at_wait_ip(unsigned int timeout_ms)
-{
-    static const char S_UP[] = "TO WIFI";
-    unsigned int elapsed = 0;
-
-    while (elapsed < timeout_ms) {
-        unsigned char up = 0;       /* "TO WIFI" vu => WiFi connecte (IP) */
-        unsigned char si = 0;       /* index matcher "TO WIFI" */
-        unsigned char ok = 0;       /* index matcher "OK" terminateur */
-        unsigned char done = 0;     /* OK final recu */
-        unsigned int  rwait = 0;    /* budget lecture d'une reponse ATI */
-        unsigned char pending = 0;  /* octets recus, rendu differe */
-
-        at_send("ATI");
-
-        /* Lire la reponse ATI jusqu'au OK final (ou ~2s de silence).
-         * Comme at_wait_response: drainer sans rendu (le 6551 reel n'a pas
-         * de FIFO), rendu differe aux creux pour ne pas perdre d'octets. */
-        for (;;) {
-            if (serial_poll()) {
-                do {
-                    unsigned char b = serial_recv();
-                    dbg_byte(dbg_ctx, b);
-
-                    /* matcher "TO WIFI" (WiFi associe + IP) */
-                    if (b == S_UP[si]) {
-                        if (S_UP[++si] == 0) { up = 1; si = 0; }
-                    } else {
-                        si = (b == S_UP[0]) ? 1 : 0;
-                    }
-
-                    /* matcher "OK" final (fin de reponse ATI) */
-                    if (b == 'K' && ok == 1) { ok = 0; done = 1; }
-                    else if (b == 'O') { ok = 1; }
-                    else { ok = 0; }
-                } while (serial_poll() && !done);
-                pending = 1;
-                if (done) break;
-            } else {
-                if (pending) {          /* creux: rendu sur */
-                    display_render_all(dbg_ctx);
-                    pending = 0;
-                }
-                if (rwait >= 2000) break;
-                delay_ms(10);
-                rwait += 10;
-            }
-        }
-
-        if (up) return 1;           /* ATI signale "CONNECTED TO WIFI" */
-
-        delay_ms(500);
-        elapsed += rwait + 500;
-    }
-    return 0;
-}
+#define DBG_AT_BEGIN(ctx, row)                       \
+    do {                                             \
+        dbg_ctx = (ctx);                             \
+        dbg_col = 1;                                  \
+        dbg_row = (row);                             \
+        at_set_trace(dbg_byte, dbg_idle);            \
+    } while (0)
+#else
+#define DBG_AT_BEGIN(ctx, row) ((void)0)
+#endif
 
 /* ===================================================================
  *  Page de configuration WiFi du PicoWiFiModemUSB
@@ -607,12 +440,7 @@ static unsigned char wifi_scan(void)
 static void wifi_msg_wait(vtx_context_t* ctx, unsigned char row,
                           unsigned char col, const char* msg)
 {
-    unsigned char i;
-    for (i = 0; msg[i]; ++i) {
-        ctx->screen[row][col + i].ch = msg[i];
-        ctx->screen[row][col + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[row] = 1;
+    ui_print(ctx, row, col, msg, VTX_WHITE);
     display_render_all(ctx);
     while (keyboard_scan() == KEY_NONE) { /* attente touche */ }
 }
@@ -652,18 +480,10 @@ static unsigned char wifi_input(vtx_context_t* ctx, unsigned char row,
 static void wifi_config_page(vtx_context_t* ctx)
 {
     unsigned char i, sel;
-    const char* p;
-
-    dbg_ctx = ctx;
 
     for (;;) {                                  /* boucle scan/rescan */
         vtx_clear_page(ctx);
-        p = "Scan WiFi en cours...";
-        for (i = 0; p[i]; ++i) {
-            ctx->screen[10][9 + i].ch = p[i];
-            ctx->screen[10][9 + i].fg = VTX_WHITE;
-        }
-        ctx->dirty[10] = 1;
+        ui_print(ctx, 10, 9, "Scan WiFi en cours...", VTX_WHITE);
         display_render_all(ctx);
 
         if (wifi_scan() == 0) {
@@ -674,12 +494,7 @@ static void wifi_config_page(vtx_context_t* ctx)
 
         /* Liste des reseaux */
         vtx_clear_page(ctx);
-        p = "Reseaux WiFi:";
-        for (i = 0; p[i]; ++i) {
-            ctx->screen[2][3 + i].ch = p[i];
-            ctx->screen[2][3 + i].fg = VTX_WHITE;
-        }
-        ctx->dirty[2] = 1;
+        ui_print(ctx, 2, 3, "Reseaux WiFi:", VTX_WHITE);
         for (i = 0; i < wifi_count; ++i) {
             unsigned char row = 4 + i;
             unsigned char d;
@@ -697,16 +512,13 @@ static void wifi_config_page(vtx_context_t* ctx)
             }
             ctx->dirty[row] = 1;
         }
-        p = "Chiffre=choix REPET=rescan ANNUL=retour";
-        for (i = 0; p[i]; ++i) {
-            ctx->screen[22][0 + i].ch = p[i];
-            ctx->screen[22][0 + i].fg = VTX_GREEN;
-        }
-        ctx->dirty[22] = 1;
+        ui_print(ctx, 22, 0, "Chiffre=choix REPET=rescan ANNUL=retour",
+                 VTX_GREEN);
         display_render_all(ctx);
 
         /* Selection */
         sel = 0xFF;
+        keyboard_flush();       /* anti-rebond avant la selection reseau */
         for (;;) {
             unsigned char key = keyboard_scan();
             if (key == KEY_NONE) continue;
@@ -729,26 +541,16 @@ static void wifi_config_page(vtx_context_t* ctx)
         wifi_pass[0] = 0;
         if (wifi_sec[sel] == 'S') {
             vtx_clear_page(ctx);
-            p = "Mot de passe WiFi:";
-            for (i = 0; p[i]; ++i) {
-                ctx->screen[8][3 + i].ch = p[i];
-                ctx->screen[8][3 + i].fg = VTX_WHITE;
-            }
-            ctx->dirty[8] = 1;
+            ui_print(ctx, 8, 3, "Mot de passe WiFi:", VTX_WHITE);
             display_render_all(ctx);
             wifi_input(ctx, 10, wifi_pass, 38);
         }
 
         /* Configuration + connexion */
         vtx_clear_page(ctx);
-        p = "Connexion WiFi...";
-        for (i = 0; p[i]; ++i) {
-            ctx->screen[10][11 + i].ch = p[i];
-            ctx->screen[10][11 + i].fg = VTX_WHITE;
-        }
-        ctx->dirty[10] = 1;
+        ui_print(ctx, 10, 11, "Connexion WiFi...", VTX_WHITE);
         display_render_all(ctx);
-        dbg_init(12);
+        DBG_AT_BEGIN(ctx, 12);
 
         at_send_kv("AT$SSID=", wifi_ssid[sel]);
         at_wait_response("OK", 3000);
@@ -775,27 +577,18 @@ static char custom_server[40];
  * Retourne 0-1 pour les predefinis, 255 pour saisie libre. */
 static unsigned char select_server(vtx_context_t* ctx)
 {
-    unsigned char i, j, sel;
-    const char* title = "Serveur:";
+    unsigned char j, sel;
     const char* p;
 
-    for (i = 0; title[i]; ++i) {
-        ctx->screen[10][5 + i].ch = title[i];
-        ctx->screen[10][5 + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[10] = 1;
+    ui_print(ctx, 10, 5, "Serveur:", VTX_WHITE);
 
     for (sel = 0; sel < NUM_SERVERS; ++sel) {
-        ctx->screen[12 + sel * 2][5].ch = '1' + sel;
-        ctx->screen[12 + sel * 2][5].fg = VTX_CYAN;
-        ctx->screen[12 + sel * 2][7].ch = '-';
-        ctx->screen[12 + sel * 2][7].fg = VTX_WHITE;
-        p = server_names[sel];
-        for (j = 0; p[j]; ++j) {
-            ctx->screen[12 + sel * 2][9 + j].ch = p[j];
-            ctx->screen[12 + sel * 2][9 + j].fg = VTX_YELLOW;
-        }
-        ctx->dirty[12 + sel * 2] = 1;
+        unsigned char row = 12 + sel * 2;
+        ctx->screen[row][5].ch = '1' + sel;
+        ctx->screen[row][5].fg = VTX_CYAN;
+        ctx->screen[row][7].ch = '-';
+        ctx->screen[row][7].fg = VTX_WHITE;
+        ui_print(ctx, row, 9, server_names[sel], VTX_YELLOW);
     }
 
     /* Option 3: saisie libre */
@@ -805,16 +598,12 @@ static unsigned char select_server(vtx_context_t* ctx)
         ctx->screen[row][5].fg = VTX_CYAN;
         ctx->screen[row][7].ch = '-';
         ctx->screen[row][7].fg = VTX_WHITE;
-        p = "Autre (host:port)";
-        for (j = 0; p[j]; ++j) {
-            ctx->screen[row][9 + j].ch = p[j];
-            ctx->screen[row][9 + j].fg = VTX_YELLOW;
-        }
-        ctx->dirty[row] = 1;
+        ui_print(ctx, row, 9, "Autre (host:port)", VTX_YELLOW);
     }
     display_render_all(ctx);
 
     /* Attendre touche 1, 2 ou 3 */
+    keyboard_flush();           /* anti-rebond: attendre relachement avant lecture */
     for (;;) {
         unsigned char key = keyboard_scan();
         if (key >= '1' && key < '1' + NUM_SERVERS) {
@@ -865,22 +654,13 @@ static unsigned char select_server(vtx_context_t* ctx)
 /* Tenter la connexion modem AT. Retourne 1 si connecte. */
 static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
 {
-    unsigned char i;
-    const char* msg;
-
     /* Afficher "Connexion..." */
     vtx_clear_page(ctx);
-    msg = "ATZ...";
-    for (i = 0; msg[i]; ++i) {
-        ctx->screen[10][17 + i].ch = msg[i];
-        ctx->screen[10][17 + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[10] = 1;
+    ui_print(ctx, 10, 17, "ATZ...", VTX_WHITE);
     display_render_all(ctx);
 
     /* ATZ - reset modem */
-    dbg_ctx = ctx;
-    dbg_init(12);
+    DBG_AT_BEGIN(ctx, 12);
     at_send("ATZ");
     if (!at_wait_response("OK", 3000)) {
         return 0;  /* Pas de modem (mode TCP direct) */
@@ -890,20 +670,14 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
      * jusqu'a "CONNECTED TO WIFI" (IP prete) avant de composer, sinon ATD
      * echoue par NO CARRIER. Quasi immediat si le modem est deja connecte. */
     vtx_clear_page(ctx);
-    msg = "Attente IP WiFi...";
-    for (i = 0; msg[i]; ++i) {
-        ctx->screen[10][11 + i].ch = msg[i];
-        ctx->screen[10][11 + i].fg = VTX_WHITE;
-    }
-    ctx->dirty[10] = 1;
+    ui_print(ctx, 10, 11, "Attente IP WiFi...", VTX_WHITE);
     display_render_all(ctx);
-    dbg_init(12);
+    DBG_AT_BEGIN(ctx, 12);
     at_wait_ip(15000);
 
     /* Determiner le serveur */
     {
         const char* srv;
-        unsigned char j;
 
         if (server_idx == 255) {
             srv = custom_server;
@@ -913,23 +687,15 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
 
         /* Afficher "ATDT serveur..." */
         vtx_clear_page(ctx);
-        msg = "ATDT ";
-        for (i = 0; msg[i]; ++i) {
-            ctx->screen[10][5 + i].ch = msg[i];
-            ctx->screen[10][5 + i].fg = VTX_WHITE;
-        }
-        for (j = 0; srv[j]; ++j) {
-            ctx->screen[10][10 + j].ch = srv[j];
-            ctx->screen[10][10 + j].fg = VTX_CYAN;
-        }
-        ctx->dirty[10] = 1;
+        ui_print(ctx, 10, 5, "ATDT ", VTX_WHITE);
+        ui_print(ctx, 10, 10, srv, VTX_CYAN);
         display_render_all(ctx);
 
         /* ATDT serveur:port : le 'T' (tonalite) est INDISPENSABLE. Sans lui,
          * le PicoWiFiModemUSB prend le 1er caractere de l'hote pour un
          * modificateur Hayes (ex: "ATDpavi..." -> 'p' = pulse, l'hote devient
          * "avi.3617.fr" -> NO CARRIER 00:00:00). "ATDT" + hote se connecte. */
-        dbg_init(12);
+        DBG_AT_BEGIN(ctx, 12);
         serial_send('A'); serial_send('T'); serial_send('D'); serial_send('T');
         while (*srv) { serial_send(*srv); ++srv; }
         serial_send(0x0D);
@@ -985,7 +751,7 @@ int main(void)
     unsigned char got_data;         /* 1 si donnees recues cette iteration */
     unsigned int  idle_counter;     /* Compteur sans donnees */
     unsigned char connected;        /* 0=deconnecte, 1=connecte */
-    unsigned      acia_base;        /* Base ACIA choisie (emu/LOCI) */
+    unsigned      acia_base;        /* Base ACIA choisie (LOCI $0380) */
 
     vtx_init(&vtx);
     display_init();
@@ -994,8 +760,9 @@ int main(void)
     /* Ecran splash avec jingle */
     splash_screen(&vtx);
 
-    /* Choix de l'interface serie: ACIA emulateur ($031C) ou LOCI ($0380).
-     * La base est reutilisee pour tout reset ulterieur (KEY_LOCAL_RESET). */
+    /* Choix de l'interface serie: LOCI seul ou LOCI + PicoWiFi, tous deux sur
+     * l'ACIA 6551 a la base LOCI ($0380). La base est reutilisee pour tout
+     * reset ulterieur (KEY_LOCAL_RESET). */
     acia_base = select_interface(&vtx);
 
     {
@@ -1039,6 +806,11 @@ int main(void)
     idle_counter = 0;
     set_connexion_indicator(&vtx, 'F');
     display_render_all(&vtx);
+
+    /* Purger le burst clavier accumule pendant la connexion (timeouts AT
+     * de plusieurs secondes sans lecture clavier): sinon ces frappes se
+     * vident d'un coup et "deroulent" les ecrans en entrant en session. */
+    keyboard_flush();
 
     for (;;) {
 
@@ -1099,7 +871,16 @@ int main(void)
         /* 4. Rendu adaptatif: 2 lignes par passe, puis continuer tant
          * que rien d'autre n'attend (ni octet serie, ni touche). Une
          * page se peint a pleine vitesse moteur quand la machine est
-         * libre, et la main revient au clavier des qu'il le faut. */
+         * libre, et la main revient au clavier des qu'il le faut.
+         *
+         * Anti-overrun: la boucle CESSE de rendre des qu'un octet arrive
+         * (serial_poll), pour repasser en 1. et drainer entierement le 6551
+         * avant le prochain rendu. La fenetre pendant laquelle la puce (1
+         * octet RX, pas de FIFO sur le materiel reel) peut deborder est
+         * ainsi bornee a UNE passe de rendu (2 lignes). L'elimination
+         * complete demanderait un controle de flux RTS ou une RX par IRQ
+         * (le polling seul ne peut pas recuperer un octet deja ecrase dans
+         * la puce) - voir ROADMAP. */
         display_render(&vtx);
         while (display_dirty_pending(&vtx) &&
                !serial_poll() && !keyboard_pending()) {

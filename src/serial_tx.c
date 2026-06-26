@@ -41,10 +41,18 @@ void serial_tx_pump(void)
 void serial_send(unsigned char byte)
 {
     unsigned char next = (tx_tail + 1) & TX_QUEUE_MASK;
+    unsigned int  spins = 0;
     while (next == tx_head) {
         /* File pleine: drainer (cas degrade, equivaut a l'ancien
-         * comportement bloquant) */
+         * comportement bloquant). Borne anti-deadlock: si TDRE n'est
+         * jamais positionne (ACIA absente / mal initialisee / panne
+         * materielle), on abandonne l'octet plutot que de figer la
+         * machine indefiniment. ~60000 tours = au pire quelques dizaines
+         * de ms a 1 MHz, bien au-dela d'un cycle TDRE normal. */
         serial_tx_pump();
+        if (++spins == 0) {     /* wrap de l'unsigned int (65536 tours) */
+            return;             /* octet abandonne (cas degrade borne) */
+        }
     }
     tx_queue[tx_tail] = byte;
     tx_tail = next;
@@ -52,7 +60,11 @@ void serial_send(unsigned char byte)
 
 void serial_tx_flush(void)
 {
+    unsigned int spins = 0;
     while (tx_head != tx_tail) {
         serial_tx_pump();
+        if (++spins == 0) {     /* meme borne anti-deadlock que serial_send */
+            return;             /* file abandonnee (TDRE jamais pret) */
+        }
     }
 }
