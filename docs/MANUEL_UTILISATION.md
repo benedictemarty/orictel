@@ -1,6 +1,6 @@
 # OricTel - Manuel d'utilisation
 
-**Version du logiciel :** 0.2.32 - **Licence :** EUPL 1.2
+**Version du logiciel :** 0.2.46 - **Licence :** EUPL 1.2
 
 Ce manuel decrit l'utilisation d'OricTel, le terminal Minitel 1B pour
 Oric 1/Atmos, du lancement jusqu'a la navigation sur les serveurs
@@ -19,11 +19,16 @@ avec OricTel en mode **modem AT**. Le programme se charge et se lance
 automatiquement (fast-load + RUN). Ensuite :
 
 1. **Ecran d'accueil** (jingle) - appuyez sur une touche (ou attendez 5 s).
-2. **Mode de connexion** - tapez `1` (Modem AT, recommande), `2` (Direct)
-   ou `3` (Config WiFi, voir section 2bis pour le materiel PicoWiFiModemUSB).
-3. **Serveur** - tapez `1` (PAVI 3617), `2` (MiniPavi) ou `3` (saisie libre
+2. **Interface serie** - ecran de rappel du seul montage materiel possible
+   (`LOCI + PicoWiFiModemUSB`, ACIA 6551 a `$0380`). Aucun choix : une touche
+   pour continuer.
+3. **Mode de connexion** - tapez `1` (Modem AT, recommande) ou `2` (Config
+   WiFi, voir section 2bis pour le materiel PicoWiFiModemUSB). Le PicoWiFi
+   etant un modem Hayes, la connexion passe toujours par AT : il n'y a plus
+   de mode « Direct ».
+4. **Serveur** - tapez `1` (PAVI 3617), `2` (MiniPavi) ou `3` (saisie libre
    d'un `hote:port`, validee par RETURN).
-4. La sequence ATZ/ATD s'execute (~2 s) et la page d'accueil du serveur
+5. La sequence ATZ/ATD s'execute (~2 s) et la page d'accueil du serveur
    s'affiche.
 
 Astuce affichage : la fenetre Phosphoric peut etre agrandie avec **F3**
@@ -33,31 +38,30 @@ c'est une limite de taille de pixel, pas un defaut de rendu.
 
 ## 2. Modes de connexion
 
-### Mode 1 - Modem AT (recommande)
+### Mode 1 - Modem AT (seule methode de connexion)
 
-OricTel pilote le modem emule par Phosphoric (`--serial modem`) avec des
-commandes Hayes : `ATZ` (reset) puis `ATD hote:port` (numerotation =
-connexion TCP). Le serveur est choisi dans le menu d'OricTel, on peut
-donc changer de serveur sans relancer l'emulateur.
-
-### Mode 2 - Direct (TCP/V23)
-
-La liaison est deja etablie par l'emulateur (`make run-direct`, serveur
-fixe defini dans le Makefile via `MINITEL_SERVER`). Choisir ce mode si
-Phosphoric a ete lance avec `--serial tcp:...` ou `digitelec:...`.
+OricTel pilote un modem Hayes via l'ACIA 6551 a `$0380` (PicoWiFiModemUSB,
+ou son emulation Phosphoric `--serial modem`/`picowifi`) : `ATZ` (reset)
+puis `ATDT hote:port` (numerotation = connexion TCP). Le serveur est choisi
+dans le menu d'OricTel, on peut donc changer de serveur sans relancer
+l'emulateur. C'est l'unique mode de connexion : l'ancien mode « Direct »
+(ligne V23 brute sans AT) a ete retire, le montage cible ne sachant pas
+ouvrir une ligne directe.
 
 ### Mode WebSocket (via bridge)
 
 `make run-ws` lance le bridge Python (`orictel_bridge.py`) qui relaie
 TCP (port 3615) vers le serveur WebSocket `ws://3617.fr/ws`, puis
-l'emulateur en mode TCP. Dans OricTel, choisir alors le mode Direct.
+l'emulateur. Le bridge est un relais binaire transparent : OricTel suit
+son flux modem AT habituel (le handshake AT echoue silencieusement faute
+de modem cote bridge, puis le flux Videotex circule).
 
 ## 2bis. Config WiFi (materiel PicoWiFiModemUSB)
 
 Sur un montage reel **LOCI + PicoWiFiModemUSB**, le modem doit etre
 associe a un reseau WiFi (avec une adresse IP) avant de pouvoir composer.
 Sinon `ATD` echoue immediatement par `NO CARRIER (00:00:00)` (statut
-`no ip`). Le menu `3 - Config WiFi` realise toute la configuration depuis
+`no ip`). Le menu `2 - Config WiFi` realise toute la configuration depuis
 l'Oric :
 
 1. **Scan** : OricTel envoie `AT$SCAN` ; les reseaux 2,4 GHz a portee
@@ -152,8 +156,8 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 
 | Symptome | Cause probable | Remede |
 |---|---|---|
-| « PAS DE MODEM » / retour direct apres ATZ | l'emulateur n'est pas en `--serial modem` | utiliser `make run`, ou choisir le mode Direct |
-| `NO CARRIER (00:00:00)` (Pico reel) | format de numerotation (`ATD<hote>` : le 1er car. de l'hote pris pour un modificateur Hayes) ou WiFi non associe | corrige en 0.2.42 (OricTel compose `ATDT<hote>`) ; si ca persiste : menu `3 - Config WiFi` pour (re)configurer le reseau |
+| « PAS DE MODEM » / retour apres ATZ | l'emulateur n'est pas en `--serial modem`/`picowifi` (aucun modem ne repond « OK ») | utiliser `make run` (ou `make run-loci`/`run-loci-emu`) |
+| `NO CARRIER (00:00:00)` (Pico reel) | format de numerotation (`ATD<hote>` : le 1er car. de l'hote pris pour un modificateur Hayes) ou WiFi non associe | corrige en 0.2.42 (OricTel compose `ATDT<hote>`) ; si ca persiste : menu `2 - Config WiFi` pour (re)configurer le reseau |
 | Indicateur `F` permanent | pas de donnees du serveur | verifier la connexion Internet ; CTRL+F puis CTRL+E (repetition) |
 | Caracteres perdus a la frappe | n'arrive plus depuis 0.2.24 | verifier que le tap est a jour (`make`) |
 | Cartouches inverses illisibles | echelle d'affichage 1x | F3 (echelle x2-x4) |

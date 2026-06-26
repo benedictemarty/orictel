@@ -1,7 +1,7 @@
 # OricTel - Emulateur Minitel 1B pour Oric 1/Atmos
 
-**Version:** 0.2.33
-**Date:** 2026-06-13
+**Version:** 0.2.46
+**Date:** 2026-06-26
 **Auteur:** bmarty <bmarty@mailo.com>
 **Depot public:** https://github.com/benedictemarty/orictel
 
@@ -31,7 +31,7 @@ complet cote utilisateur.
 ```
 Serveur Minitel (ex: pavi.3617.fr:3617)
          |
-         | TCP (modem AT / direct)        ou     WebSocket (ws://3617.fr/ws)
+         | TCP (modem AT)                 ou     WebSocket (ws://3617.fr/ws)
          |                                            |
          v                                   [orictel_bridge.py]
    [Phosphoric]                                       |
@@ -68,8 +68,9 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
    - Modes PRO2/PRO3 : rouleau, minuscules, aiguillages appliques au clavier,
      clavier etendu/curseur
    - 3 modes de rendu commutables (CTRL+D) : auto, dithering, brut
-   - Splash screen avec jingle AY-3-8912
-   - Menu de connexion (modem AT / direct) et de serveur (predefinis + saisie)
+   - Splash screen avec jingle AY-3-8912 (version affichee via ORICTEL_VERSION)
+   - Ecran interface (rappel du montage LOCI + PicoWiFi), menu de mode (modem
+     AT / config WiFi) et de serveur (predefinis + saisie libre)
 
 2. **Bridge WebSocket-TCP** (`orictel_bridge.py`) - Proxy Python asyncio
    - Ecoute TCP sur port 3615 (emulateur), connexion WebSocket vers 3617.fr
@@ -79,7 +80,8 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
 
 - **cc65** (cross-compilateur 6502) >= 2.19
 - **Python 3.8+** avec module `websockets` >= 12.0 (pour le bridge uniquement)
-- **Emulateur Phosphoric** (backend modem, TCP ou Digitelec)
+- **Emulateur Phosphoric** (backend `modem`/`picowifi`, ou `com:` + `--loci`/
+  `--acia-addr 0380` pour un LOCI/PicoWiFiModemUSB physique)
 - ROMs Oric (basic11b.rom pour Atmos, basic10.rom pour Oric-1)
 
 ## Compilation et tests
@@ -163,8 +165,8 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 
 - **Affichage:** HIRES 240x200, 40x25 caracteres (6x8 pixels/car),
   inversion video par bit 7, attributs serial Oric par scanline
-- **Serie:** ACIA 6551, Control=$00 (transfert instantane sous emulateur);
-  le V23 reel (1200/75, 7E1) est prevu en ROADMAP
+- **Serie:** ACIA 6551 a la base LOCI ($0380), Control=$1E (9600 baud, 8N1,
+  horloge interne); le V23 reel (1200/75, 7E1) est prevu en ROADMAP
 - **Emission:** file TX logicielle non bloquante drainee par la boucle
   principale (prerequis vrai materiel V23)
 - **Memoire:** TAP ~23 Ko, code+donnees sous $9800 (stack cc65 $0800),

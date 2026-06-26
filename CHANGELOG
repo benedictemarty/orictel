@@ -40,6 +40,14 @@
   * en-tete `main.c` et README reecrits autour du seul chemin AT (+ transport
     WebSocket via le bridge).
 
+### Documentation
+- **README et manuel utilisateur synchronises** (`README.md`,
+  `docs/MANUEL_UTILISATION.md`). Version a 0.2.46 ; sequence de demarrage avec
+  l'ecran Interface (rappel `LOCI + PicoWiFiModemUSB $0380`) ; menu Mode reduit
+  a `1 - Modem AT` / `2 - Config WiFi` (section et depannage "Direct" retires,
+  renumerotation Config WiFi 3 -> 2) ; prerequis et specs serie a jour (ACIA
+  `$0380`, Control=$1E 9600 8N1, plus de backend Digitelec).
+
 ## [0.2.45] - 2026-06-26
 
 ### Retire
