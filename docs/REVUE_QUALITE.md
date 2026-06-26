@@ -31,9 +31,17 @@ automatisée** (CI, analyse statique, couverture, fuzzing).
 | 3 | Majeur | `main.c` saisie serveur | Écriture jusqu'à la colonne 51 | ✅ `ui_text_input()` bornée |
 | 4 | Majeur | `main.c` `wifi_input` | Mot de passe écrit jusqu'à la colonne 40 | ✅ `ui_text_input()` (masque `*`) |
 | 5 | Majeur | `main.c` liste WiFi | SSID 32 car. + cadenas hors borne | ✅ Boucles clippées |
-| 6 | Mineur | `videotex.c` params CSI | Débordement `unsigned char` (999→231) | ⏳ Ouvert (clamp tardif sûr, comportement faux) |
-| 7 | Mineur | `videotex.c` REP/US | Soustraction non bornée sauvée par clamp | ⏳ Ouvert |
-| 8 | Mineur | `serial_asm.s` | Spin TDRE non borné | ⏳ Ouvert (protégé en amont) |
+| 6 | Mineur | `videotex.c` params CSI | Débordement `unsigned char` (999→231) | ✅ 0.2.50 — accumulation bornée à 64 (calcul `unsigned int`) |
+| 7 | Mineur | `videotex.c` REP/US | Soustraction non bornée sauvée par clamp | ✅ 0.2.50 — validation `>= $40` en amont |
+| 8 | Mineur | `serial_asm.s` | Spin TDRE non borné | ⏳ Ouvert (protégé en amont par `serial_tx_pump`) |
+
+### Bug supplémentaire trouvé par les tests (✅ 0.2.50)
+
+- **Flèche droite inopérante** (`keyboard.c`) : le cas `$15 → KEY_ARROW_RIGHT`
+  était placé *après* le handler CTRL+lettre, mais `$15 ∈ [$01,$1A]` → avalé en
+  `KEY_NONE` (code mort). Révélé par `tests/test_keyboard.c`, corrigé (déplacé
+  dans le switch des touches spéciales). Illustration directe de la valeur des
+  tests ajoutés.
 
 > Les débordements UI (#2–#5) étaient de l'UB C retombant dans le tableau
 > `screen[25][40]` → **corruption d'affichage**, pas un crash/RCE. La cause
@@ -53,8 +61,9 @@ automatisée** (CI, analyse statique, couverture, fuzzing).
 - ✅ **Fuzzing du décodeur Videotex** (`make fuzz`, job CI, libFuzzer +
   ASAN/UBSAN) : > 1,2 M entrées/30 s **sans crash** → durcissement du chemin
   réseau prouvé.
-- ⏳ Tests host pour `keyboard.c` (mapping) et la logique de saisie.
-- ⏳ Findings mineurs #6–#8.
+- ✅ **Tests host pour `keyboard.c`** (`make test-keyboard`, 22 checks) — ont
+  révélé et fait corriger le bug de la flèche droite.
+- ✅ Findings mineurs #6–#7 (Videotex). Reste #8 (spin TDRE, faible risque).
 
 ### Process / hygiène (✅ partiel)
 
@@ -75,6 +84,8 @@ automatisée** (CI, analyse statique, couverture, fuzzing).
 
 ## Reste à faire (priorisé)
 
-1. Tests `keyboard.c` + régression saisie (P2).
-2. Findings mineurs Videotex #6–#7 (valider la plage d'entrée en amont).
-3. Hygiène : découpe CHANGELOG, artefacts en *releases*, épingler cc65.
+1. Finding mineur #8 (`serial_asm.s` spin TDRE non borné — faible risque).
+2. Hygiène : découpe du CHANGELOG (49 Ko), artefacts `.tap`/`.dsk` en *releases*
+   plutôt que dans l'historique, épingler la version de cc65 en CI.
+3. Tests de la logique de saisie `ui_text_input` (host) si on veut verrouiller
+   la non-régression des bornes #2–#5.

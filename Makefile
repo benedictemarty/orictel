@@ -133,7 +133,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk test test-videotex test-serial test-atmodem test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk test test-videotex test-serial test-atmodem test-keyboard test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -251,7 +251,7 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-serial test-atmodem test-bridge
+test: test-videotex test-serial test-atmodem test-keyboard test-bridge
 
 test-videotex: $(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_videotex \
@@ -271,6 +271,13 @@ test-atmodem: $(TESTDIR)/test_atmodem.c $(SRCDIR)/at_modem.c
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_atmodem \
 		$(TESTDIR)/test_atmodem.c $(SRCDIR)/at_modem.c -DTEST_HOST
 	$(BLDDIR)/test_atmodem
+
+# Mapping clavier Oric -> Minitel (clavier scripte): touches speciales,
+# CTRL+lettre, CTRL locaux, FUNCT Atmos, ASCII, emission SEP+code et fleches.
+test-keyboard: $(TESTDIR)/test_keyboard.c $(SRCDIR)/keyboard.c | $(BLDDIR)
+	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_keyboard \
+		$(TESTDIR)/test_keyboard.c $(SRCDIR)/keyboard.c -DTEST_HOST
+	$(BLDDIR)/test_keyboard
 
 # Le runner integre du script gere les tests async (pytest sans
 # pytest-asyncio ne sait pas les executer et echouait silencieusement
@@ -343,6 +350,7 @@ help:
 	@echo "  test-videotex Tests du decodeur Videotex"
 	@echo "  test-serial   Tests coherence bases ACIA (emu/LOCI, SMC)"
 	@echo "  test-atmodem  Tests machine d'etats modem AT (faux modem)"
+	@echo "  test-keyboard Tests mapping clavier Oric -> Minitel (clavier scripte)"
 	@echo "  test-bridge   Tests du bridge"
 	@echo "  test-server   Serveur Videotex local de demo (test manuel)"
 	@echo "  fuzz          Fuzzing du decodeur Videotex (ASAN/UBSAN, FUZZ_TIME=30)"

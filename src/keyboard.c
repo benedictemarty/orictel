@@ -20,7 +20,14 @@
  *   FUNCT = row 3, col 4 (Atmos uniquement)
  */
 
+#ifdef TEST_HOST
+/* En test host, kbhit()/cgetc() sont fournis par le harnais (clavier scripte)
+ * a la place de la conio cc65. */
+extern int kbhit(void);
+extern int cgetc(void);
+#else
 #include <conio.h>
+#endif
 #include "keyboard.h"
 #include "serial.h"
 
@@ -196,6 +203,12 @@ unsigned char keyboard_scan(void)
         case 0x08:  /* Fleche GAUCHE (BS) */
             return KEY_ARROW_LEFT;
 
+        case 0x15:  /* Fleche DROITE (NAK). DOIT etre traitee ICI, avant le
+                     * handler CTRL+lettre: $15 est dans la plage $01-$1A, sinon
+                     * elle y serait avalee (KEY_NONE) et la fleche droite ne
+                     * fonctionnerait jamais. */
+            return KEY_ARROW_RIGHT;
+
         case 0x7F:  /* DELETE = Correction */
             return KEY_FUNC_FLAG | KEY_CORRECTION;
 
@@ -217,11 +230,6 @@ unsigned char keyboard_scan(void)
             return func_key;
         }
         return KEY_NONE;
-    }
-
-    /* Fleche DROITE */
-    if (ch == 0x15) {
-        return KEY_ARROW_RIGHT;
     }
 
     /* --- Caractere ASCII normal --- */

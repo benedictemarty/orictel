@@ -1,11 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.49
+## Version actuelle: 0.2.50
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.48     | 2026-06-26 | inchange (firmware) |
+| orictel.tap        | 0.2.50     | 2026-06-26 | fix fleche droite + CSI/US/REP bornes |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
+| test_keyboard (mapping)| 0.2.50 | 2026-06-26 | 22 checks   |
 | fuzz Videotex (ASAN/UBSAN)| 0.2.49 | 2026-06-26 | 1.2M runs OK |
 | coverage gcov (vtx 83% / at 94%)| 0.2.49 | 2026-06-26 | make coverage |
 | CI GitHub Actions  | 0.2.49     | 2026-06-26 | build+test+cppcheck+fuzz+cov |

@@ -500,12 +500,18 @@ static void process_csi(vtx_context_t* ctx, unsigned char byte)
     param2 = 0;
     {
         unsigned char i;
+        /* Accumulation BORNEE a 64 : au-dela ca n'a aucun sens (ecran 40x25)
+         * et un parametre a 3+ chiffres deborderait l'unsigned char (ex.
+         * "999A" -> 231) -> mouvement curseur faux ou boucle excessive. Le
+         * calcul intermediaire passe par unsigned int pour ne jamais wrapper. */
         for (i = 0; i < ctx->csi_len && ctx->csi_buf[i] != ';'; ++i) {
-            param = param * 10 + (ctx->csi_buf[i] - '0');
+            unsigned int t = (unsigned int)param * 10 + (ctx->csi_buf[i] - '0');
+            param = (t > 64) ? 64 : (unsigned char)t;
         }
         if (i < ctx->csi_len && ctx->csi_buf[i] == ';') {
             for (++i; i < ctx->csi_len && ctx->csi_buf[i] != ';'; ++i) {
-                param2 = param2 * 10 + (ctx->csi_buf[i] - '0');
+                unsigned int t = (unsigned int)param2 * 10 + (ctx->csi_buf[i] - '0');
+                param2 = (t > 64) ? 64 : (unsigned char)t;
             }
         }
     }
@@ -747,7 +753,10 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
         return;
 
     case VTX_STATE_US_ROW:
-        ctx->us_row = byte - VTX_ADDR_BASE;
+        /* Valider la plage en amont: un octet < $40 sous-deborderait
+         * l'unsigned char (vtx_set_cursor reclampe en US_COL, mais on rejette
+         * proprement plutot que de s'appuyer sur ce filet). */
+        ctx->us_row = (byte >= VTX_ADDR_BASE) ? (byte - VTX_ADDR_BASE) : 0;
         ctx->state = VTX_STATE_US_COL;
         return;
 
@@ -833,7 +842,10 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
     case VTX_STATE_REP:
         /* Repeter le dernier caractere N fois */
         {
-            unsigned char count = byte - VTX_ADDR_BASE;
+            /* Octet < $40 -> 0 repetition (rejet), au lieu d'un sous-debordement
+             * unsigned char rattrape ensuite par le plafond a 40. */
+            unsigned char count = (byte >= VTX_ADDR_BASE)
+                                  ? (byte - VTX_ADDR_BASE) : 0;
             if (count > 40) count = 40;
             while (count-- > 0) {
                 put_char(ctx, ctx->last_char, ctx->last_charset);

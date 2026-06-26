@@ -1,5 +1,31 @@
 # CHANGELOG - OricTel
 
+## [0.2.50] - 2026-06-26
+
+### Corrige
+- **Fleche droite inoperante** (`keyboard.c`) — bug revele par les nouveaux
+  tests clavier. Le code `$15 -> KEY_ARROW_RIGHT` etait place APRES le handler
+  CTRL+lettre ; or `$15` est dans la plage `$01-$1A`, donc il y etait avale
+  (`KEY_NONE`) et la branche fleche droite etait du **code mort**. Deplace dans
+  le switch des touches speciales (avant le handler CTRL), comme la fleche
+  gauche `$08`.
+- **Parametres CSI hors plage / soustractions Videotex non bornees**
+  (`videotex.c`, findings revue #6/#7). Accumulation des parametres CSI bornee
+  a 64 via un calcul intermediaire `unsigned int` (un `"999A"` ne wrappe plus
+  l'unsigned char en 231). Sequences US (positionnement) et REP (repetition)
+  valident la plage `>= $40` en amont (octet invalide -> 0) plutot que de
+  s'appuyer sur un clamp tardif. (Aucun crash : le fuzzer le confirmait deja ;
+  ces correctifs visent la justesse sur entree malformee.)
+
+### Ajoute
+- **Tests host du mapping clavier** (`tests/test_keyboard.c`, cible
+  `make test-keyboard`, integre a `make test`). Clavier scripte + capture
+  serie : 22 verifications sur `keyboard_scan` (touches speciales, CTRL+lettre,
+  CTRL locaux, FUNCT Atmos, ASCII, combinaisons inconnues) et
+  `keyboard_process` (emission SEP+code, fleches en mode curseur). C'est ce
+  test qui a revele le bug de la fleche droite. Pre-requis : garde `TEST_HOST`
+  sur `<conio.h>` dans `keyboard.c` (kbhit/cgetc fournis par le harnais).
+
 ## [0.2.49] - 2026-06-26
 
 ### Ajoute (outillage qualite — feuille de route revue P1/P2)

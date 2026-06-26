@@ -91,7 +91,7 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
 ```bash
 make                # Compile orictel.tap
 make dsk            # Construit la disquette Sedoric orictel.dsk
-make test           # Tests host (Videotex, ACIA/SMC, modem AT, bridge)
+make test           # Tests host (Videotex, ACIA/SMC, modem AT, clavier, bridge)
 make fuzz           # Fuzzing du decodeur Videotex (ASAN/UBSAN, FUZZ_TIME=30)
 make coverage       # Couverture host gcov (Videotex + modem AT)
 make test-server    # Serveur Videotex local de demo (test manuel)
