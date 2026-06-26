@@ -57,3 +57,24 @@ jobs:
                    --suppress=missingIncludeSystem \
                    --error-exitcode=1 \
                    -I src src/
+
+  fuzz:
+    name: Fuzzing decodeur Videotex (ASAN/UBSAN, 60s)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+      - name: Fuzz vtx_process 60s (surface reseau)
+        run: make fuzz FUZZ_TIME=60
+
+  coverage:
+    name: Couverture host (gcov) — informatif
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mesurer la couverture (Videotex + modem AT)
+        run: make coverage

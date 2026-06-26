@@ -8,6 +8,15 @@ build/
 *.o
 *.s.bak
 
+# Couverture (gcov) et fuzzing (libFuzzer)
+*.gcov
+*.gcda
+*.gcno
+crash-*
+leak-*
+timeout-*
+oom-*
+
 # Python
 __pycache__/
 *.pyc

@@ -91,7 +91,9 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
 ```bash
 make                # Compile orictel.tap
 make dsk            # Construit la disquette Sedoric orictel.dsk
-make test           # Tests decodeur Videotex (host gcc) + bridge
+make test           # Tests host (Videotex, ACIA/SMC, modem AT, bridge)
+make fuzz           # Fuzzing du decodeur Videotex (ASAN/UBSAN, FUZZ_TIME=30)
+make coverage       # Couverture host gcov (Videotex + modem AT)
 make test-server    # Serveur Videotex local de demo (test manuel)
 make clean          # Nettoyage
 ```
@@ -189,6 +191,7 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 
 - `docs/MANUEL_UTILISATION.md` - Manuel d'utilisation complet
 - `docs/ARCHITECTURE.md` - Architecture technique detaillee
+- `docs/REVUE_QUALITE.md` - Revue qualite et suivi de remediation
 - `docs/AGILE_PLAN.md` - Plan agile et suivi des sprints
 - `ROADMAP` - Vision et planification des versions
 - `CHANGELOG` - Historique des modifications

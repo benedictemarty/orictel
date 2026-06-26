@@ -53,8 +53,14 @@ DSK_LABEL   = ORICTEL DISK
 DSK_INIT    = LOAD"ORICTEL"
 HOSTCC      = cc
 
+# Chemins surchargeables (portabilite : un contributeur les redefinit sans
+# editer le Makefile, ex. `make run ORIC_ROMS=/opt/oric/roms`). Les cibles de
+# build et de test (make / make test / make fuzz / make coverage) n'en
+# dependent PAS : seules les cibles run-* utilisent l'emulateur et les ROM.
+ORIC_ROMS ?= /home/bmarty/Oric1/roms
+
 # ROM Microdisc pour booter une disquette Sedoric dans Phosphoric
-DISK_ROM = /home/bmarty/Oric1/roms/microdis.rom
+DISK_ROM ?= $(ORIC_ROMS)/microdis.rom
 
 # Emulateur Phosphoric (oric1-emu).
 # IMPORTANT: le binaire fourni par l'equipe Phosphoric est compile SANS SDL
@@ -66,8 +72,8 @@ DISK_ROM = /home/bmarty/Oric1/roms/microdis.rom
 #   cp /home/bmarty/Oric1/oric1-emu tools/oric1-emu-sdl
 #   cd /home/bmarty/Oric1 && make clean   # restaure l'etat headless de l'equipe
 # Version actuelle de la copie locale : Phosphoric 1.27.6-alpha + SDL2.
-EMU      = ./tools/oric1-emu-sdl
-EMU_ROM  = /home/bmarty/Oric1/roms/basic11b.rom
+EMU      ?= ./tools/oric1-emu-sdl
+EMU_ROM  ?= $(ORIC_ROMS)/basic11b.rom
 
 # OricTel pilote l'ACIA 6551 a la base LOCI ($0380) uniquement. Le flag
 # `--loci` de Phosphoric (>= 1.27) mappe justement l'ACIA modem a $0380 (cf.
@@ -95,7 +101,7 @@ EMU_OPTS_PICOWIFI = --loci --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 40
 # backend `com:B,D,P,S,DEV` (baud,databits,parite,stop,device - baud EN PREMIER,
 # device EN DERNIER). OricTel pilote l'ACIA en 8N1. Le PicoWiFiModemUSB en
 # USB-CDC dialogue a 115200 bauds cote DTE.
-PICO_DEV  = /dev/ttyACM0
+PICO_DEV  ?= /dev/ttyACM0
 PICO_BAUD = 115200
 
 # Scenario B : montage reel Oric + LOCI + Pico. La cartouche LOCI expose l'ACIA
@@ -114,7 +120,7 @@ EMU_OPTS_LOCI_EMU = --loci --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 40
 # son unique octet RX, conditions proches du vrai materiel (le correctif
 # anti-overrun a un sens). Ajouter LOCI_BUFFER=512 si la reception est instable.
 EMU_LOCI_REAL  = $(EMU)
-ROM_ORIC1      = /home/bmarty/Oric1/roms/basic10.rom
+ROM_ORIC1      ?= $(ORIC_ROMS)/basic10.rom
 LOCI_BUFFER    =
 EMU_OPTS_LOCI_REAL = --loci --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) \
                      $(if $(LOCI_BUFFER),--serial-buffer $(LOCI_BUFFER),)
@@ -127,7 +133,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk test test-videotex test-serial test-atmodem test-bridge help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk test test-videotex test-serial test-atmodem test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -277,6 +283,36 @@ test-bridge:
 test-server:
 	python3 $(TESTDIR)/test_server.py --test all
 
+# Fuzzing du decodeur Videotex (vtx_process) = surface reseau d'OricTel, sous
+# AddressSanitizer + UndefinedBehaviorSanitizer via libFuzzer (clang requis).
+# FUZZ_TIME borne la duree (defaut 30 s). Un crash laisse un fichier crash-*
+# a rejouer : `build/fuzz_videotex crash-xxxx`.
+FUZZCC    ?= clang
+FUZZ_TIME ?= 30
+fuzz: $(TESTDIR)/fuzz_videotex.c $(SRCDIR)/videotex.c | $(BLDDIR)
+	$(FUZZCC) -O1 -g -DTEST_HOST -I$(SRCDIR) \
+		-fsanitize=fuzzer,address,undefined \
+		$(TESTDIR)/fuzz_videotex.c $(SRCDIR)/videotex.c $(SRCDIR)/fonts.c \
+		-o $(BLDDIR)/fuzz_videotex
+	$(BLDDIR)/fuzz_videotex -max_total_time=$(FUZZ_TIME) -print_final_stats=1
+
+# Couverture host (gcov) du decodeur Videotex et du modem AT : compile les
+# tests avec --coverage, les execute, puis affiche le % de lignes couvertes.
+coverage: | $(BLDDIR)
+	@mkdir -p $(BLDDIR)/cov
+	gcc --coverage -O0 -I$(SRCDIR) -DTEST_HOST -c $(SRCDIR)/videotex.c   -o $(BLDDIR)/cov/videotex.o
+	gcc --coverage -O0 -I$(SRCDIR) -DTEST_HOST -c $(SRCDIR)/fonts.c      -o $(BLDDIR)/cov/fonts.o
+	gcc --coverage -O0 -I$(SRCDIR) -DTEST_HOST -c $(TESTDIR)/test_videotex.c -o $(BLDDIR)/cov/tv.o
+	gcc --coverage -o $(BLDDIR)/cov/test_videotex $(BLDDIR)/cov/videotex.o $(BLDDIR)/cov/fonts.o $(BLDDIR)/cov/tv.o
+	$(BLDDIR)/cov/test_videotex >/dev/null
+	gcc --coverage -O0 -I$(SRCDIR) -DTEST_HOST -c $(SRCDIR)/at_modem.c   -o $(BLDDIR)/cov/at_modem.o
+	gcc --coverage -O0 -I$(SRCDIR) -DTEST_HOST -c $(TESTDIR)/test_atmodem.c -o $(BLDDIR)/cov/ta.o
+	gcc --coverage -o $(BLDDIR)/cov/test_atmodem $(BLDDIR)/cov/at_modem.o $(BLDDIR)/cov/ta.o
+	$(BLDDIR)/cov/test_atmodem >/dev/null
+	@echo "=== Couverture lignes (gcov) ==="
+	@gcov -n -o $(BLDDIR)/cov $(SRCDIR)/videotex.c $(SRCDIR)/at_modem.c 2>/dev/null \
+		| grep -E "File '.*(videotex|at_modem)\.c'|Lines executed"
+
 # ============================================================================
 # Nettoyage
 # ============================================================================
@@ -309,5 +345,7 @@ help:
 	@echo "  test-atmodem  Tests machine d'etats modem AT (faux modem)"
 	@echo "  test-bridge   Tests du bridge"
 	@echo "  test-server   Serveur Videotex local de demo (test manuel)"
+	@echo "  fuzz          Fuzzing du decodeur Videotex (ASAN/UBSAN, FUZZ_TIME=30)"
+	@echo "  coverage      Couverture host (gcov) Videotex + modem AT"
 	@echo "  clean         Nettoyer les fichiers generes"
 	@echo "  help          Afficher cette aide"

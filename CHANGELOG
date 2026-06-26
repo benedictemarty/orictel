@@ -1,5 +1,24 @@
 # CHANGELOG - OricTel
 
+## [0.2.49] - 2026-06-26
+
+### Ajoute (outillage qualite — feuille de route revue P1/P2)
+- **Fuzzing du decodeur Videotex** (`tests/fuzz_videotex.c`, cible `make fuzz`).
+  Harnais libFuzzer + AddressSanitizer + UndefinedBehaviorSanitizer ciblant
+  `vtx_process` (la surface reseau). > 1,2 M entrees/30 s **sans crash** : le
+  durcissement du chemin octet-reseau est prouve. Job CI dedie (60 s).
+- **Mesure de couverture** (`make coverage`, gcov). videotex.c **83 %**,
+  at_modem.c **94 %** de lignes executees par les tests host. Job CI informatif.
+- **Jobs CI** fuzz (bloquant) et coverage (informatif) ajoutes a
+  `.github/workflows/ci.yml`.
+- **Rapport de revue qualite archive** : `docs/REVUE_QUALITE.md` (findings,
+  severites, statut de remediation P0/P1/P2).
+
+### Modifie
+- **Makefile portable** : chemins ROM/emulateur surchargeables (`?=`, variable
+  `ORIC_ROMS`) — un contributeur les redefinit sans editer le Makefile. Les
+  cibles build/test/fuzz/coverage n'en dependent pas.
+
 ## [0.2.48] - 2026-06-26
 
 ### Corrige (revue qualite senior — P0 surete)
