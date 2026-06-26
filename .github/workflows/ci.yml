@@ -25,6 +25,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cc65
 
+      - name: Versions de la toolchain (tracabilite / reproductibilite)
+        run: |
+          cc65 --version 2>&1 | head -1 || true
+          ca65 --version 2>&1 | head -1 || true
+          ld65 --version 2>&1 | head -1 || true
+          gcc --version | head -1
+          python3 --version
+
       - name: Installer les dependances Python (bridge)
         run: |
           python3 -m pip install --upgrade pip

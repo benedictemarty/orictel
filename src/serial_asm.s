@@ -127,17 +127,32 @@ i_da1:  lda     ACIA_DATA       ; Clear RDR
         rts
 
 ; ===========================================================================
-; serial_send_raw - Ecriture directe ACIA, bloque sur TDRE
+; serial_send_raw - Ecriture directe ACIA, attend TDRE (attente BORNEE)
 ; Ne pas appeler directement depuis le code applicatif: passer par
 ; serial_send() (file TX logicielle, serial_tx.c) pour ne pas bloquer
 ; la reception pendant l'attente TDRE.
+;
+; L'attente TDRE est plafonnee a ~65536 iterations (X/Y, scratch selon l'ABI
+; cc65 pour un fastcall void) : sur le vrai materiel, un modem (LOCI/Pico)
+; fige ne gele plus l'Oric -> l'octet est abandonne et l'execution reprend
+; (degradation gracieuse). Sur le chemin normal, TDRE est deja arme par
+; serial_tx_pump (qui n'appelle qu'apres serial_tx_ready), donc on sort des
+; la 1re iteration: surcout negligeable.
 ; ===========================================================================
 _acia6551_send_raw:
         pha
+        ldx     #0
+        ldy     #0
 s_st1:  lda     ACIA_STATUS
         and     #TDRE
-        beq     s_st1
-        pla
+        bne     s_ok            ; TDRE pret -> emettre
+        dex
+        bne     s_st1
+        dey
+        bne     s_st1
+        pla                     ; timeout: rendre la pile coherente (octet jete)
+        rts
+s_ok:   pla
 s_da1:  sta     ACIA_DATA
         rts
 

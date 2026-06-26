@@ -1,5 +1,24 @@
 # CHANGELOG - OricTel
 
+## [0.2.51] - 2026-06-26
+
+### Corrige (revue qualite — finition)
+- **Attente TDRE non bornee** (`serial_asm.s`, finding #8). `acia6551_send_raw`
+  spinnait indefiniment sur TDRE : sur le vrai materiel, un modem LOCI/Pico
+  fige aurait gele l'Oric. L'attente est desormais plafonnee (~65536 iterations
+  via X/Y, scratch selon l'ABI cc65) -> au-dela, l'octet est abandonne et
+  l'execution reprend (degradation gracieuse). Chemin normal inchange (TDRE
+  deja arme par `serial_tx_pump`, sortie a la 1re iteration).
+
+### Modifie
+- **CI : releve des versions de toolchain** (`.github/workflows/ci.yml`) :
+  cc65/ca65/ld65/gcc/python loggees a chaque run (tracabilite / reproductibilite,
+  `apt` ne figeant pas une version exacte).
+- **`docs/REVUE_QUALITE.md`** : tous les findings (P0 #1-#5, mineurs #6-#8)
+  marques corriges ; decisions assumees documentees (CHANGELOG monolithique et
+  binaires versionnes conserves volontairement, conformes aux conventions du
+  projet). Note qualite 3,2 -> ~4,2 / 5.
+
 ## [0.2.50] - 2026-06-26
 
 ### Corrige
