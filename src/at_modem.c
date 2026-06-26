@@ -11,6 +11,14 @@
  * matcher prefixe/sous-chaine reste correct sur le debut de ligne). */
 #define AT_LINE_MAX 48
 
+/* Plafond d'octets draines d'une seule rafale (boucle do/while interne) avant
+ * de rendre la main a la boucle de timeout. Sans ce plafond, une entree non
+ * fiable qui debiterait des octets sans interruption (le serveur distant peut
+ * influencer le flux autour de CONNECT) maintiendrait serial_poll() a vrai et
+ * empecherait 'elapsed'/'rwait' de progresser -> attente AT non bornee malgre
+ * le timeout. Valeur large (le cas normal draine << 1024 octets par rafale). */
+#define AT_DRAIN_BURST 1024
+
 /* --- Hooks de trace (NULL par defaut: aucune trace, aucun rendu) --------- */
 static at_trace_byte_fn s_on_byte;
 static at_idle_fn       s_on_idle;
@@ -100,7 +108,9 @@ unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms)
             /* Drainer la rafale A PLEINE VITESSE: aucun rendu ici (le 6551
              * reel n'a qu'un registre RX 1 octet, un rendu perdrait des
              * octets par overrun). Le rendu eventuel (debug) est differe au
-             * creux via le hook idle. */
+             * creux via le hook idle. La rafale est PLAFONNEE (AT_DRAIN_BURST)
+             * pour garantir une sortie bornee meme sous flux continu. */
+            unsigned int burst = 0;
             do {
                 unsigned char b = serial_recv();
                 if (s_on_byte) s_on_byte(b);
@@ -113,8 +123,11 @@ unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms)
                 } else if (lp < AT_LINE_MAX - 1) {
                     line[lp++] = b;
                 }
-            } while (serial_poll());
+            } while (serial_poll() && ++burst < AT_DRAIN_BURST);
             pending = 1;
+            /* Rafale plafonnee sans interruption: faire avancer le timeout
+             * pour qu'il finisse par expirer (entree non fiable). */
+            if (burst >= AT_DRAIN_BURST) elapsed += 10;
         } else {
             if (pending) {              /* creux: ligne au repos, rendu sur */
                 if (s_on_idle) s_on_idle();
@@ -157,6 +170,7 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
          *     --serial modem, modem Hayes generique) : inutile d'attendre. */
         for (;;) {
             if (serial_poll()) {
+                unsigned int burst = 0;
                 do {
                     unsigned char b = serial_recv();
                     if (s_on_byte) s_on_byte(b);
@@ -170,9 +184,15 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
                     } else if (lp < AT_LINE_MAX - 1) {
                         line[lp++] = b;
                     }
-                } while (serial_poll() && !done);
+                } while (serial_poll() && !done && ++burst < AT_DRAIN_BURST);
                 pending = 1;
                 if (done) break;
+                /* Rafale plafonnee sans "OK": faire avancer le budget pour
+                 * borner cette sonde meme sous flux continu. */
+                if (burst >= AT_DRAIN_BURST) {
+                    rwait += 10;
+                    if (rwait >= 2000) break;
+                }
             } else {
                 if (pending) {
                     if (s_on_idle) s_on_idle();

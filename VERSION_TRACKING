@@ -1,11 +1,14 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.2.47
+## Version actuelle: 0.2.48
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.2.47     | 2026-06-26 | splash v0.2.47 |
+| orictel.tap        | 0.2.48     | 2026-06-26 | P0 surete + v0.2.48 |
 | orictel.dsk (Sedoric)| 0.2.40   | 2026-06-24 | Nouveau     |
+| CI GitHub Actions  | 0.2.48     | 2026-06-26 | build+test+cppcheck |
+| ui_text_input (saisies bornees)| 0.2.48 | 2026-06-26 | P0 #2-#5 |
+| at_modem (cap drain AT)| 0.2.48 | 2026-06-26 | P0 #1, 18 tests |
 | Makefile (lancements --loci)| 0.2.47 | 2026-06-26 | canonique |
 | tools/oric1-emu-sdl (non versionne)| 1.27.6 | 2026-06-26 | SDL2 |
 | menus (interface/mode/splash)| 0.2.46 | 2026-06-26 | AT only |

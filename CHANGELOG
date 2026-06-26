@@ -1,5 +1,34 @@
 # CHANGELOG - OricTel
 
+## [0.2.48] - 2026-06-26
+
+### Corrige (revue qualite senior — P0 surete)
+- **Ecritures hors borne dans les saisies/affichages UI** (`main.c`). `ui_print`
+  ne clippait pas sur `VTX_COLS` : toute chaine dont `col+longueur > 40`
+  debordait sur la ligne suivante (UB C, corruption d'affichage). Corrige a la
+  racine (clip dans `ui_print`) + bornage explicite :
+  * nouvelle routine factorisee **`ui_text_input()`** bornee A LA FOIS par le
+    tampon et par la largeur ecran restante, gerant ENVOI/CORRECTION et
+    desormais **ANNULATION** ; remplace `wifi_input` (mot de passe, ecrivait
+    jusqu'a la colonne 40) et la saisie serveur libre (ecrivait jusqu'a la
+    colonne 51) — duplication eliminee ;
+  * affichage de la liste WiFi clippe (SSID 32 car. + cadenas `*` ne deborde
+    plus, donnee issue de `AT$SCAN`).
+- **Attente AT non bornee sous flux continu** (`at_modem.c`). Les boucles de
+  drain `do{}while(serial_poll())` de `at_wait_response`/`at_wait_ip` pouvaient
+  ignorer le timeout si l'entree (influencable par le serveur distant autour de
+  `CONNECT`) debitait sans interruption. Ajout d'un plafond de rafale
+  **`AT_DRAIN_BURST`** (1024) qui rend la main et fait progresser
+  `elapsed`/`rwait` -> sortie garantie bornee. 2 tests de regression
+  (mode flux infini dans le faux modem) : at_modem 16 -> 18 checks.
+
+### Ajoute
+- **Integration continue GitHub Actions** (`.github/workflows/ci.yml`). A chaque
+  push/PR sur `main` : installation cc65 + `make` (build `orictel.tap`) + `make
+  test` (Videotex 219, ACIA/SMC 21, modem AT 18, bridge 23). Job d'analyse
+  statique **cppcheck** (non bloquant) — propre (0 finding) apres les correctifs
+  P0. Badge CI ajoute au README.
+
 ## [0.2.47] - 2026-06-26
 
 ### Corrige

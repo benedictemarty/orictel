@@ -24,10 +24,11 @@
 static unsigned char rx_q[2048];
 static int rx_head;
 static int rx_len;
+static int rx_infinite;          /* 1 = flux ininterrompu (debit sans fin) */
 static unsigned char tx_cap[512];
 static int tx_len;
 
-static void modem_reset(void) { rx_head = 0; rx_len = 0; tx_len = 0; }
+static void modem_reset(void) { rx_head = 0; rx_len = 0; tx_len = 0; rx_infinite = 0; }
 static void rx_push(const char* s)
 {
     while (*s && rx_len < (int)sizeof(rx_q)) rx_q[rx_len++] = (unsigned char)*s++;
@@ -37,9 +38,16 @@ static void rx_push_fill(char c, int n)
     while (n-- > 0 && rx_len < (int)sizeof(rx_q)) rx_q[rx_len++] = (unsigned char)c;
 }
 
-/* Primitives serie attendues par at_modem.c (stubs TEST_HOST) */
-unsigned char serial_poll(void) { return rx_head < rx_len; }
-unsigned char serial_recv(void) { return rx_head < rx_len ? rx_q[rx_head++] : 0xFF; }
+/* Primitives serie attendues par at_modem.c (stubs TEST_HOST).
+ * En mode rx_infinite, serial_poll reste vrai et serial_recv debite un octet
+ * neutre ('.') indefiniment: simule un serveur/parasite qui n'arrete jamais
+ * d'emettre, pour valider que les drains AT restent bornes (anti-blocage). */
+unsigned char serial_poll(void) { return rx_infinite || rx_head < rx_len; }
+unsigned char serial_recv(void)
+{
+    if (rx_head < rx_len) return rx_q[rx_head++];
+    return rx_infinite ? (unsigned char)'.' : 0xFF;
+}
 void serial_send(unsigned char b) { if (tx_len < (int)sizeof(tx_cap)) tx_cap[tx_len++] = b; }
 void serial_tx_flush(void) {}
 
@@ -141,6 +149,24 @@ int main(void)
     modem_reset();
     at_send_kv("AT$SSID=", "Home");
     CHECK(tx_len == 13 && tx_cap[12] == 0x0D, "at_send_kv: prefixe+valeur+CR");
+
+    /* 12. ANTI-BLOCAGE (#1): flux continu SANS le mot-cle. Le drain do/while
+     *     est plafonne (AT_DRAIN_BURST) et fait progresser le timeout -> la
+     *     fonction DOIT retourner 0 (timeout) au lieu de boucler a l'infini.
+     *     Sans le correctif, ce test ne se terminerait jamais. */
+    modem_reset();
+    rx_infinite = 1;
+    CHECK(at_wait_response("OK", 100) == 0,
+          "flux continu sans mot-cle -> timeout borne (anti-blocage)");
+    rx_infinite = 0;
+
+    /* 13. ANTI-BLOCAGE (#1) cote at_wait_ip: flux continu sans WiFi/OK ->
+     *     sortie bornee (retour 0), pas de boucle infinie dans la sonde ATI. */
+    modem_reset();
+    rx_infinite = 1;
+    CHECK(at_wait_ip(15000) == 0,
+          "at_wait_ip: flux continu -> sortie bornee (anti-blocage)");
+    rx_infinite = 0;
 
     printf("\n=== Resultats: %d/%d passes ===\n", tests_passed, tests_run);
     return (tests_passed == tests_run) ? 0 : 1;

@@ -1,6 +1,8 @@
 # OricTel - Emulateur Minitel 1B pour Oric 1/Atmos
 
-**Version:** 0.2.46
+[![CI](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml/badge.svg)](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml)
+
+**Version:** 0.2.48
 **Date:** 2026-06-26
 **Auteur:** bmarty <bmarty@mailo.com>
 **Depot public:** https://github.com/benedictemarty/orictel

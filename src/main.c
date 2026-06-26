@@ -25,7 +25,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.2.47"
+#define ORICTEL_VERSION "v0.2.48"
 
 /* Contexte Videotex global */
 static vtx_context_t vtx;
@@ -161,7 +161,9 @@ static void ui_print(vtx_context_t* ctx, unsigned char row,
                      unsigned char col, const char* s, unsigned char fg)
 {
     unsigned char i;
-    for (i = 0; s[i]; ++i) {
+    /* Clip sur la largeur ecran: une chaine dont col+longueur depasse
+     * VTX_COLS deborderait sinon sur la ligne suivante (UB / corruption). */
+    for (i = 0; s[i] && (col + i) < VTX_COLS; ++i) {
         ctx->screen[row][col + i].ch = s[i];
         ctx->screen[row][col + i].fg = fg;
     }
@@ -450,30 +452,45 @@ static void wifi_msg_wait(vtx_context_t* ctx, unsigned char row,
     while (keyboard_scan() == KEY_NONE) { /* attente touche */ }
 }
 
-/* Saisie d'une chaine (mot de passe) dans 'buf' (taille max len+1).
- * ENVOI valide, CORRECTION/DELETE efface. Retourne la longueur. */
-static unsigned char wifi_input(vtx_context_t* ctx, unsigned char row,
-                                char* buf, unsigned char maxlen)
+/* Saisie de texte bornee a partir de (row, col), avec echo a l'ecran.
+ *  - buf     : tampon de sortie, taille 'bufsize' (terminaison incluse).
+ *  - mask    : si != 0, caractere d'echo (ex. '*' pour un mot de passe) ;
+ *              0 => echo du caractere tape.
+ *  - ENVOI   : valide -> retourne la longueur saisie (0..maxlen).
+ *  - ANNULATION : annule -> retourne 0xFF (buf vide).
+ *  - CORRECTION / DELETE / BS : efface le dernier caractere.
+ *
+ * La longueur saisie est bornee A LA FOIS par le tampon (bufsize-1) ET par la
+ * largeur ecran restante (VTX_COLS - col), ce qui garantit que ni 'buf' ni
+ * 'screen[row][...]' ne sont jamais ecrits hors limites (col suppose < VTX_COLS). */
+static unsigned char ui_text_input(vtx_context_t* ctx, unsigned char row,
+                                   unsigned char col, char* buf,
+                                   unsigned char bufsize, unsigned char mask)
 {
     unsigned char pos = 0;
+    unsigned char maxlen = bufsize - 1;
+    if ((unsigned)col + maxlen > VTX_COLS) maxlen = (unsigned char)(VTX_COLS - col);
     for (;;) {
         unsigned char key = keyboard_scan();
         if (key == KEY_NONE) continue;
         if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ENVOI) {
             buf[pos] = 0;
             return pos;
+        } else if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ANNULATION) {
+            buf[0] = 0;
+            return 0xFF;                          /* annulation */
         } else if (key == 0x7F || key == 0x08 ||
                    ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_CORRECTION)) {
             if (pos > 0) {
                 --pos;
-                ctx->screen[row][3 + pos].ch = ' ';
+                ctx->screen[row][col + pos].ch = ' ';
                 ctx->dirty[row] = 1;
                 display_render_all(ctx);
             }
         } else if (key >= 0x20 && key < 0x7F && pos < maxlen) {
             buf[pos] = key;
-            ctx->screen[row][3 + pos].ch = '*';   /* masque le mot de passe */
-            ctx->screen[row][3 + pos].fg = VTX_GREEN;
+            ctx->screen[row][col + pos].ch = mask ? mask : key;
+            ctx->screen[row][col + pos].fg = VTX_GREEN;
             ctx->dirty[row] = 1;
             display_render_all(ctx);
             ++pos;
@@ -507,11 +524,11 @@ static void wifi_config_page(vtx_context_t* ctx)
             ctx->screen[row][3].fg = VTX_CYAN;
             ctx->screen[row][5].ch = '-';
             ctx->screen[row][5].fg = VTX_WHITE;
-            for (d = 0; wifi_ssid[i][d]; ++d) {
+            for (d = 0; wifi_ssid[i][d] && (7 + d) < VTX_COLS; ++d) {
                 ctx->screen[row][7 + d].ch = wifi_ssid[i][d];
                 ctx->screen[row][7 + d].fg = VTX_YELLOW;
             }
-            if (wifi_sec[i] == 'S') {            /* cadenas = securise */
+            if (wifi_sec[i] == 'S' && (7 + d + 1) < VTX_COLS) {  /* cadenas */
                 ctx->screen[row][7 + d + 1].ch = '*';
                 ctx->screen[row][7 + d + 1].fg = VTX_RED;
             }
@@ -548,7 +565,8 @@ static void wifi_config_page(vtx_context_t* ctx)
             vtx_clear_page(ctx);
             ui_print(ctx, 8, 3, "Mot de passe WiFi:", VTX_WHITE);
             display_render_all(ctx);
-            wifi_input(ctx, 10, wifi_pass, 38);
+            /* col 3, masque '*' ; longueur bornee par le buffer et l'ecran */
+            ui_text_input(ctx, 10, 3, wifi_pass, sizeof(wifi_pass), '*');
         }
 
         /* Configuration + connexion */
@@ -582,8 +600,7 @@ static char custom_server[40];
  * Retourne 0-1 pour les predefinis, 255 pour saisie libre. */
 static unsigned char select_server(vtx_context_t* ctx)
 {
-    unsigned char j, sel;
-    const char* p;
+    unsigned char sel, n;
 
     ui_print(ctx, 10, 5, "Serveur:", VTX_WHITE);
 
@@ -615,43 +632,21 @@ static unsigned char select_server(vtx_context_t* ctx)
             return key - '1';
         }
         if (key == '3') {
-            /* Saisie libre du serveur */
+            /* Saisie libre du serveur : invite "host:port> " (col 3..13),
+             * saisie bornee a partir de la col 14 via ui_text_input. */
             unsigned char row = 12 + NUM_SERVERS * 2 + 2;
-            unsigned char pos = 0;
-            p = "host:port> ";
-            for (j = 0; p[j]; ++j) {
-                ctx->screen[row][3 + j].ch = p[j];
-                ctx->screen[row][3 + j].fg = VTX_WHITE;
-            }
-            ctx->dirty[row] = 1;
+            ui_print(ctx, row, 3, "host:port> ", VTX_WHITE);
             display_render_all(ctx);
-
-            /* Boucle de saisie */
-            for (;;) {
-                key = keyboard_scan();
-                if (key == KEY_NONE) continue;
-                if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ENVOI) {
-                    /* RETURN = valider */
-                    custom_server[pos] = 0;
-                    if (pos > 0) return 255;
-                } else if (key == 0x7F || key == 0x08) {
-                    /* DELETE/BS = effacer */
-                    if (pos > 0) {
-                        --pos;
-                        ctx->screen[row][14 + pos].ch = ' ';
-                        ctx->dirty[row] = 1;
-                        display_render_all(ctx);
-                    }
-                } else if (key >= 0x20 && key < 0x7F && pos < 38) {
-                    /* Caractere normal */
-                    custom_server[pos] = key;
-                    ctx->screen[row][14 + pos].ch = key;
-                    ctx->screen[row][14 + pos].fg = VTX_GREEN;
-                    ctx->dirty[row] = 1;
-                    display_render_all(ctx);
-                    ++pos;
-                }
+            n = ui_text_input(ctx, row, 14, custom_server,
+                              sizeof(custom_server), 0);
+            if (n != 0xFF && n > 0) return 255;   /* valide -> serveur perso */
+            /* ANNULATION ou saisie vide: nettoyer la ligne, revenir au menu */
+            {
+                unsigned char c;
+                for (c = 0; c < VTX_COLS; ++c) ctx->screen[row][c].ch = ' ';
+                ctx->dirty[row] = 1;
             }
+            display_render_all(ctx);
         }
     }
 }

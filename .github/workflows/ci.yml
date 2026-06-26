@@ -1,0 +1,59 @@
+name: CI
+
+# Build du firmware 6502 (cc65) + suite de tests host (Videotex, ACIA/SMC,
+# modem AT, bridge) a chaque push et pull request sur main.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Annule un run precedent encore en cours sur la meme ref (economise les minutes).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build (cc65) + tests host
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer la toolchain cc65
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cc65
+
+      - name: Installer les dependances Python (bridge)
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "websockets>=12.0"
+
+      - name: Compiler orictel.tap
+        run: make
+
+      - name: Tests (Videotex + ACIA/SMC + modem AT + bridge)
+        run: make test
+
+  static-analysis:
+    name: Analyse statique cppcheck (informatif)
+    runs-on: ubuntu-latest
+    # Non bloquant pour l'instant: surface les defauts sans empecher la fusion.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      - name: cppcheck sur src/
+        run: |
+          cppcheck --enable=warning,performance,portability \
+                   --std=c99 --inline-suppr \
+                   -D__fastcall__= -DTEST_HOST \
+                   --suppress=missingIncludeSystem \
+                   --error-exitcode=1 \
+                   -I src src/
