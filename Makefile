@@ -134,7 +134,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk test test-videotex test-serial test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk diag test test-videotex test-serial test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -143,6 +143,21 @@ $(OUTPUT): $(OBJS) $(CFG)
 		-m $(MAPFILE) $(TARGET).lib
 	@echo "=== OricTel compile: $(OUTPUT) ==="
 	@ls -la $(OUTPUT)
+
+# ============================================================================
+# Programme de diagnostic ACIA 6551 / LOCI (diag.tap)
+# Outil autonome : acces direct aux registres $0380-$0383, essai a chaud de
+# toutes les configurations Control/Command, affichage du status en direct.
+# Reutilise tous les modules SAUF main.o (diag.c fournit son propre main()).
+# ============================================================================
+DIAGOUT  = diag.tap
+DIAG_OBJS = $(BLDDIR)/diag.o $(filter-out $(BLDDIR)/main.o,$(OBJS))
+
+diag: $(DIAG_OBJS) $(CFG)
+	$(LD65) -C $(CFG) -o $(DIAGOUT) $(DIAG_OBJS) \
+		-m diag.map $(TARGET).lib
+	@echo "=== Diag compile: $(DIAGOUT) ==="
+	@ls -la $(DIAGOUT)
 
 # ============================================================================
 # Image disquette Sedoric 3 (.dsk)

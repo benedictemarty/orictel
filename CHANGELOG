@@ -1,5 +1,33 @@
 # CHANGELOG - OricTel
 
+## [0.3.1] - 2026-06-27 — Outil de diagnostic ACIA / LOCI
+
+Ajout d'un programme de diagnostic autonome pour investiguer la liaison
+serie sur **vrai materiel** (LOCI fw 0.3.1 + PicoWiFiModemUSB), suite a un
+blocage ou OricTel ne dialogue pas avec l'ACIA alors qu'ORICOMMS fonctionne
+sur le meme montage.
+
+### Ajoute
+- **`src/diag.c` + cible `make diag` (`diag.tap`)** : outil autonome qui
+  accede DIRECTEMENT aux registres ACIA `$0380-$0383` (pas le driver patche),
+  permet d'essayer a chaud 6 configurations Control/Command (dont la config
+  OricTel `$1E/$0B`, horloge externe `$0E`, IRQ active, EMU `$00/$03`, et la
+  config ORICOMMS `$22/$65`), et affiche en temps reel le registre status
+  decode (PE/FE/OV/RDRF/TDRE/DCD/DSR/IRQ), les indicateurs TDRE/RDRF/DCD et le
+  flot d'octets recus. Reutilise tous les modules sauf `main.o`.
+  Touches : 1-6 = config, ESPACE = ATZ, S = AT$SCAN, I = ATI, R = reinit,
+  C = effacer la zone de reception.
+
+### Investigation (firmware LOCI `src/mia/oric/acia.c`, analyse)
+- Le bit horloge `ACIA_CTRL_CLK` est **ignore** par le firmware LOCI :
+  `$1E` (horloge interne) et `$0E` (externe) sont donc equivalents.
+- Le bit baud (`ctrl & 0x0F`) est applique au CDC : code `$E` -> 9600 (OK Pico).
+- **RDRF (`0x08`) est positionne en polling** independamment de l'IRQ ; la
+  reception en polling devrait donc fonctionner. Toute la communication
+  (TX+RX) est conditionnee par `acia_line_state_dtr` (bit DTR du Command).
+- ORICOMMS recoit **par interruption** (vecteur IRQ, Command `$65` IRQ active),
+  OricTel en **polling** : difference de strategie a verifier via `diag.tap`.
+
 ## [0.3.0] - 2026-06-26 — Jalon
 
 Cap de version actant un palier de maturite. Aucune fonctionnalite nouvelle
