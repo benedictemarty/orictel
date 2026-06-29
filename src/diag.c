@@ -40,18 +40,19 @@ unsigned char g_global_mask = 1;
 /* --- Configurations a essayer (Control, Command) -------------------------- */
 /* Rappel firmware LOCI: baud = (ctrl & 0x0F) -> 0=115200 2=75 E=9600 F=19200 ;
  * bit horloge (0x10) IGNORE ; data = 8-((ctrl>>5)&3) ; parite/DTR via cmd.   */
+/* Cle : ORICOMMS (diag) communique en 1200 8N1 -> code baud 6551 = 0x8.       */
 #define NCFG 6
-static const unsigned char cfg_ctrl[NCFG] = { 0x1E, 0x0E, 0x1E, 0x00, 0x22, 0x1E };
-static const unsigned char cfg_cmd [NCFG] = { 0x0B, 0x0B, 0x09, 0x03, 0x65, 0x0B };
-/* cfg 6 (index 5) = identique a 1 mais SANS programmed reset (no_reset[i]).  */
+static const unsigned char cfg_ctrl[NCFG] = { 0x18, 0x08, 0x18, 0x1E, 0x22, 0x18 };
+static const unsigned char cfg_cmd [NCFG] = { 0x0B, 0x0B, 0x03, 0x0B, 0x65, 0x0B };
+/* cfg 6 (index 5) = identique a 1 (1200 8N1) mais SANS programmed reset.      */
 static const unsigned char cfg_noreset[NCFG] = { 0,0,0,0,0,1 };
 static const char* const cfg_lbl[NCFG] = {
-    "1 CTRL=1E CMD=0B 9600 8N1 DTR+RTS",
-    "2 CTRL=0E CMD=0B 9600 8N1 hEXT",
-    "3 CTRL=1E CMD=09 9600 8N1 +rxIRQ",
-    "4 CTRL=00 CMD=03 115200 8N1 DTR",
+    "1 CTRL=18 CMD=0B 1200 8N1 DTR+RTS",
+    "2 CTRL=08 CMD=0B 1200 8N1 hEXT",
+    "3 CTRL=18 CMD=03 1200 8N1 DTR seul",
+    "4 CTRL=1E CMD=0B 9600 8N1 (ancien)",
     "5 CTRL=22 CMD=65 75bd 7E1 ORICOMMS",
-    "6 CTRL=1E CMD=0B sans prog-reset"
+    "6 CTRL=18 CMD=0B 1200 8N1 sans reset"
 };
 
 static const char HEX[] = "0123456789ABCDEF";
@@ -70,7 +71,10 @@ static void acia_putc(unsigned char c)
     while (!(R_STAT & 0x10)) {        /* attendre TDRE, borne anti-blocage */
         if (++n == 0) return;        /* TDRE jamais pret : on abandonne */
     }
-    R_DATA = c;
+    __asm__("php");
+    __asm__("sei");
+    R_DATA = c;                      /* ecriture protegee (capture bus LOCI) */
+    __asm__("plp");
 }
 
 static void acia_puts(const char* s)
@@ -82,11 +86,17 @@ static void acia_puts(const char* s)
 /* --- Application d'une configuration -------------------------------------- */
 static void apply_cfg(unsigned char sel)
 {
+    /* Ecritures des registres protegees par SEI/PLP, comme ORICOMMS
+     * (08 78 ... 28) : les IRQ VIA frequentes de l'Oric ne perturbent pas
+     * la capture d'ecriture du bus par le LOCI. */
+    __asm__("php");
+    __asm__("sei");
     if (!cfg_noreset[sel]) {
         R_STAT = 0x00;               /* programmed reset (ecriture status) */
     }
     R_CTRL = cfg_ctrl[sel];          /* Control */
     R_CMD  = cfg_cmd[sel];           /* Command */
+    __asm__("plp");
     (void)R_STAT;                    /* lire status (efface IRQ pending) */
     (void)R_DATA;                    /* clear RDR */
 }

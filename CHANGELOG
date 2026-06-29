@@ -1,5 +1,35 @@
 # CHANGELOG - OricTel
 
+## [0.3.2] - 2026-06-29 — diag : 1200 8N1 + ecritures ACIA protegees (SEI/PLP)
+
+Affinage du programme de diagnostic `diag.tap` apres reproduction du blocage
+picowifi dans l'emulateur de reference (`~/Oric1`, Phosphoric v1.28.0-alpha,
+commit emulateur « modele de timing du bus MIA »). Le diag calque desormais
+le comportement reel d'ORICOMMS qui, lui, dialogue avec l'ACIA `$0380`.
+
+### Modifie
+- **`src/diag.c` — configurations en 1200 8N1** : les 6 configs Control/Command
+  passent de 9600 (`CTRL=$1E`, code baud `$E`) a **1200 8N1** (`CTRL=$18`, code
+  baud `$8`), debit reellement utilise par ORICOMMS sur ce montage. L'ancienne
+  config 9600 est conservee en position 4 pour comparaison. Mapping baud
+  verifie identique cote firmware LOCI (`oric/acia.c`) et cote emulateur
+  (`acia6551.c`, table W65C51) : `ctrl & 0x0F == $8` -> 1200 des deux cotes.
+- **Ecritures registres ACIA protegees par `SEI`/`PLP`** (`php; sei; …; plp`)
+  dans `acia_putc()` et `apply_cfg()`, a l'image de la sequence ORICOMMS
+  (`08 78 … 28`) : sur le **vrai LOCI**, masquer les IRQ VIA frequentes de
+  l'Oric evite qu'une interruption decale le cycle d'ecriture echantillonne
+  par la MIA (PIO RP2040) et corrompe l'acces. Sans effet sur l'emulateur
+  (acces `$0380` atomique), mais necessaire pour le materiel reel.
+
+### Valide (banc d'essai emulateur, `--loci-mia-window`)
+- Fenetre `tior` ouverte (`0-31`) : ACIA saine -> `STAT=$10` (TDRE seul), DCD
+  ouvert (modem joignable), ecritures `CTL=$18`/`CMD=$0B` visibles dans la
+  trace serie. Confirme que le 1200 8N1 est bien programme.
+- Fenetre `tior` excluant le defaut firmware 0 (`1-31`) : ACIA corrompue ->
+  `STAT=$FF` (tous drapeaux), DCD absent (modem injoignable), reception
+  saturee de bruit `$FF` ; ecritures registres ignorees (trace vide). Reproduit
+  fidelement le symptome materiel du blocage picowifi.
+
 ## [0.3.1] - 2026-06-27 — Outil de diagnostic ACIA / LOCI
 
 Ajout d'un programme de diagnostic autonome pour investiguer la liaison
