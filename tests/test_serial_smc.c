@@ -74,11 +74,13 @@ int main(void)
     check((ACIA_CTRL_LOCI & 0x60) == 0,        "  longueur mot = 8 bits");
     check((ACIA_CTRL_LOCI & 0x80) == 0,        "  1 bit de stop");
 
-    /* Config Command LOCI = $07 : DTR, IRQ RX desactive, TX on sans IRQ TX (v0.3.4) */
-    check(ACIA_CMD_LOCI == 0x07,               "Command LOCI = $07 (IRQ RX desactive, anti-gel)");
+    /* Config Command LOCI = $0B : DTR, IRQ RX off, TIC=10 sans IRQ TX (v0.3.5).
+     * Datasheet 6551 : TIC=01 = IRQ TX ACTIVEE (tempete IRQ car TDRE permanent),
+     * TIC=10 = RTS bas sans IRQ TX. */
+    check(ACIA_CMD_LOCI == 0x0B,               "Command LOCI = $0B (polling pur, zero IRQ)");
     check((ACIA_CMD_LOCI & 0x01) != 0,         "  DTR actif (bit0=1)");
-    check((ACIA_CMD_LOCI & 0x02) != 0,         "  IRQ RX desactive (bit1=1)");
-    check((ACIA_CMD_LOCI & 0x08) == 0,         "  pas d'IRQ TX (bit3=0)");
+    check((ACIA_CMD_LOCI & 0x02) != 0,         "  IRQ RX desactivee (bit1=1)");
+    check(((ACIA_CMD_LOCI >> 2) & 0x03) == 2,  "  TIC=10: RTS bas, IRQ TX desactivee");
     check((ACIA_CMD_LOCI & 0xE0) == 0,         "  sans parite (bits5-7=0)");
 
     printf("\n=== Resultats: %d/%d passes ===\n", total - failures, total);

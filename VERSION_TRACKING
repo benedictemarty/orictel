@@ -1,11 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.4 (Command $07 anti-gel + recv() latch RDRF)
+## Version actuelle: 0.3.5 (Command $0B retabli, polling pur, connexion PAVI validee)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.3.4      | 2026-07-03 | Cmd=$07 anti-gel IRQ RX, recv() latch RDRF |
-| orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | ISR serial_isr, Cmd=$05, Ctrl=$18 |
+| orictel.tap        | 0.3.5      | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
+| orictel.tap (v0.3.4)| 0.3.4     | 2026-07-03 | REGRESSION gel (Cmd=$07, TIC=01=IRQ TX) |
+| orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | REGRESSION gel (Cmd=$05, TIC=01=IRQ TX) |
 | diag.tap (diagnostic ACIA)| 0.1.1 | 2026-06-29 | 1200 8N1 + SEI/PLP, valide banc MIA |
 | orictel.tap (v0.3.2)| 0.3.2      | 2026-06-29 | bump version (splash) |
 | orictel.tap (v0.3.1)| 0.3.1     | 2026-06-27 | bump version (splash) |

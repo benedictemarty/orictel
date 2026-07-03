@@ -26,7 +26,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.4"
+#define ORICTEL_VERSION "v0.3.5"
 
 /* Contexte Videotex global */
 static vtx_context_t vtx;

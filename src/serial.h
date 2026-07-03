@@ -5,9 +5,8 @@
  * Interface pour la communication serie via l'ACIA 6551 mappee a la base
  * LOCI ($0380-$0383). Cette base unique sert le materiel LOCI reel comme le
  * PicoWiFiModemUSB (en emulation Phosphoric --loci/--acia-addr 0380 ou sur
- * le vrai materiel). Configuration: 9600 baud, 8N1, horloge interne (commandes
- * AT du modem et flux TCP). Le V23 reel (1200 RX / 75 TX, 7E1) demanderait
- * Control=$18 et la parite dans Command - voir serial_asm.s.
+ * le vrai materiel). Configuration: 1200 bauds, 8N1, horloge interne,
+ * polling pur sans IRQ ACIA (commandes AT du modem et flux TCP).
  *
  * L'emission passe par une file logicielle non bloquante (serial_tx.c)
  * drainee depuis la boucle principale, pour ne jamais bloquer la
@@ -39,16 +38,15 @@
 #define ACIA_TDRE    0x10    /* Bit 4: Transmitter Data Register Empty */
 
 /* Config Control/Command appliquee par serial_init pour la base LOCI.
- * v0.3.4 : Command=$07 (DTR, IRQ RX desactive, TX on sans IRQ TX).
+ * v0.3.5 : polling pur, aucune IRQ ACIA.
  *   Control=$18 : 1200 bauds, 8N1, horloge interne (baud code $8, rx-clk b4).
- *   Command=$07 : DTR (b0), IRQ RX desactive (b1=1), TX on sans IRQ TX (b2-3=01).
- *   $05 activait IRQ RX (b1=0) : le modem emule envoie des donnees au boot,
- *   RDRF reste a 1, la 6551 reasserte /IRQ en continu -> ISR sans fin -> gel clavier.
- *   $0B activait accidentellement les IRQ TX (bits 2-3=10) -> instabilite HW.
- *   L'ISR (serial_isr) tourne encore sur chaque tick Timer-1 (100Hz) pour
- *   latche ACIA_STATUS de facon atomique, mais enchaine toujours vers le ROM. */
+ *   Command=$0B : DTR (b0=1), IRQ RX desactivee (b1=1), TIC bits2-3=10 =
+ *   RTS bas SANS IRQ TX, sans parite.
+ *   Attention datasheet 6551 : TIC=01 (comme dans $05/$07) = IRQ TX ACTIVEE.
+ *   TDRE etant leve en permanence, $05/$07 provoquaient une tempete d'IRQ
+ *   (gel v0.3.3/v0.3.4). $0B (v0.3.2) etait correct depuis le debut. */
 #define ACIA_CTRL_LOCI 0x18
-#define ACIA_CMD_LOCI  0x07
+#define ACIA_CMD_LOCI  0x0B
 
 /**
  * Initialise l'ACIA 6551 a la base donnee: 8N1, polling (pas d'IRQ).
@@ -106,12 +104,5 @@ unsigned char __fastcall__ serial_poll(void);
  * principale ; conserve pour la symetrie d'API entre drivers.
  */
 unsigned char __fastcall__ serial_dcd(void);
-
-/**
- * Restaure le vecteur IRQ ROM original (sauvegarde lors de serial_init).
- * Appeler avant retour au BASIC ou reset propre. Sans effet si l'ISR
- * n'a pas ete installee (base != LOCI).
- */
-void __fastcall__ serial_isr_remove(void);
 
 #endif /* SERIAL_H */

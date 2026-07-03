@@ -19,7 +19,6 @@ unsigned char __fastcall__ acia6551_tx_ready(void);
 unsigned char __fastcall__ acia6551_recv(void);
 unsigned char __fastcall__ acia6551_poll(void);
 unsigned char __fastcall__ acia6551_dcd(void);
-void __fastcall__ acia6551_isr_remove(void);
 
 void __fastcall__ serial_init(unsigned acia_base)
 {
@@ -49,9 +48,4 @@ void __fastcall__ serial_send_raw(unsigned char byte)
 unsigned char __fastcall__ serial_dcd(void)
 {
     return acia6551_dcd();
-}
-
-void __fastcall__ serial_isr_remove(void)
-{
-    acia6551_isr_remove();
 }

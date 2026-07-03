@@ -1,5 +1,38 @@
 # CHANGELOG - OricTel
 
+## [0.3.5] - 2026-07-03 — Command $0B retabli (cause racine : TIC=01 = IRQ TX), retrait ISR
+
+Correction de la cause racine des gels v0.3.3/v0.3.4, identifiee par lecture
+croisee datasheet 6551 + source Phosphoric (acia6551.c) + reproduction
+deterministe sur emulateur headless.
+
+### Cause racine (les analyses v0.3.3/v0.3.4 etaient inversees)
+- Datasheet 6551, bits TIC (Command bits 2-3) : **TIC=01 = RTS bas, IRQ TX
+  ACTIVEE** ; TIC=10 = RTS bas, IRQ TX desactivee. Les Command $05 (v0.3.3)
+  et $07 (v0.3.4) ont tous deux TIC=01 : comme TDRE est leve en permanence,
+  l'ACIA reassertait /IRQ sans fin -> le 6502 ne sortait plus du handler IRQ
+  ROM ($EE22) -> gel total (ecran fige sur "Interface serie", clavier mort).
+  Reproduit et confirme en headless : PC bloque dans le handler ROM, I=1.
+- Le pretendu "BUG 1" de v0.3.3 ($0B activerait les IRQ TX) etait FAUX :
+  $0B = TIC=10 = IRQ TX desactivee. **$0B (v0.3.2) etait correct depuis le
+  debut.**
+
+### Corrige
+- **Command LOCI retabli a $0B** : DTR (b0=1), IRQ RX desactivee (b1=1),
+  TIC=10 (b2-3) = RTS bas sans IRQ TX, sans parite. Zero IRQ ACIA.
+- **ISR retiree** (serial_isr, _acia6551_isr_remove, serial_isr_remove) :
+  sans IRQ ACIA, elle n'apportait rien et ajoutait du risque. Retour au
+  polling STATUS direct (architecture v0.3.2 eprouvee). Table de patch
+  SMC repassee a 12 sites (recv/poll/dcd relisent le hardware).
+- Conserve de l'analyse ORICOMMS : **Control=$18 (1200 bauds, 8N1)** et
+  ecritures registres protegees SEI/PLP.
+
+### Valide (emulateur Phosphoric headless, flux complet au clavier)
+- Splash v0.3.5 -> Interface serie -> Mode (1) -> Serveur (1 = PAVI 3617)
+  -> ATZ/OK -> ATI (identification PicoWiFiModemUSB) -> ATD pavi.3617.fr:3617
+  -> **page d'accueil Teletel du PAVI rendue a l'ecran** (trace serie complete).
+- 313/313 tests passent.
+
 ## [0.3.4] - 2026-07-03 — Command $07 : anti-gel IRQ RX + recv() latch RDRF
 
 Correctif du gel clavier detecte sur emulateur a l'etape "Interface serie".
