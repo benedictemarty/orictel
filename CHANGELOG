@@ -1,5 +1,31 @@
 # CHANGELOG - OricTel
 
+## [0.3.3] - 2026-07-03 — ISR ACIA (ORICOMMS), Command $05, Control $18, version splash
+
+Corrections critiques du driver serie identifiees par desassemblage d'ORICOMMS
+(Dbug, GitHub) + validation emulateur headless (Phosphoric v1.27.6-alpha).
+
+### Corrige
+- **Bug 1 — IRQ TX parasites** : Command `$0B` activait accidentellement les
+  IRQ TX (bits 2-3=10). Chaque TDRE generait une IRQ non geree qui tombait dans
+  le handler ROM Timer-1, provoquant une instabilite sur le vrai materiel.
+  Correction : Command `$05` (identique ORICOMMS : DTR, IRQ RX actif, pas d'IRQ TX).
+- **Bug 2 — Baud rate incorrect** : Control `$1E` = 9600 bauds vs 1200 bauds
+  utilises par ORICOMMS et le diag. Correction : Control `$18` (1200 bauds, 8N1).
+- **Version splash** : `ORICTEL_VERSION` mis a jour de "v0.3.2" a "v0.3.3".
+
+### Ajoute
+- **ISR `serial_isr`** splice dans le vecteur IRQ ROM ($0245), approche
+  ORICOMMS : latche ACIA_STATUS dans `_acia_rx_status` a chaque IRQ, consomme
+  les IRQ ACIA (bit7=1), chaine vers le handler ROM pour les IRQ VIA (Timer-1).
+- **`_acia6551_isr_remove`** : restaure le vecteur IRQ original avant retour BASIC.
+- **`serial_isr_remove()`** expose la restauration ISR depuis C (`serial.h/c`).
+
+### Tests
+- 293/293 tests passent (test_serial_smc : valeurs $18/$05 verifiees).
+- Emulateur headless 19M cycles : splash v0.3.3 affiche, 952 frames a 50Hz
+  sans crash, PC dans code OricTel ($0B64), ISR chain active.
+
 ## [0.3.2] - 2026-06-29 — diag : 1200 8N1 + ecritures ACIA protegees (SEI/PLP)
 
 Affinage du programme de diagnostic `diag.tap` apres reproduction du blocage
