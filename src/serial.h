@@ -38,13 +38,13 @@
 #define ACIA_RDRF    0x08    /* Bit 3: Receiver Data Register Full */
 #define ACIA_TDRE    0x10    /* Bit 4: Transmitter Data Register Empty */
 
-/* Config Control/Command appliquee par serial_init (doc; les valeurs
- * effectives sont dans serial_asm.s).
- *   - LOCI : Control=$1E 9600 bauds 8N1 horloge interne, Command=$0B
- *     (DTR+RTS, sans parite, sans IRQ). Validee avec un vrai
- *     PicoWiFiModemUSB (Phosphoric sprint 60b, --loci). */
-#define ACIA_CTRL_LOCI 0x1E
-#define ACIA_CMD_LOCI  0x0B
+/* Config Control/Command appliquee par serial_init pour la base LOCI.
+ * v0.3.3 (alignement ORICOMMS) :
+ *   Control=$18 : 1200 bauds, 8N1, horloge interne (baud code $8, rx-clk b4).
+ *   Command=$05 : DTR (b0), IRQ RX actif (b1=0), TX on sans IRQ TX (b2=1,b3=0).
+ *   Ancien Command=$0B activait accidentellement les IRQ TX (bits 2-3=10). */
+#define ACIA_CTRL_LOCI 0x18
+#define ACIA_CMD_LOCI  0x05
 
 /**
  * Initialise l'ACIA 6551 a la base donnee: 8N1, polling (pas d'IRQ).
@@ -102,5 +102,12 @@ unsigned char __fastcall__ serial_poll(void);
  * principale ; conserve pour la symetrie d'API entre drivers.
  */
 unsigned char __fastcall__ serial_dcd(void);
+
+/**
+ * Restaure le vecteur IRQ ROM original (sauvegarde lors de serial_init).
+ * Appeler avant retour au BASIC ou reset propre. Sans effet si l'ISR
+ * n'a pas ete installee (base != LOCI).
+ */
+void __fastcall__ serial_isr_remove(void);
 
 #endif /* SERIAL_H */

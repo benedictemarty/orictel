@@ -67,17 +67,18 @@ int main(void)
     check(ACIA_RDRF == 0x08, "RDRF 6551 = $08 (bit3)");
     check(ACIA_TDRE == 0x10, "TDRE 6551 = $10 (bit4)");
 
-    /* Config Control LOCI = $1E : decodage 6551 */
-    check(ACIA_CTRL_LOCI == 0x1E,              "Control LOCI = $1E");
-    check((ACIA_CTRL_LOCI & 0x0F) == 0x0E,     "  baud selector = $E (9600)");
+    /* Config Control LOCI = $18 : 1200 bauds, 8N1 (v0.3.3, aligne ORICOMMS) */
+    check(ACIA_CTRL_LOCI == 0x18,              "Control LOCI = $18 (1200 bauds)");
+    check((ACIA_CTRL_LOCI & 0x0F) == 0x08,     "  baud selector = $8 (1200)");
     check((ACIA_CTRL_LOCI & 0x10) != 0,        "  horloge interne (bit4=1)");
     check((ACIA_CTRL_LOCI & 0x60) == 0,        "  longueur mot = 8 bits");
     check((ACIA_CTRL_LOCI & 0x80) == 0,        "  1 bit de stop");
 
-    /* Config Command LOCI = $0B : decodage 6551 */
-    check(ACIA_CMD_LOCI == 0x0B,               "Command LOCI = $0B");
+    /* Config Command LOCI = $05 : DTR, IRQ RX actif, TX on sans IRQ TX (v0.3.3) */
+    check(ACIA_CMD_LOCI == 0x05,               "Command LOCI = $05 (ORICOMMS-compatible)");
     check((ACIA_CMD_LOCI & 0x01) != 0,         "  DTR actif (bit0=1)");
-    check((ACIA_CMD_LOCI & 0x02) != 0,         "  IRQ RX desactivee (bit1=1)");
+    check((ACIA_CMD_LOCI & 0x02) == 0,         "  IRQ RX active (bit1=0)");
+    check((ACIA_CMD_LOCI & 0x08) == 0,         "  pas d'IRQ TX (bit3=0)");
     check((ACIA_CMD_LOCI & 0xE0) == 0,         "  sans parite (bits5-7=0)");
 
     printf("\n=== Resultats: %d/%d passes ===\n", total - failures, total);

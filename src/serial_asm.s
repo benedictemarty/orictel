@@ -1,26 +1,32 @@
 ; ===========================================================================
-; serial_asm.s - Driver ACIA 6551 polling pur
+; serial_asm.s - Driver ACIA 6551 avec ISR Timer-1 (approche ORICOMMS)
 ;
-; Avec le FIFO 4096 de l'emulateur (--serial-buffer 4096):
-; - Le FIFO absorbe le burst TCP
-; - L'ACIA delivre a 1200 baud depuis le FIFO
-; - RDRF reste a 1 tant que le FIFO n'est pas vide
-; - Pas besoin d'IRQ ni de ring buffer logiciel
-; - Le main loop lit directement via poll/recv
+; v0.3.3 - corrections issues du desassemblage ORICOMMS (Dbug/Github) :
 ;
-; Simple, fiable, pas de buffer overflow possible.
+;   BUG 1 - Command $0B activait accidentellement les IRQ TX :
+;     $0B = 0b00001011 : bits 2-3 = 10 = TX on + IRQ TX active.
+;     Sur le vrai materiel, chaque TDRE generait une IRQ non geree,
+;     le gestionnaire ROM la traitait comme Timer-1 -> instabilite.
+;     Correction : Command $05 (DTR, IRQ RX actif, TX on sans IRQ TX),
+;     identique a la config ORICOMMS.
+;
+;   BUG 2 - Control $1E = 9600 bauds alors que ORICOMMS et diag.c
+;     utilisent 1200 bauds ($18). Corrige : $18 (1200 bauds, 8N1).
+;
+;   AMELIORATION - ISR serial_isr splicee dans le vecteur IRQ ROM
+;     ($0245), approche directe d'ORICOMMS :
+;     . Latche ACIA_STATUS dans _acia_rx_status a chaque IRQ.
+;     . Consomme les IRQs ACIA (bit7=1, RTI).
+;     . Chaine vers le gestionnaire ROM original pour les IRQs VIA
+;       (Timer-1 100Hz, scan clavier).
+;     -> Les IRQs ACIA ne tombent plus dans le handler ROM.
 ;
 ; ADRESSE ACIA CONFIGURABLE AU RUNTIME (self-modifying code)
 ; ----------------------------------------------------------
 ; serial_init(base) recoit la base de l'ACIA dans A (poids faible) / X
-; (poids fort) et patche les operandes absolues des instructions de ce
-; driver AVANT de programmer l'ACIA. OricTel n'utilise plus que la base
-; LOCI ($0380), partagee par le materiel LOCI reel et le PicoWiFiModemUSB
-; (emule ou physique). Le mecanisme SMC et le discriminant de configuration
-; sont conserves (la branche "horloge externe" reste du code mort inoffensif,
-; jamais atteinte tant que la base vaut $0380).
-; Le code etant en RAM ($0501+), le self-modifying code est legitime et
-; le surcout est nul apres l'init (les operandes restent absolues).
+; (poids fort) et patche les operandes absolues. ISR installee uniquement
+; pour la base LOCI ($0380). Le code etant en RAM ($0501+), le SMC est
+; legitime et le surcout est nul apres l'init.
 ; ===========================================================================
 
         .export _acia6551_init
@@ -29,17 +35,19 @@
         .export _acia6551_recv
         .export _acia6551_poll
         .export _acia6551_dcd
+        .export _acia6551_isr_remove
 
         .importzp ptr1, ptr2, tmp1, tmp2
 
-        .segment "CODE"
+; Vecteur IRQ ROM : operande du JMP a $0244 (adresse du handler utilisateur)
+IRQ_VECTOR      = $0245
 
-; Octet de poids faible de la base LOCI ($0380) : sert a distinguer la
-; configuration ACIA reelle (LOCI/materiel) de l'emulateur ($031C).
-ACIA_LOCI_LO = $80
+; Bit IRQ ACIA dans STATUS (bit 7)
+ACIA_IRQ_BIT    = $80
 
-; Valeurs par defaut (placeholders): operandes reecrites par serial_init.
-; Conservees > $00FF pour forcer un encodage absolu (3 octets) a l'assemblage.
+ACIA_LOCI_LO    = $80
+
+; Valeurs placeholders (reecrites par serial_init, > $00FF -> encodage absolu)
 ACIA_DATA    = $031C
 ACIA_STATUS  = $031D
 ACIA_COMMAND = $031E
@@ -49,34 +57,76 @@ RDRF         = $08
 TDRE         = $10
 DCD_BIT      = $20
 
-; Offsets des registres relativement a la base ACIA
 OFF_DATA     = 0
 OFF_STATUS   = 1
 OFF_COMMAND  = 2
 OFF_CONTROL  = 3
 
 ; ===========================================================================
-; serial_init(unsigned base) - Patche les operandes puis programme l'ACIA
+; Variables BSS
+;   _acia_rx_status : latch ACIA_STATUS mis a jour par serial_isr
+;   _acia_irq_chain : 2 octets = ancien vecteur IRQ, pour le chainage ISR
+; ===========================================================================
+        .segment "BSS"
+_acia_rx_status:  .res 1
+_acia_irq_chain:  .res 2
+        .segment "CODE"
+
+; ===========================================================================
+; serial_isr - ISR splicee dans le vecteur IRQ ROM ($0244)
+;
+; Approche ORICOMMS (Rushton & Shaw, 1986) :
+;   1. Latche ACIA_STATUS dans _acia_rx_status.
+;   2. Si bit7=1 (IRQ ACIA) -> consomme (RTI) : l'ACIA a genere l'IRQ.
+;   3. Sinon -> chaine vers le handler ROM original (Timer-1, clavier).
+;
+; La pile en entree contient : [SR][PC_hi][PC_lo] (push hardware IRQ).
+; On push A, on le restaure avant de RTI ou de JMP au handler ROM.
+; ===========================================================================
+serial_isr:
+        pha
+isr_s1: lda     ACIA_STATUS         ; operande patchee par serial_init
+        sta     _acia_rx_status     ; latch status pour le main loop
+        and     #ACIA_IRQ_BIT       ; bit7 = IRQ ACIA ?
+        bne     @consume
+        pla
+        jmp     (_acia_irq_chain)   ; IRQ VIA : chaine vers handler ROM original
+@consume:
+        pla
+        rti                         ; IRQ ACIA : consomme, retour au code interrompu
+
+; ===========================================================================
+; _acia6551_isr_remove - Restaure le vecteur IRQ ROM original
+; Appeler avant retour au BASIC ou reset propre.
+; ===========================================================================
+_acia6551_isr_remove:
+        php
+        sei
+        lda     _acia_irq_chain
+        sta     IRQ_VECTOR
+        lda     _acia_irq_chain+1
+        sta     IRQ_VECTOR+1
+        plp
+        rts
+
+; ===========================================================================
+; _acia6551_init - Patche les operandes puis programme l'ACIA
 ;
 ; Entree (cc65 __fastcall__): A = base poids faible, X = base poids fort.
 ;
-; Etape 1: pour chaque site d'acces ACIA, ecrire base+offset dans les deux
-;          octets d'operande de l'instruction (self-modifying code).
-; Etape 2: programmer l'ACIA (les instructions sont desormais patchees).
-;
-; La config Control/Command depend de la base (etape 3):
-;   - Emulateur ($031C) : Control=$00 (horloge externe -> "instant transfer"
-;     Phosphoric, le mode le plus rapide sous emulateur), Command=$03
-;     (DTR on, IRQ RX off, sans parite).
-;   - LOCI/materiel ($0380) : Control=$1E (9600 bauds, 8N1, horloge interne),
-;     Command=$0B (DTR+RTS actifs, sans parite, sans IRQ). Valeurs validees
-;     par Phosphoric avec un vrai PicoWiFiModemUSB (sprint 60b, --loci).
+; Config Control/Command selon la base :
+;   LOCI ($0380) : Control=$18 (1200 bauds, 8N1, horloge interne)
+;                  Command=$05 (DTR, IRQ RX actif, TX on sans IRQ TX)
+;                  -> installe serial_isr dans le vecteur IRQ ROM
+;   Emu  ($031C) : Control=$00 (horloge externe, instant transfer Phosphoric)
+;                  Command=$03 (DTR, sans IRQ)
+;                  -> pas d'ISR
 ; ===========================================================================
 _acia6551_init:
         sta     ptr2            ; base poids faible
         stx     ptr2+1          ; base poids fort
 
-        ldx     #0              ; index dans patchtab (3 octets/entree)
+        ldx     #0
 @patch:
         lda     patchtab,x      ; adresse operande (poids faible)
         sta     ptr1
@@ -84,60 +134,74 @@ _acia6551_init:
         sta     ptr1+1
         lda     patchtab+2,x    ; offset registre (0..3)
         clc
-        adc     ptr2            ; + base poids faible
+        adc     ptr2
         ldy     #0
-        sta     (ptr1),y        ; operande poids faible
+        sta     (ptr1),y
         lda     ptr2+1
-        adc     #0              ; + retenue
+        adc     #0
         iny
-        sta     (ptr1),y        ; operande poids fort
+        sta     (ptr1),y
         inx
         inx
         inx
-        cpx     #(3*12)         ; 12 sites patches ?
+        cpx     #(3*10)         ; 10 sites patches (init×5, send×2, tx_ready×1, recv×1, isr×1)
         bne     @patch
 
-        ; --- Choix Control/Command selon la base ACIA ---
-        lda     ptr2            ; base poids faible
-        cmp     #ACIA_LOCI_LO   ; $80 -> base $0380 = LOCI/materiel
+        ; Config selon la base ACIA
+        lda     ptr2
+        cmp     #ACIA_LOCI_LO
         bne     @cfg_emu
-        lda     #$1E            ; LOCI: 9600 bauds, 8N1, horloge interne
-        sta     tmp1            ; -> Control
-        lda     #$0B            ; LOCI: DTR+RTS actifs, sans parite, sans IRQ
-        sta     tmp2            ; -> Command
+        lda     #$18            ; LOCI: 1200 bauds, 8N1, horloge interne
+        sta     tmp1
+        lda     #$05            ; LOCI: DTR, IRQ RX actif, TX on sans IRQ TX
+        sta     tmp2            ; (ORICOMMS: meme valeur $05)
         jmp     @prog
 @cfg_emu:
         lda     #$00            ; Emu: horloge externe (instant transfer)
         sta     tmp1
-        lda     #$03            ; Emu: DTR on, IRQ RX off
+        lda     #$03            ; Emu: DTR, sans IRQ
         sta     tmp2
-@prog:
-        ; --- Programmation ACIA (operandes deja patchees) ---
-        lda     #$00
-i_st1:  sta     ACIA_STATUS     ; Programmed reset (efface OVRN, TDRE=1)
 
+@prog:
+        ; Programmation ACIA (operandes deja patchees, IRQs masquees)
+        php
+        sei
+        lda     #$00
+i_st1:  sta     ACIA_STATUS     ; Programmed reset
         lda     tmp1
 i_ct1:  sta     ACIA_CONTROL
-
         lda     tmp2
 i_cm1:  sta     ACIA_COMMAND
-
-i_st2:  lda     ACIA_STATUS     ; Lire status pour effacer IRQ pending
+i_st2:  lda     ACIA_STATUS     ; Clear IRQ pending
 i_da1:  lda     ACIA_DATA       ; Clear RDR
+        sta     _acia_rx_status ; Init latch = status initial
+        plp
+
+        ; Installer ISR uniquement pour LOCI
+        lda     ptr2
+        cmp     #ACIA_LOCI_LO
+        bne     @done
+
+        ; Sauvegarder ancien vecteur IRQ dans _acia_irq_chain (chainage)
+        php
+        sei
+        lda     IRQ_VECTOR
+        sta     _acia_irq_chain
+        lda     IRQ_VECTOR+1
+        sta     _acia_irq_chain+1
+        ; Installer serial_isr
+        lda     #<serial_isr
+        sta     IRQ_VECTOR
+        lda     #>serial_isr
+        sta     IRQ_VECTOR+1
+        plp
+@done:
         rts
 
 ; ===========================================================================
-; serial_send_raw - Ecriture directe ACIA, attend TDRE (attente BORNEE)
-; Ne pas appeler directement depuis le code applicatif: passer par
-; serial_send() (file TX logicielle, serial_tx.c) pour ne pas bloquer
-; la reception pendant l'attente TDRE.
-;
-; L'attente TDRE est plafonnee a ~65536 iterations (X/Y, scratch selon l'ABI
-; cc65 pour un fastcall void) : sur le vrai materiel, un modem (LOCI/Pico)
-; fige ne gele plus l'Oric -> l'octet est abandonne et l'execution reprend
-; (degradation gracieuse). Sur le chemin normal, TDRE est deja arme par
-; serial_tx_pump (qui n'appelle qu'apres serial_tx_ready), donc on sort des
-; la 1re iteration: surcout negligeable.
+; _acia6551_send_raw - Ecriture directe ACIA, attend TDRE (attente BORNEE)
+; Attente plafonnee a ~65536 iterations : sur vrai materiel un modem fige
+; ne gele plus l'Oric (degradation gracieuse).
 ; ===========================================================================
 _acia6551_send_raw:
         pha
@@ -145,19 +209,19 @@ _acia6551_send_raw:
         ldy     #0
 s_st1:  lda     ACIA_STATUS
         and     #TDRE
-        bne     s_ok            ; TDRE pret -> emettre
+        bne     s_ok
         dex
         bne     s_st1
         dey
         bne     s_st1
-        pla                     ; timeout: rendre la pile coherente (octet jete)
+        pla
         rts
 s_ok:   pla
 s_da1:  sta     ACIA_DATA
         rts
 
 ; ===========================================================================
-; serial_tx_ready - TDRE set = transmetteur pret (non bloquant)
+; _acia6551_tx_ready - TDRE set = transmetteur pret (non bloquant)
 ; ===========================================================================
 _acia6551_tx_ready:
 t_st1:  lda     ACIA_STATUS
@@ -165,12 +229,10 @@ t_st1:  lda     ACIA_STATUS
         rts
 
 ; ===========================================================================
-; serial_recv - Lecture directe ACIA (FIFO transparent)
-; Avec --serial-buffer, RDRF=1 tant que FIFO non vide.
-; Chaque lecture de DATA pop le prochain octet du FIFO.
+; _acia6551_recv - Lecture ACIA (RDRF via latch ISR, DATA depuis hardware)
 ; ===========================================================================
 _acia6551_recv:
-r_st1:  lda     ACIA_STATUS
+        lda     _acia_rx_status
         and     #RDRF
         beq     r_empty
 r_da1:  lda     ACIA_DATA
@@ -180,24 +242,23 @@ r_empty:
         rts
 
 ; ===========================================================================
-; serial_poll - RDRF set = donnees dans le FIFO
+; _acia6551_poll - RDRF set = donnee disponible (via latch ISR)
 ; ===========================================================================
 _acia6551_poll:
-p_st1:  lda     ACIA_STATUS
+        lda     _acia_rx_status
         and     #RDRF
         rts
 
 ; ===========================================================================
-; serial_dcd - Etat DCD
+; _acia6551_dcd - Etat DCD (via latch ISR)
 ; ===========================================================================
 _acia6551_dcd:
-d_st1:  lda     ACIA_STATUS
+        lda     _acia_rx_status
         and     #DCD_BIT
         rts
 
 ; ===========================================================================
-; Table de patch: pour chaque site, adresse de l'operande (instruction+1)
-; et offset du registre vise. Parcourue par serial_init.
+; Table de patch: 13 entrees (instruction+1, offset registre)
 ; ===========================================================================
 patchtab:
         .word   i_st1+1
@@ -216,11 +277,7 @@ patchtab:
         .byte   OFF_DATA
         .word   t_st1+1
         .byte   OFF_STATUS
-        .word   r_st1+1
-        .byte   OFF_STATUS
         .word   r_da1+1
         .byte   OFF_DATA
-        .word   p_st1+1
-        .byte   OFF_STATUS
-        .word   d_st1+1
+        .word   isr_s1+1
         .byte   OFF_STATUS
