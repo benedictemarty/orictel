@@ -75,13 +75,12 @@ _acia_irq_chain:  .res 2
 ; ===========================================================================
 ; serial_isr - ISR splicee dans le vecteur IRQ ROM ($0244)
 ;
-; Approche ORICOMMS (Rushton & Shaw, 1986) :
-;   1. Latche ACIA_STATUS dans _acia_rx_status.
-;   2. Si bit7=1 (IRQ ACIA) -> consomme (RTI) : l'ACIA a genere l'IRQ.
-;   3. Sinon -> chaine vers le handler ROM original (Timer-1, clavier).
+; v0.3.4 : Command=$07 desactive les IRQ RX/TX ACIA. L'ISR tourne sur chaque
+; tick Timer-1 (100Hz) et latche ACIA_STATUS de facon atomique ; elle enchaine
+; toujours vers le handler ROM (bit7 jamais mis). Le latch permet a poll() et
+; dcd() de lire le status cache sans acceder au hardware en section non-critique.
 ;
 ; La pile en entree contient : [SR][PC_hi][PC_lo] (push hardware IRQ).
-; On push A, on le restaure avant de RTI ou de JMP au handler ROM.
 ; ===========================================================================
 serial_isr:
         pha
@@ -116,8 +115,8 @@ _acia6551_isr_remove:
 ;
 ; Config Control/Command selon la base :
 ;   LOCI ($0380) : Control=$18 (1200 bauds, 8N1, horloge interne)
-;                  Command=$05 (DTR, IRQ RX actif, TX on sans IRQ TX)
-;                  -> installe serial_isr dans le vecteur IRQ ROM
+;                  Command=$07 (DTR, IRQ RX desactive, TX on sans IRQ TX)
+;                  -> installe serial_isr (latch STATUS sur Timer-1)
 ;   Emu  ($031C) : Control=$00 (horloge externe, instant transfer Phosphoric)
 ;                  Command=$03 (DTR, sans IRQ)
 ;                  -> pas d'ISR
@@ -153,8 +152,8 @@ _acia6551_init:
         bne     @cfg_emu
         lda     #$18            ; LOCI: 1200 bauds, 8N1, horloge interne
         sta     tmp1
-        lda     #$05            ; LOCI: DTR, IRQ RX actif, TX on sans IRQ TX
-        sta     tmp2            ; (ORICOMMS: meme valeur $05)
+        lda     #$07            ; LOCI: DTR, IRQ RX desactive, TX on sans IRQ TX
+        sta     tmp2            ; ($05 causait gel : RDRF leve -> /IRQ continu)
         jmp     @prog
 @cfg_emu:
         lda     #$00            ; Emu: horloge externe (instant transfer)
@@ -230,12 +229,19 @@ t_st1:  lda     ACIA_STATUS
 
 ; ===========================================================================
 ; _acia6551_recv - Lecture ACIA (RDRF via latch ISR, DATA depuis hardware)
+; Apres lecture de DATA, efface RDRF dans le latch ($FF ^ $08 = $F7) pour
+; eviter une double-lecture si poll() est rappele avant le prochain tick ISR.
 ; ===========================================================================
 _acia6551_recv:
         lda     _acia_rx_status
         and     #RDRF
         beq     r_empty
-r_da1:  lda     ACIA_DATA
+r_da1:  lda     ACIA_DATA           ; lit DATA (RDRF materiel repasse a 0)
+        pha
+        lda     _acia_rx_status
+        and     #($FF ^ RDRF)       ; efface RDRF du latch (= $F7)
+        sta     _acia_rx_status
+        pla
         rts
 r_empty:
         lda     #$FF

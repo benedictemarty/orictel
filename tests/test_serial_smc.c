@@ -74,10 +74,10 @@ int main(void)
     check((ACIA_CTRL_LOCI & 0x60) == 0,        "  longueur mot = 8 bits");
     check((ACIA_CTRL_LOCI & 0x80) == 0,        "  1 bit de stop");
 
-    /* Config Command LOCI = $05 : DTR, IRQ RX actif, TX on sans IRQ TX (v0.3.3) */
-    check(ACIA_CMD_LOCI == 0x05,               "Command LOCI = $05 (ORICOMMS-compatible)");
+    /* Config Command LOCI = $07 : DTR, IRQ RX desactive, TX on sans IRQ TX (v0.3.4) */
+    check(ACIA_CMD_LOCI == 0x07,               "Command LOCI = $07 (IRQ RX desactive, anti-gel)");
     check((ACIA_CMD_LOCI & 0x01) != 0,         "  DTR actif (bit0=1)");
-    check((ACIA_CMD_LOCI & 0x02) == 0,         "  IRQ RX active (bit1=0)");
+    check((ACIA_CMD_LOCI & 0x02) != 0,         "  IRQ RX desactive (bit1=1)");
     check((ACIA_CMD_LOCI & 0x08) == 0,         "  pas d'IRQ TX (bit3=0)");
     check((ACIA_CMD_LOCI & 0xE0) == 0,         "  sans parite (bits5-7=0)");
 

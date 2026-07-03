@@ -39,12 +39,16 @@
 #define ACIA_TDRE    0x10    /* Bit 4: Transmitter Data Register Empty */
 
 /* Config Control/Command appliquee par serial_init pour la base LOCI.
- * v0.3.3 (alignement ORICOMMS) :
+ * v0.3.4 : Command=$07 (DTR, IRQ RX desactive, TX on sans IRQ TX).
  *   Control=$18 : 1200 bauds, 8N1, horloge interne (baud code $8, rx-clk b4).
- *   Command=$05 : DTR (b0), IRQ RX actif (b1=0), TX on sans IRQ TX (b2=1,b3=0).
- *   Ancien Command=$0B activait accidentellement les IRQ TX (bits 2-3=10). */
+ *   Command=$07 : DTR (b0), IRQ RX desactive (b1=1), TX on sans IRQ TX (b2-3=01).
+ *   $05 activait IRQ RX (b1=0) : le modem emule envoie des donnees au boot,
+ *   RDRF reste a 1, la 6551 reasserte /IRQ en continu -> ISR sans fin -> gel clavier.
+ *   $0B activait accidentellement les IRQ TX (bits 2-3=10) -> instabilite HW.
+ *   L'ISR (serial_isr) tourne encore sur chaque tick Timer-1 (100Hz) pour
+ *   latche ACIA_STATUS de facon atomique, mais enchaine toujours vers le ROM. */
 #define ACIA_CTRL_LOCI 0x18
-#define ACIA_CMD_LOCI  0x05
+#define ACIA_CMD_LOCI  0x07
 
 /**
  * Initialise l'ACIA 6551 a la base donnee: 8N1, polling (pas d'IRQ).

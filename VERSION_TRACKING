@@ -1,10 +1,11 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.3 (ISR ACIA ORICOMMS, Command $05, Control $18)
+## Version actuelle: 0.3.4 (Command $07 anti-gel + recv() latch RDRF)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.3.3      | 2026-07-03 | ISR serial_isr, Cmd=$05, Ctrl=$18, valide emulateur |
+| orictel.tap        | 0.3.4      | 2026-07-03 | Cmd=$07 anti-gel IRQ RX, recv() latch RDRF |
+| orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | ISR serial_isr, Cmd=$05, Ctrl=$18 |
 | diag.tap (diagnostic ACIA)| 0.1.1 | 2026-06-29 | 1200 8N1 + SEI/PLP, valide banc MIA |
 | orictel.tap (v0.3.2)| 0.3.2      | 2026-06-29 | bump version (splash) |
 | orictel.tap (v0.3.1)| 0.3.1     | 2026-06-27 | bump version (splash) |
