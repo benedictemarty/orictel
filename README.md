@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml/badge.svg)](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml)
 
-**Version:** 0.3.0
-**Date:** 2026-06-26
+**Version:** 0.3.4
+**Date:** 2026-07-03
 **Auteur:** bmarty <bmarty@mailo.com>
 **Depot public:** https://github.com/benedictemarty/orictel
 
@@ -43,7 +43,7 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
          |
          v
   [Programme OricTel sur Oric]
-    +-- serial_asm.s   (driver ACIA 6551, polling)
+    +-- serial_asm.s   (driver ACIA 6551, ISR Timer-1 + polling latche)
     +-- serial_tx.c    (file d'emission non bloquante)
     +-- videotex.c     (decodeur protocole Videotex)
     +-- display.c      (rendu HIRES, heuristique couleur)
@@ -174,8 +174,11 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 
 - **Affichage:** HIRES 240x200, 40x25 caracteres (6x8 pixels/car),
   inversion video par bit 7, attributs serial Oric par scanline
-- **Serie:** ACIA 6551 a la base LOCI ($0380), Control=$1E (9600 baud, 8N1,
-  horloge interne); le V23 reel (1200/75, 7E1) est prevu en ROADMAP
+- **Serie:** ACIA 6551 a la base LOCI ($0380), Control=$18 (1200 baud, 8N1,
+  horloge interne), Command=$07 (DTR, IRQ RX desactive, TX on sans IRQ TX).
+  ISR splicee sur le vecteur IRQ ROM ($0244) : latche ACIA_STATUS a chaque
+  tick Timer-1 (100Hz) et enchaine vers le handler ROM (clavier). Le polling
+  lit le latch (_acia_rx_status) plutot que le hardware directement.
 - **Emission:** file TX logicielle non bloquante drainee par la boucle
   principale (prerequis vrai materiel V23)
 - **Memoire:** TAP ~23 Ko, code+donnees sous $9800 (stack cc65 $0800),
