@@ -1,5 +1,74 @@
 # CHANGELOG - OricTel
 
+## [0.3.7] - 2026-08-25 — Passage HIRES compatible Oric-1 (BASIC 1.0)
+
+Correction du **passage en mode HIRES qui echouait sous ROM Oric-1** (`basic10.rom`),
+constate avec :
+`./oric1-emu --render-software -r roms/basic10.rom -t orictel.tap -f --loci --serial picowifi:OricTel ...`
+
+### Cause racine
+- `hires_on()` (`src/display.c`) faisait un `jsr $EC33` en dur : c'est le
+  keyword HIRES de la **ROM Atmos (BASIC 1.1)**. Cette adresse n'existe pas sur
+  la **ROM Oric-1 (BASIC 1.0)**, donc la bascule HIRES ne se faisait pas.
+
+### Correction
+- `hires_on()` detecte desormais la ROM au runtime et appelle la bonne routine :
+  - **Atmos (BASIC 1.1)** : `jsr $EC33` (chemin historique, inchange et valide).
+  - **Oric-1 (BASIC 1.0)** : `jsr $F8E3`, routine bas-niveau de bascule HIRES
+    (analogue du `$F920` Atmos), identifiee par desassemblage de `basic10.rom`
+    (`PHA / LDA $021F / ... / LDA #$1E / STA $BFDF / ... / PLA / RTS`).
+- Detection : l'entree ROM a `$C000` fait `JMP $ECCC` sur Atmos et `JMP $EA59`
+  sur Oric-1 ; on teste l'octet de poids fort de la cible en `$C002`
+  (`$EC` = Atmos, sinon Oric-1).
+
+### Tests
+- Compilation cc65 OK (`orictel.tap`), Videotex 9/9, bridge 23/23.
+- Chemin Atmos strictement inchange (aucune regression sur la cible validee).
+
+### Note
+- Contribue a **US-043 (compatibilite Oric-1)** : le blocage HIRES est leve.
+  Validation end-to-end sur vrai Oric-1 restant a confirmer.
+
+## [0.3.6] - 2026-08-25 — Protection SEI/PLP des acces octet ACIA (AT en timeout sur LOCI reel)
+
+Correction d'un dysfonctionnement **specifique au materiel reel** (Oric-1 +
+LOCI + PicoWiFiModemUSB) : le modem etait detecte mais **toutes les commandes
+AT tombaient en timeout**. Invisible en emulation.
+
+### Cause racine
+- L'init ACIA (`_acia6551_init`) protegeait deja sa sequence d'ecritures
+  registres par `SEI/PLP` : sur le vrai LOCI, une IRQ VIA au milieu d'un acces
+  `$0380` echantillonne par la MIA (PIO RP2040) **corrompt l'acces**.
+- Mais les **acces octet** `_acia6551_send_raw` (ecriture DATA) et
+  `_acia6551_recv` (paire lecture status -> lecture DATA) n'avaient **pas**
+  cette protection. Pendant un handshake AT (des dizaines d'octets), l'IRQ
+  Timer-1 du ROM (~100 Hz, une toutes les ~10 000 cycles) tombait
+  statistiquement au milieu d'un acces `$0380` -> octet TX/RX corrompu ->
+  `OK`/`CONNECT` illisible -> AT repute en timeout alors que le modem
+  repondait. Diagnostic issu d'une relecture croisee du driver (comparaison
+  init protegee vs acces octet non proteges) suggeree par l'equipe Phosphoric.
+
+### Corrige
+- `_acia6551_send_raw` : l'ecriture `STA ACIA_DATA` est encadree par
+  `PHP/SEI ... PLP`. La **boucle d'attente TDRE reste HORS SEI**
+  (interruptible) pour ne pas affamer l'IRQ Timer-1 : seul le cycle
+  d'ecriture (echantillonne par la MIA) est protege.
+- `_acia6551_recv` : la paire `LDA ACIA_STATUS` -> `LDA ACIA_DATA` est rendue
+  atomique sous `PHP/SEI ... PLP` (les deux chemins, plein et vide, restaurent
+  l'indicateur I de l'appelant).
+- `_acia6551_tx_ready`/`_poll`/`_dcd` inchanges : lecture STATUS unique, non
+  scindable par une IRQ (frontiere d'instruction) -> aucune protection utile.
+- SMC intact : labels `s_st1`/`s_da1`/`r_st1`/`r_da1` conserves sur les memes
+  instructions -> `patchtab` (base ACIA au runtime) inchangee.
+
+### Verifie
+- `make test` : **313/313** (Videotex 219, SMC ACIA 22, AT 18, clavier 22,
+  UI 9, bridge 23), 0 echec ; `ca65` assemble proprement ; `orictel.tap` boote
+  sans regression sous Phosphoric (`--loci --serial picowifi`, auto-RUN OK,
+  aucun BRK). Le benefice est par nature **non observable en emulation** (la
+  MIA de Phosphoric ne corrompt pas sur acces concomitant d'IRQ) : a valider
+  sur le montage reel Oric-1 + LOCI + Pico.
+
 ## [0.3.5] - 2026-07-03 — Command $0B retabli (cause racine : TIC=01 = IRQ TX), retrait ISR
 
 Correction de la cause racine des gels v0.3.3/v0.3.4, identifiee par lecture

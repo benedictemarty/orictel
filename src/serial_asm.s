@@ -28,6 +28,16 @@
 ;   ORICOMMS 08 78 ... 28) : sur le vrai LOCI, une IRQ VIA au milieu du
 ;   cycle d'ecriture echantillonne par la MIA (PIO RP2040) corrompt l'acces.
 ;
+;   v0.3.6 - meme protection etendue aux ACCES OCTET (send_raw / recv) :
+;   pendant un handshake AT (des dizaines d'octets), l'IRQ Timer-1 ROM
+;   (~100 Hz, une toutes les ~10 000 cy) tombait au milieu d'un acces $0380
+;   -> octet TX/RX corrompu -> "OK"/"CONNECT" illisible -> AT en timeout sur
+;   materiel reel (invisible en emulation, la MIA de Phosphoric ne corrompt
+;   pas sur acces concomitant d'IRQ). L'ecriture DATA (send_raw) et la paire
+;   status->data (recv) sont desormais encadrees par PHP/SEI ... PLP. La
+;   BOUCLE D'ATTENTE TDRE reste HORS SEI (interruptible) pour ne pas affamer
+;   l'IRQ Timer-1 : seul l'acces registre lui-meme est protege.
+;
 ; ADRESSE ACIA CONFIGURABLE AU RUNTIME (self-modifying code)
 ; ----------------------------------------------------------
 ; serial_init(base) recoit la base de l'ACIA dans A (poids faible) / X
@@ -136,17 +146,20 @@ _acia6551_send_raw:
         pha
         ldx     #0
         ldy     #0
-s_st1:  lda     ACIA_STATUS
+s_st1:  lda     ACIA_STATUS     ; attente TDRE : boucle HORS SEI (interruptible)
         and     #TDRE
         bne     s_ok
         dex
         bne     s_st1
         dey
         bne     s_st1
-        pla
+        pla                     ; timeout borne : octet abandonne (pas de gel)
         rts
-s_ok:   pla
-s_da1:  sta     ACIA_DATA
+s_ok:   pla                     ; A = octet a emettre (pile nettoyee)
+        php                     ; --- section critique (comme l'init SEI/PLP) ---
+        sei
+s_da1:  sta     ACIA_DATA       ; ecriture echantillonnee par la MIA, non scindee
+        plp                     ; --- fin : restaure l'indicateur I de l'appelant ---
         rts
 
 ; ===========================================================================
@@ -161,13 +174,17 @@ t_st1:  lda     ACIA_STATUS
 ; _acia6551_recv - Lecture ACIA non bloquante (polling STATUS direct)
 ; ===========================================================================
 _acia6551_recv:
-r_st1:  lda     ACIA_STATUS
+        php                     ; --- section critique : status puis data consecutifs ---
+        sei
+r_st1:  lda     ACIA_STATUS     ; la MIA LOCI exige la paire lecture-status/lecture-data
         and     #RDRF
-        beq     r_empty
-r_da1:  lda     ACIA_DATA
+        beq     r_empty         ;   non separee par une IRQ VIA
+r_da1:  lda     ACIA_DATA       ; consomme l'octet RX immediatement apres le status
+        plp                     ; --- fin : restaure I ---
         rts
 r_empty:
         lda     #$FF
+        plp                     ; restaure I aussi sur le chemin "vide"
         rts
 
 ; ===========================================================================

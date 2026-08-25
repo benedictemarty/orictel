@@ -39,7 +39,9 @@ Scrum adapte avec sprints courts. Chaque sprint produit un increment fonctionnel
 - [x] US-040: Tests unitaires decodeur Videotex
 - [x] US-041: Tests bridge
 - [ ] US-042: Tests d'integration end-to-end
-- [ ] US-043: Compatibilite Oric-1 (BASIC 1.0)
+- [ ] US-043: Compatibilite Oric-1 (BASIC 1.0) — EN COURS : passage HIRES corrige
+      (detection ROM + `jsr $F8E3` sur BASIC 1.0, v0.3.7) ; validation end-to-end
+      sur vrai Oric-1 restant a confirmer
 
 ## Sprint 1 - Fondations (v0.1.0) [EN COURS]
 **Objectif:** Premiere connexion reussie a 3617.fr avec affichage basique

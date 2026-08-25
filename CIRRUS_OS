@@ -14,6 +14,8 @@
 
 | Cible           | Plateforme | Status     | Date       |
 |-----------------|------------|------------|------------|
+| orictel.tap     | atmos      | BUILD OK v0.3.6 (send_raw/recv sous SEI/PLP) | 2026-08-25 |
+| driver ACIA SEI | atmos      | acces octet proteges (anti-corruption MIA) | 2026-08-25 |
 | orictel.tap     | atmos      | BUILD OK   | 2026-06-24 |
 | orictel.dsk     | sedoric3   | BOOT OK    | 2026-06-24 |
 | mode direct TCP | host       | OK         | 2026-03-24 |

@@ -78,8 +78,22 @@ static unsigned char* const hires_row_base[SCREEN_ROWS] = {
 
 static void hires_on(void)
 {
-    /* Appel ROM Atmos HIRES a $EC33 */
-    __asm__("jsr $EC33");
+    /* Passage en mode HIRES, independant de la version de ROM.
+     *
+     * La routine de bascule HIRES est specifique a la ROM :
+     *   - Atmos  (BASIC 1.1) : keyword HIRES a $EC33 (chemin historique, valide)
+     *   - Oric-1 (BASIC 1.0) : pas de $EC33 ; on appelle directement la routine
+     *     bas-niveau de bascule HIRES a $F8E3 (analogue du $F920 Atmos, verifie
+     *     par desassemblage : PHA / ... / LDA #$1E / STA $BFDF / ... / PLA / RTS).
+     *
+     * Detection ROM : l'entree a $C000 fait "JMP $ECCC" sur Atmos et
+     * "JMP $EA59" sur Oric-1. L'octet de poids fort de la cible ($C002) vaut
+     * donc $EC sur Atmos et $EA sur Oric-1. */
+    if (*(unsigned char*)0xC002 == 0xEC) {
+        __asm__("jsr $EC33");   /* Atmos BASIC 1.1 */
+    } else {
+        __asm__("jsr $F8E3");   /* Oric-1 BASIC 1.0 */
+    }
 }
 
 /* ===================================================================

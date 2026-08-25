@@ -35,6 +35,13 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Reconnexion automatique apres perte de porteuse
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
+- [x] Protection SEI/PLP des acces octet ACIA (v0.3.6) : `send_raw` (ecriture
+      DATA) et `recv` (paire status->data) encadres par PHP/SEI...PLP, comme
+      l'init. Corrige « modem detecte mais AT en timeout » sur LOCI reel : sans
+      cette protection, l'IRQ Timer-1 ROM (~100 Hz) coupait un acces $0380
+      echantillonne par la MIA -> octet corrompu -> OK/CONNECT illisible.
+      Boucle d'attente TDRE laissee interruptible (pas de famine IRQ). 313
+      tests OK. A CONFIRMER sur le montage reel Oric-1 + LOCI + Pico.
 - [x] File d'emission TX non bloquante (prerequis vrai materiel V23:
       le canal montant 75 bauds interdit tout envoi bloquant pendant
       la reception 1200 bauds, l'ACIA n'ayant qu'un octet de tampon)

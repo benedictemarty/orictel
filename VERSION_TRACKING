@@ -1,10 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.5 (Command $0B retabli, polling pur, connexion PAVI validee)
+## Version actuelle: 0.3.7 (Passage HIRES compatible Oric-1 BASIC 1.0)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.3.5      | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
+| orictel.tap        | 0.3.7      | 2026-08-25 | HIRES OK Oric-1 (jsr $F8E3) + Atmos ($EC33), detection ROM en $C002 |
+| orictel.tap (v0.3.6)| 0.3.6     | 2026-08-25 | send_raw/recv sous SEI/PLP (anti-corruption MIA), 313 tests OK |
+| orictel.tap (v0.3.5)| 0.3.5     | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
 | orictel.tap (v0.3.4)| 0.3.4     | 2026-07-03 | REGRESSION gel (Cmd=$07, TIC=01=IRQ TX) |
 | orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | REGRESSION gel (Cmd=$05, TIC=01=IRQ TX) |
 | diag.tap (diagnostic ACIA)| 0.1.1 | 2026-06-29 | 1200 8N1 + SEI/PLP, valide banc MIA |
