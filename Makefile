@@ -134,7 +134,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk diag test test-videotex test-serial test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk diag test test-videotex test-serial test-serial-noraw test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -267,7 +267,14 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-serial test-atmodem test-keyboard test-ui test-bridge
+test: test-videotex test-serial test-atmodem test-keyboard test-ui test-serial-noraw test-bridge
+
+# Garde-fou reception FIDELE au 6551 reel : rejoue une rafale sur $0380 via le
+# backend `file:` de Phosphoric SANS --serial-buffer (RX 1 octet), verifie via
+# la trace serie que tout est recu byte-exact (FIFO=0). Necessite l'emulateur +
+# une ROM (surcharge EMU=/ROM=) ; en leur absence (CI host-only) -> SKIP (rc 0).
+test-serial-noraw: diag.tap
+	@$(TESTDIR)/test_serial_noraw.sh
 
 test-videotex: $(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_videotex \

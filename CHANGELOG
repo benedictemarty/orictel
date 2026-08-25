@@ -32,6 +32,16 @@ constate avec :
 - Compilation cc65 OK (`orictel.tap` + `diag.tap`), suite complete **313/313**
   (Videotex 219, SMC ACIA 22, AT 18, clavier 22, UI 9, bridge 23).
 - Chemin Atmos strictement inchange (aucune regression sur la cible validee).
+- **Nouveau garde-fou reception FIDELE au 6551 reel** :
+  `tests/test_serial_noraw.sh` (cible `make test-serial-noraw`, integree a
+  `make test`). Rejoue une rafale connue sur `$0380` via le backend `file:` de
+  Phosphoric **sans `--serial-buffer`** (RX 1 octet, comme le silicium) et
+  verifie via la trace serie que tout est recu **byte-exact** avec **FIFO=0**.
+  Complementaire au test host AT #7 (invariant de timing : aucun rendu
+  intercale en pleine rafale) : ici on valide le materiel emule + le chemin
+  recv sous SEI (v0.3.6), la la logique de drain. Necessite l'emulateur + une
+  ROM (surcharge `EMU=`/`ROM=`) ; en leur absence (CI host-only) -> **SKIP**
+  (rc 0), la CI ne casse pas. Verifie : 336/336 octets recus, FIFO=0 partout.
 
 ### Note
 - Contribue a **US-043 (compatibilite Oric-1)** : le blocage HIRES est leve.
