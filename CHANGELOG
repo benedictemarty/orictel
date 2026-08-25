@@ -21,8 +21,16 @@ constate avec :
   sur Oric-1 ; on teste l'octet de poids fort de la cible en `$C002`
   (`$EC` = Atmos, sinon Oric-1).
 
+### diag.tap — alignement sur la protection SEI du driver (v0.3.6)
+- `rx_drain()` (`src/diag.c`) protege desormais la paire lecture-status ->
+  lecture-DATA par `PHP/SEI ... PLP`, comme le `recv` du driver (v0.3.6) et
+  comme son `acia_putc`/`apply_cfg` deja proteges. L'affichage (`rx_putc`)
+  reste hors section critique. But : que l'outil de diagnostic reflete
+  fidelement le comportement du driver corrige sur le banc MIA reel.
+
 ### Tests
-- Compilation cc65 OK (`orictel.tap`), Videotex 9/9, bridge 23/23.
+- Compilation cc65 OK (`orictel.tap` + `diag.tap`), suite complete **313/313**
+  (Videotex 219, SMC ACIA 22, AT 18, clavier 22, UI 9, bridge 23).
 - Chemin Atmos strictement inchange (aucune regression sur la cible validee).
 
 ### Note

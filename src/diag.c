@@ -158,8 +158,23 @@ static void rx_putc(unsigned char b)
 static void rx_drain(void)
 {
     unsigned char n = 0;
-    while ((R_STAT & 0x08) && n < 64) {   /* RDRF set */
-        rx_putc(R_DATA);                  /* lire DATA -> efface RDRF */
+    unsigned char b = 0;
+    unsigned char ready;
+    while (n < 64) {
+        /* Paire lecture-status -> lecture-data rendue atomique (comme le
+         * driver recv v0.3.6) : une IRQ VIA entre le test RDRF et la lecture
+         * DATA corromprait l'octet echantillonne par la MIA LOCI. La fenetre
+         * SEI ne couvre QUE l'acces ACIA ; l'affichage (rx_putc) reste hors
+         * SEI pour ne pas affamer l'IRQ Timer-1. */
+        __asm__("php");
+        __asm__("sei");
+        ready = (R_STAT & 0x08);          /* RDRF ? */
+        if (ready) {
+            b = R_DATA;                   /* lire DATA immediatement apres */
+        }
+        __asm__("plp");
+        if (!ready) break;
+        rx_putc(b);                       /* affichage hors section critique */
         ++n;
     }
 }
