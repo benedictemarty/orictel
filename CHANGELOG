@@ -47,6 +47,14 @@ constate avec :
 - Contribue a **US-043 (compatibilite Oric-1)** : le blocage HIRES est leve.
   Validation end-to-end sur vrai Oric-1 restant a confirmer.
 
+### Documentation (synchronisation code <-> docs)
+- `README.md` : version 0.3.5 -> 0.3.7, ajout de la bascule HIRES compatible
+  Oric-1/Atmos (detection ROM au runtime : `jsr $EC33` Atmos / `jsr $F8E3` Oric-1).
+- `docs/MANUEL_UTILISATION.md` : version 0.2.46 -> 0.3.7.
+- `CIRRUS_OS` : ligne build `orictel.tap` v0.3.7 (atmos+oric1), consolidation des
+  compteurs de tests -> suite complete 313/313 (Videotex 219, SMC ACIA 22, AT 18,
+  clavier 22, UI 9, bridge 23), verifiee via `make test`.
+
 ## [0.3.6] - 2026-08-25 — Protection SEI/PLP des acces octet ACIA (AT en timeout sur LOCI reel)
 
 Correction d'un dysfonctionnement **specifique au materiel reel** (Oric-1 +

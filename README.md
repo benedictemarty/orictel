@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml/badge.svg)](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml)
 
-**Version:** 0.3.5
-**Date:** 2026-07-03
+**Version:** 0.3.7
+**Date:** 2026-08-25
 **Auteur:** bmarty <bmarty@mailo.com>
 **Depot public:** https://github.com/benedictemarty/orictel
 
@@ -60,6 +60,8 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
    - Machine a etats : ESC, CSI (avec parametres), US, SS2, REP, SEP, PRO1/2/3
    - Rendu HIRES 40x25 : moteur de plage en assembleur (~300 cycles/cellule),
      dirty par plage de colonnes, budget adaptatif (clavier toujours reactif)
+   - Bascule HIRES compatible Oric-1 et Atmos : detection ROM au runtime
+     (jsr $EC33 sur BASIC 1.1 Atmos, jsr $F8E3 sur BASIC 1.0 Oric-1)
    - Heuristique couleur hybride : attributs serial poses sur les cellules
      vides avec regard-avant (couleur du texte qui suit), mosaiques en couleur
      solide quand l'attribut correspond, dithering par luminance en repli
