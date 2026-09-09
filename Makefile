@@ -126,6 +126,18 @@ LOCI_BUFFER    =
 EMU_OPTS_LOCI_REAL = --loci --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) \
                      $(if $(LOCI_BUFFER),--serial-buffer $(LOCI_BUFFER),)
 
+# Scenario CO-SIM (run-loci-cosim) : l'ACIA $0380 est servie par le VRAI firmware
+# RP2040 (emulateur LOCI de Phosphoric, --loci-emu) qui relaie le PicoWiFiModemUSB
+# PHYSIQUE via --loci-cdc. C'est le chemin LE PLUS FIDELE : Oric -> ACIA $0380 ->
+# oric/acia.c du vrai firmware LOCI -> USB-CDC -> dongle. Contrairement a run-loci
+# (backend `com:` comportemental de Phosphoric), le 6551 est ici servi par le
+# firmware reel co-simule. Necessite un Phosphoric bati AVEC --loci-cdc : par defaut
+# le build live ~/Oric1/oric1-emu (le tools/ bundle ne le supporte pas encore).
+# Sans dongle physique, remplacer $(PICO_DEV) par un PTY (faux modem AT).
+EMU_COSIM ?= $(HOME)/Oric1/oric1-emu
+FW_ELF    ?= $(HOME)/loci/firmware/build-xip/src/loci-firmware.elf
+EMU_OPTS_LOCI_COSIM = --loci-emu $(FW_ELF) --loci-cdc $(PICO_DEV)
+
 # Flags cc65
 CC65FLAGS = -t $(TARGET) -O --add-source
 CA65FLAGS = -t $(TARGET)
@@ -134,7 +146,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-real run-ws run-dsk bridge dsk diag test test-videotex test-serial test-serial-noraw test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag test test-videotex test-serial test-serial-noraw test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -227,6 +239,17 @@ run-loci-emu: $(OUTPUT)
 	@echo "=== OricTel -> ACIA LOCI emulee \$$0380 + modem PicoWiFi emule (test sans materiel) ==="
 	@echo "    Dans OricTel : ecran Interface (une touche), mode Modem AT, ATD"
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_LOCI_EMU)
+
+# CO-SIM : ACIA $0380 servie par le VRAI firmware LOCI (--loci-emu) relayant le Pico
+# physique via --loci-cdc. Chemin le plus fidele (Oric -> firmware reel -> dongle).
+run-loci-cosim: $(OUTPUT)
+	@echo "=== OricTel -> ACIA \$$0380 servie par le firmware LOCI REEL (co-sim) + Pico $(PICO_DEV) ==="
+	@echo "    Emulateur : $(EMU_COSIM) ; firmware : $(FW_ELF)"
+	@echo "    Dans OricTel : ecran Interface (une touche), mode Modem AT, ATD"
+	@test -x $(EMU_COSIM) || { echo "ERREUR: $(EMU_COSIM) absent (bati ~/Oric1 avec --loci-cdc ?)"; exit 1; }
+	@test -f $(FW_ELF) || { echo "ERREUR: firmware $(FW_ELF) introuvable"; exit 1; }
+	@test -c $(PICO_DEV) || { echo "ERREUR: $(PICO_DEV) introuvable (Pico branche ?)"; exit 1; }
+	$(EMU_COSIM) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_LOCI_COSIM)
 
 # Montage REEL Oric-1 + LOCI + PicoWiFiModemUSB physique, emulateur 1.27.6
 # (tools/oric1-emu-sdl, --loci => ACIA $0380), ROM Oric-1 (basic10).
@@ -373,6 +396,7 @@ help:
 	@echo "  run-picowifi  Alias de 'run' (PicoWiFiModemUSB emule)"
 	@echo "  run-loci      LOCI reel + Pico physique (ACIA \$$0380, $(PICO_DEV))"
 	@echo "  run-loci-emu  Alias de 'run' (chemin LOCI \$$0380 sans materiel)"
+	@echo "  run-loci-cosim ACIA \$$0380 servie par le firmware LOCI REEL (co-sim) + Pico $(PICO_DEV)"
 	@echo "  run-loci-real Oric-1 + LOCI + Pico physique, emulateur 1.27.6 (\$$0380)"
 	@echo "  run-ws        Bridge WebSocket + emulateur (ws://3617.fr)"
 	@echo "  bridge        Lancer uniquement le bridge"

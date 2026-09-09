@@ -1,5 +1,24 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — cible `run-loci-cosim` : ACIA $0380 servie par le firmware LOCI co-simulé
+
+Nouvelle cible Makefile pour valider OricTel sur le chemin **le plus fidèle** : l'ACIA
+6551 à `$0380` est servie par le **VRAI firmware LOCI** (émulateur RP2040 de Phosphoric,
+`--loci-emu`) qui relaie le PicoWiFiModemUSB physique via `--loci-cdc /dev/ttyACM0`.
+
+- `make run-loci-cosim` : `Oric → ACIA $0380 → oric/acia.c du firmware réel → USB-CDC →
+  dongle`. Contrairement à `run-loci` (backend `com:` comportemental de Phosphoric), le
+  6551 est ici servi par le firmware LOCI co-simulé (validation de bout en bout du
+  firmware, pas d'une ré-implémentation). Sans dongle : pointer `--loci-cdc` sur un PTY.
+- Prérequis : Phosphoric bâti **avec** `--loci-cdc` (par défaut le build live
+  `~/Oric1/oric1-emu` ; le `tools/oric1-emu-sdl` bundle ne le supporte pas encore).
+  Variables : `EMU_COSIM`, `FW_ELF` (défaut `~/loci/firmware/build-xip/…elf`).
+- Côté émulateur (dépôt `~/loci/emul`, commits `ef2650e`/`7b5d7e7`/`8ef992d`) : coexistence
+  hooks USB MSC+CDC, routage `emul_loci_acia_*`, flag `--loci-cdc`. Validé headless :
+  OricTel boote sous le co-sim (ACIA `$0380` co-sim-servie, pas de crash) et le dongle réel
+  `/dev/ttyACM0` s'attache+monte à travers le firmware. Reste : dialogue AT interactif
+  (menu OricTel → serveur Minitel) à faire par l'utilisateur.
+
 ## [0.3.7] - 2026-08-25 — Passage HIRES compatible Oric-1 (BASIC 1.0)
 
 Correction du **passage en mode HIRES qui echouait sous ROM Oric-1** (`basic10.rom`),
