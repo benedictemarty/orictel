@@ -515,8 +515,12 @@ static void set_paper_attr(unsigned char col, unsigned char char_row, unsigned c
 static unsigned char row_has_dblh(vtx_context_t* ctx, unsigned char row)
 {
     unsigned char col;
-    for (col = 0; col < SCREEN_COLS; ++col) {
-        unsigned char s = ctx->screen[row][col].size;
+    /* Pointeur de ligne HISSE hors de la boucle: ctx->screen[row][col]
+     * coute a cc65 une multiplication 16 bits par 240 A CHAQUE TOUR
+     * (~500 cy/cellule mesures, cf. make bench-render). Une seule suffit. */
+    const vtx_cell_t* rowp = &ctx->screen[row][0];
+    for (col = 0; col < SCREEN_COLS; ++col, ++rowp) {
+        unsigned char s = rowp->size;
         if (s == SIZE_DOUBLE_HEIGHT || s == SIZE_DOUBLE_SIZE) {
             return 1;
         }
@@ -540,19 +544,20 @@ static void render_span_raw(vtx_context_t* ctx, unsigned char row,
 {
     unsigned char col = col_from;
     unsigned char n;
+    vtx_cell_t* rowp = &ctx->screen[row][0];   /* pointeur de ligne hisse */
 
     run_mode = dither_mode;
     while (col <= col_to) {
-        run_cells = (unsigned char*)&ctx->screen[row][col];
+        run_cells = (unsigned char*)&rowp[col];
         run_dst = hires_row_base[row] + col;
         run_count = (unsigned char)(col_to - col + 1);
         n = blit_run();
         col += n;
         if (col > col_to) break;
         /* Cellule hors fast-path: chemin C complet */
-        render_cell_hires(&ctx->screen[row][col], col, row);
-        if (ctx->screen[row][col].size == SIZE_DOUBLE_WIDTH ||
-            ctx->screen[row][col].size == SIZE_DOUBLE_SIZE) {
+        render_cell_hires(&rowp[col], col, row);
+        if (rowp[col].size == SIZE_DOUBLE_WIDTH ||
+            rowp[col].size == SIZE_DOUBLE_SIZE) {
             col += 2;
         } else {
             ++col;
@@ -573,6 +578,7 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     unsigned char has_empty;
     unsigned char col_from;
     unsigned char col_to;
+    vtx_cell_t* hyb_rowp;
 
     if (row >= SCREEN_ROWS) return;
 
@@ -611,8 +617,8 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     has_empty = 0;
     {
         unsigned char has_dblh = 0;
-        for (col = 0; col < SCREEN_COLS; ++col) {
-            vtx_cell_t* c = &ctx->screen[row][col];
+        const vtx_cell_t* c = &ctx->screen[row][0];   /* pointeur hisse */
+        for (col = 0; col < SCREEN_COLS; ++col, ++c) {
             if (c->fg != VTX_WHITE || c->bg != VTX_BLACK) has_colors = 1;
             if (c->ch == ' ' || c->ch == 0) has_empty = 1;
             if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE)
@@ -645,8 +651,9 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     prev_bg = VTX_BLACK;
     prev_fg = VTX_WHITE;
 
+    hyb_rowp = &ctx->screen[row][0];   /* pointeur de ligne hisse */
     for (col = 0; col < SCREEN_COLS; ++col) {
-        vtx_cell_t* cell = &ctx->screen[row][col];
+        vtx_cell_t* cell = &hyb_rowp[col];
         cell_fg = cell->fg;
         cell_bg = cell->bg;
         is_empty = (cell->ch == ' ' || cell->ch == 0);
@@ -664,7 +671,7 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
              * Un attribut encre s'affiche comme le papier courant:
              * visuellement identique a l'espace qu'il remplace. */
             if (col + 1 < SCREEN_COLS) {
-                vtx_cell_t* nx = &ctx->screen[row][col + 1];
+                vtx_cell_t* nx = &hyb_rowp[col + 1];
                 if (nx->ch != ' ' && nx->ch != 0) {
                     want_fg = nx->fg;
                     next_is_empty = 0;
@@ -703,7 +710,7 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
             unsigned char run_end = col;
             unsigned char run_fg = cell->fg;
             while (run_end < SCREEN_COLS - 1) {
-                vtx_cell_t* nc = &ctx->screen[row][run_end + 1];
+                vtx_cell_t* nc = &hyb_rowp[run_end + 1];
                 if (nc->ch == ' ' || nc->ch == 0) break;
                 if (nc->fg != run_fg) break;
                 ++run_end;
@@ -717,8 +724,8 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
                             (run_fg == prev_fg) ? 0 : 1);
             /* Si la course finit sur une double largeur, sauter la
              * moitie cachee (cellule run_end+1, contenu perime) */
-            if (ctx->screen[row][run_end].size == SIZE_DOUBLE_WIDTH ||
-                ctx->screen[row][run_end].size == SIZE_DOUBLE_SIZE) {
+            if (hyb_rowp[run_end].size == SIZE_DOUBLE_WIDTH ||
+                hyb_rowp[run_end].size == SIZE_DOUBLE_SIZE) {
                 col = run_end + 1;
             } else {
                 col = run_end;

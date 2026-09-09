@@ -42,8 +42,22 @@
 
 static vtx_context_t vtx;
 
+/* Interface du blit assembleur (display_asm.s), pour mesurer le chemin
+ * rapide isole du wrapper C de render_cell_hires. */
+extern unsigned char* run_cells;
+extern unsigned char* run_dst;
+extern unsigned char  run_count;
+extern unsigned char  run_mode;
+unsigned char __fastcall__ blit_run(void);
+
 /* Puits anti-optimisation : empeche cc65 d'eliminer la boucle de pre-scan. */
 unsigned char g_scan_sink;
+
+/* Ligne cible en VARIABLE GLOBALE : avec un litteral (screen[5][col]) cc65
+ * replie l'indice de ligne en offset constant et la mesure sous-estime
+ * lourdement le vrai code, qui indexe avec une variable et paie une
+ * multiplication 16 bits par 240 A CHAQUE TOUR. */
+unsigned char g_bench_row = 5;
 
 /* Globales normalement fournies par main.c */
 unsigned char g_blink_phase;
@@ -145,6 +159,10 @@ static void dirty_all(void)
  * id 10: render_cell_hires() d'UNE cellule G0 (blit pur, 8 octets)
  * id 11: render_cell_hires() x40 cellules G0 (blit pur d'une ligne)
  * id 12: render_cell_hires() x40 cellules G1 (blit + dithering)
+ * id 13: scan "row_has_dblh" seul (2e pre-scan de 40 cellules)
+ * id 14: blit_run() ASSEMBLEUR seul sur 40 cellules G0 eligibles
+ *        -> tranche la question : le chemin rapide asm tient-il ses ~190
+ *           cycles/cellule, ou le cout est-il ailleurs ?
  * id 8 : CALIBRATION - boucle assembleur au cout EXACTEMENT connu
  *        (`ldx #0 / dex / bne` = 256 tours * 5 cycles = 1280 cycles, +/- IRQ).
  *        Si la mesure ne rend pas ~1280, la chaine de mesure est fausse et
@@ -214,7 +232,7 @@ static void bench_all(void)
         unsigned char hc = 0, he = 0, hd = 0;
         mark(MK_BEG(9));
         for (col = 0; col < VTX_COLS; ++col) {
-            vtx_cell_t* c = &vtx.screen[5][col];
+            vtx_cell_t* c = &vtx.screen[g_bench_row][col];
             if (c->fg != VTX_WHITE || c->bg != VTX_BLACK) hc = 1;
             if (c->ch == ' ' || c->ch == 0) he = 1;
             if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE) hd = 1;
@@ -245,6 +263,47 @@ static void bench_all(void)
         for (col = 0; col < VTX_COLS; ++col)
             display_render_cell(&vtx.screen[5][col], col, 5);
         mark(MK_END(12));
+    }
+
+    /* --- id 13 : 2e pre-scan (row_has_dblh sur la ligne du dessous) --- */
+    for (row = 0; row < VTX_ROWS; ++row) fill_row_raw(row);
+    for (rep = 0; rep < BENCH_REPS; ++rep) {
+        unsigned char hd = 0;
+        mark(MK_BEG(13));
+        for (col = 0; col < VTX_COLS; ++col) {
+            vtx_cell_t* c = &vtx.screen[g_bench_row][col];
+            if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE) hd = 1;
+        }
+        mark(MK_END(13));
+        g_scan_sink = hd;
+    }
+
+    /* --- id 14 : blit_run() asm seul, 40 cellules G0 eligibles --- */
+    for (rep = 0; rep < BENCH_REPS; ++rep) {
+        run_mode  = 1;
+        run_cells = (unsigned char*)&vtx.screen[5][0];
+        run_dst   = (unsigned char*)0xA000 + 5 * 320;
+        run_count = VTX_COLS;
+        mark(MK_BEG(14));
+        g_scan_sink = blit_run();
+        mark(MK_END(14));
+    }
+
+    /* --- id 15 : pre-scan avec POINTEUR DE LIGNE HISSE (optimisation
+     * candidate : une seule multiplication par ligne au lieu de 40) --- */
+    for (rep = 0; rep < BENCH_REPS; ++rep) {
+        unsigned char hc = 0, he = 0, hd = 0;
+        mark(MK_BEG(15));
+        {
+            vtx_cell_t* c = &vtx.screen[g_bench_row][0];
+            for (col = 0; col < VTX_COLS; ++col, ++c) {
+                if (c->fg != VTX_WHITE || c->bg != VTX_BLACK) hc = 1;
+                if (c->ch == ' ' || c->ch == 0) he = 1;
+                if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE) hd = 1;
+            }
+        }
+        mark(MK_END(15));
+        g_scan_sink = (unsigned char)(hc + he + hd);
     }
 
     /* --- id 8 : calibration (doit rendre ~1280 cycles) --- */

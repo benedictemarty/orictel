@@ -91,6 +91,18 @@ utilisable avec les serveurs Minitel modernes via Internet.
         le rendu et en empilant l'octet dans un ring que vtx_process()
         consomme ensuite (on ne peut pas appeler vtx_process pendant le
         rendu : il modifie ctx->screen qu'on est en train de lire).
+      * FAIT (1re passe d'optimisation) : hissage des pointeurs de ligne dans
+        les 4 boucles par ligne de display.c (cc65 compilait
+        ctx->screen[row][col] en une multiplication 16 bits par 240 A CHAQUE
+        TOUR). display_render() : 606 227 -> 323 149 cy (1,88x), soit 74 ->
+        39 temps-octet. Rendu prouve PIXEL-EXACT (empreinte SHA-256 du
+        framebuffer HIRES inchangee, affichee par make bench-render).
+      * RESTE a optimiser, par ordre de gain : memoriser has_colors/has_empty/
+        has_dblh par ligne dans le contexte (~23 000 cy/ligne de pre-scans
+        encore payes, meme pour un span d'une cellule) ; le wrapper C de
+        render_cell_hires (~1 590 cy pour 8 octets contre 190 cy pour
+        blit_cell8) qui domine le pire cas double hauteur (251 315 cy/ligne) ;
+        vtx_process (3 930 cy/caractere).
       * MAIS la mesure montre que cela ne SUFFIT PAS : a 6,8 s par page, le
         ring devrait tenir plusieurs centaines d'octets et l'affichage
         traineraient des secondes derriere le flux. Le prealable est

@@ -1,5 +1,67 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — optimisation du rendu : hissage des pointeurs de ligne (1,9×, pixel-exact)
+
+Première passe d'optimisation du moteur de rendu, guidée par `make bench-render`.
+Transformation purement mécanique, **sans aucun changement visuel** (prouvé, cf. plus bas).
+
+### Cause
+cc65 compile `ctx->screen[row][col]` en une **multiplication 16 bits par 240 à chaque
+tour de boucle** (`vtx_cell_t` fait 6 octets, une ligne en fait 40 → 240). Le moteur
+payait cette multiplication par cellule lue, dans quatre boucles par ligne : les deux
+pré-scans (`has_colors`/`has_empty`/`has_dblh` et `row_has_dblh`), la boucle hybride
+(avec en plus un regard-avant `[col+1]` et une recherche de course `[run_end+1]`), et
+`render_span_raw`.
+
+Mesuré isolément : le même pré-scan coûte **34 664 cycles** avec indice de ligne
+variable contre **14 365** avec le pointeur hissé, soit 2,4×.
+
+### Correction
+Un pointeur de ligne (`&ctx->screen[row][0]`) est hissé hors de chaque boucle, l'accès
+devient `rowp[col]`. Une seule multiplication par ligne au lieu de 40 à 120.
+
+### Gains mesurés (cycles, min sur 8 répétitions)
+
+| Région | avant | après | gain |
+|---|---|---|---|
+| **`display_render()` (la passe budgétée de `main.c`)** | 606 227 | **323 149** | **1,88×** |
+| 1 ligne hybride (couleurs, 40 col) | 272 352 | 150 197 | 1,81× |
+| 1 ligne brute monochrome (40 col) | 93 430 | 45 379 | 2,06× |
+| 1 ligne brute, span d'une colonne | 73 347 | 30 220 | 2,43× |
+| 1 ligne double hauteur | 362 581 | 251 315 | 1,44× |
+
+La passe de rendu passe de **74 à 39 temps-octet** à 1200 bauds.
+
+### Garde-fou : preuve que le rendu est inchangé
+Le banc dump désormais la RAM (`--dump-ram-at`) et affiche l'**empreinte SHA-256 du
+framebuffer HIRES** (`$A000-$BF3F`) après une séquence de rendu déterministe. Avant et
+après optimisation : `18c7ff0d…` — **strictement identique, octet pour octet**.
+
+Piège rencontré et corrigé dans le banc : le premier dump était pris à 30 M cycles, or
+le build non optimisé ne terminait qu'à 33,05 M. On comparait donc deux états de
+programme différents, d'où une fausse différence sur la ligne 5. Le dump est maintenant
+pris à 60 M, quand les deux builds bouclent à vide.
+
+Piège de mesure également corrigé : les deux pré-scans étaient d'abord mesurés avec un
+indice de ligne **littéral** (`screen[5][col]`), que cc65 replie en offset constant —
+la mesure sous-estimait le vrai coût de moitié. Le banc utilise désormais une variable
+globale, et le budget se ferme (34 664 + 22 897 + 15 669 = 73 230 ≈ 73 347 mesurés).
+
+### Ce que ça ne règle pas
+L'overrun n'est **pas éliminé** : 39 temps-octet par passe, il en faudrait moins de 1.
+Le blit assembleur (`blit_run`, 392 cy/cellule) n'est pas en cause — il tient ses
+promesses. Les cibles restantes, chiffrées :
+- les deux pré-scans subsistent (~23 000 cy/ligne même après hissage) → à mémoriser
+  dans le contexte, maintenus par `vtx_process`, au lieu d'être recalculés ;
+- le wrapper C de `render_cell_hires` : ~1 590 cy pour écrire 8 octets, contre 190 cy
+  pour `blit_cell8` — c'est le chemin des cellules hors fast-path (double hauteur :
+  251 315 cy/ligne, désormais le pire cas) ;
+- `vtx_process()` : 3 930 cy/caractère, inchangé, désormais du même ordre que le rendu.
+
+### Tests
+- Suite complète : **318/318**, aucune régression.
+- Empreinte framebuffer inchangée (garde-fou pixel-exact ci-dessus).
+
 ## [Non publié] — reprise sur modem resté en ligne : la première page n'est plus perdue
 
 ### Corrigé

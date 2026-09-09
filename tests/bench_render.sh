@@ -39,9 +39,14 @@ echo "    EMU=$EMU"
 echo "    ROM=$ROM  budget 1 octet @1200 bauds = 8333 cycles @1 MHz"
 echo
 
+# --dump-ram-at bien APRES la fin du banc (le marqueur $FF) : le programme
+# boucle ensuite a vide, l'image memoire est donc stable. Un point de dump trop
+# tot donnerait deux etats de programme differents entre un build lent et un
+# build rapide -> fausse difference de framebuffer.
 "$EMU" --rom "$ROM" --tape "$BENCH" -f \
     --acia-addr 0380 --serial "file:/dev/null:$TMP/out.bin" \
-    --headless --serial-trace "$TRACE" -c "$CYCLES" >/dev/null 2>&1
+    --headless --serial-trace "$TRACE" \
+    --dump-ram-at "60000000:$TMP/ram.bin" -c 61000000 >/dev/null 2>&1
 
 [ -s "$TRACE" ] || { echo "FAIL : trace serie vide (le bench n'a rien emis)"; exit 1; }
 
@@ -56,10 +61,13 @@ LABELS = {
     5: "1 ligne G1        (mosaiques, dithering, 40 col)",
     6: "1 ligne double hauteur (40 col)",
     7: "vtx_process() x40 caracteres G0 (drain seul, sans rendu)",
-    9: "  dont: pre-scan seul  (40 lectures screen[row][col])",
+    9: "  dont: pre-scan seul  screen[row][col], ligne VARIABLE (reel)",
+   15: "  CANDIDAT: meme pre-scan, pointeur de ligne HISSE",
    10: "  dont: blit pur       1 cellule G0",
    11: "  dont: blit pur      40 cellules G0",
    12: "  dont: blit+dither   40 cellules G1",
+   13: "  dont: 2e pre-scan   row_has_dblh, ligne VARIABLE (reel)",
+   14: "  dont: blit_run ASM  40 cellules G0 (chemin rapide seul)",
     8: "CALIBRATION boucle asm 256 tours (attendu ~1280 cycles)",
 }
 BUDGET = 8333  # cycles pour 1 octet a 1200 bauds, 6502 @ 1 MHz
@@ -127,3 +135,22 @@ if p1:
         print("          ~%d octets perdus par passe de rendu a 1200 bauds."
               % int(lost - 1 + 0.5))
 PY
+
+# Empreinte du framebuffer HIRES ($A000-$BF3F). Le banc rend une sequence
+# deterministe : toute optimisation du rendu qui se veut SANS changement visuel
+# doit laisser cette empreinte INCHANGEE. C'est le garde-fou qui a valide le
+# hissage des pointeurs de ligne (gain 1,9x, rendu strictement pixel-exact).
+#
+# NB : le dump est pris bien APRES la fin du banc (marqueur $FF), quand le
+# programme boucle a vide et que l'image memoire est stable. Un point de dump
+# trop tot comparerait deux etats de programme differents entre un build lent
+# et un build rapide -> fausse difference.
+if [ -f "$TMP/ram.bin" ]; then
+    echo
+    python3 -c "
+import hashlib
+fb = open('$TMP/ram.bin','rb').read()[0xA000:0xBF40]
+print('Empreinte framebuffer HIRES : %s' % hashlib.sha256(fb).hexdigest())
+print('  (doit rester identique apres toute optimisation sans effet visuel)')
+"
+fi
