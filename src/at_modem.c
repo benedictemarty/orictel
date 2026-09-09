@@ -215,3 +215,40 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
     }
     return 0;
 }
+
+/* --- Raccrochage d'un modem reste en ligne ------------------------------- */
+
+/* Garde de silence encadrant "+++" (norme Hayes : ~1 s). */
+#define AT_GUARD_MS 1100
+
+unsigned char at_hangup(void)
+{
+    unsigned int burst = 0;
+    unsigned char in_command;
+
+    /* Vider le flux de donnees en cours. PLAFONNE : un serveur peut emettre
+     * sans interruption, et la garde Hayes porte sur NOTRE emission, pas sur
+     * la reception - inutile d'attendre un silence du serveur. */
+    while (serial_poll() && ++burst < AT_DRAIN_BURST) {
+        unsigned char b = serial_recv();
+        if (s_on_byte) s_on_byte(b);
+    }
+
+    /* "+++" SANS CR : un CR serait transmis au serveur comme une donnee et
+     * l'echappement ne serait pas reconnu. */
+    at_delay_ms(AT_GUARD_MS);
+    serial_send('+');
+    serial_send('+');
+    serial_send('+');
+    serial_tx_flush();
+    at_delay_ms(AT_GUARD_MS);
+
+    in_command = at_wait_response("OK", 2000);
+
+    /* ATH emis meme si le "OK" n'a pas ete vu (le modem peut avoir bascule
+     * en mode commande sans le confirmer de facon reconnaissable). */
+    at_send("ATH");
+    at_wait_response("NO CARRIER", 3000);
+
+    return in_command;
+}

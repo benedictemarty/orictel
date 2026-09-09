@@ -1,5 +1,52 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — reprise sur modem resté en ligne : la première page n'est plus perdue
+
+### Corrigé
+Quand le PicoWiFiModemUSB était **resté en communication** d'une session à l'autre
+(Oric resetté ou OricTel relancé sans raccrocher, fermeture de l'émulateur), la
+connexion échouait silencieusement et la **première page arrivait illisible** (écran
+noir ; une navigation ultérieure, `help` par exemple, réaffichait correctement).
+
+**Cause** : en communication, le modem transmet les données du serveur et n'interprète
+plus les commandes Hayes. Le `ATZ` de `modem_connect` tombait donc dans le flux
+Videotex, `at_wait_response("OK", 3000)` expirait, la fonction retournait 0 **sans
+jamais composer**, et OricTel entrait quand même en session — le décodeur démarrant au
+milieu d'une page déjà commencée, sans en avoir vu l'en-tête.
+
+**Correctif** : `modem_connect` ne renonce plus sur l'échec du premier `ATZ`. Il tente
+la séquence d'échappement Hayes (`at_hangup()` : drain borné du flux, garde de silence,
+`+++` **sans CR**, garde, `ATH`) puis rejoue `ATZ`. Coût nul dans le cas nominal : ce
+chemin n'est emprunté que si le premier `ATZ` a échoué. Vaut aussi sur matériel réel
+après un reset en pleine session.
+
+### Ajouté
+- `at_hangup()` (`src/at_modem.c`, `src/at_modem.h`) : raccrochage d'un modem resté en
+  ligne. Le drain initial est **plafonné** (`AT_DRAIN_BURST`) — un serveur peut émettre
+  sans interruption, et la garde Hayes porte sur notre émission, pas sur la réception.
+  `ATH` est émis même sans `OK` reconnu ; la réponse varie selon le dongle (`OK` ou
+  `NO CARRIER (hh:mm:ss)` sur PicoWiFiModemUSB) et n'est donc pas exigée — la vraie
+  confirmation est le `ATZ` suivant.
+- 5 tests (`tests/test_atmodem.c`, **23/23**) : mode commande atteint, `+++` sans CR
+  suivi de `ATH`+CR, absence de modem, `ATH` émis malgré tout, et sortie bornée sous
+  flux continu. Le faux modem du harnais devient **réactif** (il répond à ce qu'on lui
+  envoie) : une réponse pré-remplie serait avalée par le drain de `at_hangup`, ce que
+  le vrai modem ne fait pas.
+
+### Validation
+- Suite hôte complète : **318 tests verts** (219 Videotex, 23 AT, 22 SMC ACIA,
+  22 clavier, 9 UI, 23 bridge + garde-fou réception 6551).
+- Runtime en co-simulation LOCI (`make run-loci-cosim`, firmware RP2040 réel +
+  PicoWiFiModemUSB physique), modem **volontairement laissé en communication** : la
+  séquence émise devient `ATZ` → `+++`/`ATH` → `ATZ` → `ATI` → `ATDT`, `CONNECT 9600`
+  est reçu et **la page d'accueil PAVI s'affiche correctement** (capture à 90 M cycles).
+
+### Note d'environnement (hors code)
+Le build 6502 exige `CC65_HOME=/usr/local/share/cc65` sur cette machine : `cc65` est
+un build git installé dans `/usr/local`, dont le runtime émet `ldptr1ysp`, absente de
+l'`atmos.lib` du paquet système (`/usr/share/cc65`). Avec l'ancien chemin, l'édition de
+liens échoue sur 4 symboles non résolus, sur des fichiers pourtant inchangés.
+
 ## [Non publié] — banc de mesure du rendu : overrun RX chiffré (facteur 74, pas marginal)
 
 Ajout de `make bench-render`, un **banc de mesure en cycles 6502 réels** du coût des

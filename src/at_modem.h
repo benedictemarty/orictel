@@ -59,4 +59,16 @@ unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms);
  * facon. Le retour sert a la page Config WiFi pour confirmer l'association. */
 unsigned char at_wait_ip(unsigned int timeout_ms);
 
+/* Raccroche un modem reste EN LIGNE d'une session precedente (Oric resette
+ * ou OricTel relance sans avoir raccroche : le modem est encore en
+ * communication, il transmet les donnees du serveur et n'interprete plus
+ * les commandes AT). Sequence d'echappement Hayes : drain du flux, garde de
+ * silence, "+++" SANS CR, garde, puis ATH.
+ *
+ * Retourne 1 si le mode commande a ete atteint ("OK" apres "+++"), 0 sinon.
+ * Le ATH est emis dans les deux cas ; la reponse du dongle varie ("OK" ou
+ * "NO CARRIER (hh:mm:ss)" sur PicoWiFiModemUSB), elle n'est donc PAS exigee :
+ * la confirmation reelle est le ATZ suivant qui repond enfin "OK". */
+unsigned char at_hangup(void);
+
 #endif /* AT_MODEM_H */

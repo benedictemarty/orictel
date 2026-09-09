@@ -48,6 +48,14 @@ l'emulateur. C'est l'unique mode de connexion : l'ancien mode « Direct »
 (ligne V23 brute sans AT) a ete retire, le montage cible ne sachant pas
 ouvrir une ligne directe.
 
+**Modem reste en ligne.** Si le modem est encore en communication d'une session
+precedente (Oric resette, OricTel relance ou emulateur ferme sans raccrocher), il
+transmet les donnees du serveur et n'interprete plus les commandes : le `ATZ` se
+perd dans le flux. OricTel le detecte (pas de « OK »), affiche brievement
+« Modem en ligne: ATH... », raccroche par la sequence d'echappement Hayes
+(`+++` puis `ATH`) et rejoue `ATZ` avant de composer. Aucun geste manuel n'est
+requis ; ce detour n'a lieu que si le premier `ATZ` echoue.
+
 ### Mode WebSocket (via bridge)
 
 `make run-ws` lance le bridge Python (`orictel_bridge.py`) qui relaie
@@ -158,6 +166,7 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 |---|---|---|
 | « PAS DE MODEM » / retour apres ATZ | l'emulateur n'est pas en `--serial modem`/`picowifi` (aucun modem ne repond « OK ») | utiliser `make run` (ou `make run-loci`/`run-loci-emu`) |
 | `NO CARRIER (00:00:00)` (Pico reel) | format de numerotation (`ATD<hote>` : le 1er car. de l'hote pris pour un modificateur Hayes) ou WiFi non associe | corrige en 0.2.42 (OricTel compose `ATDT<hote>`) ; si ca persiste : menu `2 - Config WiFi` pour (re)configurer le reseau |
+| Premiere page illisible / ecran noir, les suivantes correctes | modem reste en communication d'une session precedente : `ATZ` perdu dans le flux, aucune numerotation, decodage demarre en cours de page | corrige : OricTel raccroche (`+++`/`ATH`) et rejoue `ATZ` automatiquement. Sur une version anterieure : raccrocher a la main avant de relancer |
 | Indicateur `F` permanent | pas de donnees du serveur | verifier la connexion Internet ; CTRL+F puis CTRL+E (repetition) |
 | Caracteres perdus a la frappe | n'arrive plus depuis 0.2.24 | verifier que le tap est a jour (`make`) |
 | Cartouches inverses illisibles | echelle d'affichage 1x | F3 (echelle x2-x4) |

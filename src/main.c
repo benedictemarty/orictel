@@ -591,7 +591,30 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
     DBG_AT_BEGIN(ctx, 12);
     at_send("ATZ");
     if (!at_wait_response("OK", 3000)) {
-        return 0;  /* Aucun modem ne repond -> on entre en session sans connexion */
+        /* Pas de "OK" : deux causes possibles.
+         *  a) aucun modem branche -> rien a faire ;
+         *  b) le modem est reste EN LIGNE d'une session precedente (Oric
+         *     resette, ou OricTel relance sans raccrocher). Il transmet
+         *     alors les donnees du serveur et n'interprete plus les
+         *     commandes : le ATZ tombe dans le flux Videotex, le "OK"
+         *     n'arrive jamais, on n'appelle jamais, et la session decode un
+         *     flux commence en cours de page (premiere page illisible).
+         * On tente donc l'echappement Hayes + ATH, puis on rejoue ATZ. Ce
+         * chemin ne coute rien dans le cas nominal (le 1er ATZ a repondu). */
+        vtx_clear_page(ctx);
+        ui_print(ctx, 10, 15, "Modem en ligne: ATH...", VTX_WHITE);
+        display_render_all(ctx);
+        DBG_AT_BEGIN(ctx, 12);
+        at_hangup();
+
+        vtx_clear_page(ctx);
+        ui_print(ctx, 10, 17, "ATZ...", VTX_WHITE);
+        display_render_all(ctx);
+        DBG_AT_BEGIN(ctx, 12);
+        at_send("ATZ");
+        if (!at_wait_response("OK", 3000)) {
+            return 0;  /* Aucun modem ne repond -> session sans connexion */
+        }
     }
 
     /* ATZ a pu relancer l'association WiFi du PicoWiFiModemUSB: patienter
