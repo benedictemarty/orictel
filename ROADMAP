@@ -74,13 +74,41 @@ utilisable avec les serveurs Minitel modernes via Internet.
         la boucle de session draine deja entierement avant tout rendu et
         cede le rendu des qu'un octet arrive -> fenetre d'overrun bornee a
         une passe de rendu.
-      * ANALYSE : un ring buffer RX purement *polling* n'aide PAS - sans
-        IRQ, l'octet est ecrase dans le registre 1-octet du 6551 avant que
-        le logiciel ne le lise ; un tampon logiciel ne peut pas le recuperer.
+      * MESURE (make bench-render, banc a marqueurs ACIA horodates en cycles
+        emules, calibration asm 1280 cy validee a 1347) : une passe
+        display_render() = 605 484 cycles = 0,61 s = 74 TEMPS-OCTET a 1200
+        bauds -> ~73 octets perdus par passe. L'overrun n'est pas marginal,
+        il est massif. Detail : ligne hybride 272 025 cy, double hauteur
+        362 336 cy, ligne brute 93 350 cy, ligne d'UNE cellule 73 265 cy
+        (les 2 pre-scans de 40 cellules dominent, le dirty-span n'aide
+        quasiment pas), vtx_process 3 930 cy/caractere. Une page complete
+        = ~6,8 s de rendu pour ~8,3 s d'arrivee a 1200 bauds.
+      * ANALYSE CORRIGEE (l'ancienne etait incomplete) : il restait vrai
+        qu'un ring ne RECUPERE pas un octet deja ecrase dans le registre.
+        Mais le ring sert a DECOUPLER la lecture du traitement : le vrai
+        levier est de ramener l'intervalle entre deux serial_poll() bien
+        sous 8333 cycles, en pollant a la granularite de la CELLULE pendant
+        le rendu et en empilant l'octet dans un ring que vtx_process()
+        consomme ensuite (on ne peut pas appeler vtx_process pendant le
+        rendu : il modifie ctx->screen qu'on est en train de lire).
+      * MAIS la mesure montre que cela ne SUFFIT PAS : a 6,8 s par page, le
+        ring devrait tenir plusieurs centaines d'octets et l'affichage
+        traineraient des secondes derriere le flux. Le prealable est
+        d'ACCELERER LE RENDU. Cibles chiffrees par le banc :
+          - chemin C de render_cell_hires : ~1 600 cy pour ecrire 8 octets,
+            alors que blit_cell8 (asm) en coute ~190 -> le surcout est le
+            wrapper C par cellule (selection du glyphe, flags, table de
+            dither), pas le blit.
+          - les 2 pre-scans par ligne (has_colors/has_empty/has_dblh +
+            row_has_dblh(row+1)) : ~35 000 cy fixes par ligne, payes meme
+            pour un span d'une cellule -> a memoriser dans le contexte
+            (maintenus par vtx_process) au lieu d'etre recalcules.
+          - indexation cc65 &ctx->screen[row][col] : ~440 cy par cellule
+            lue (multiplication 16 bits par 240 a chaque tour).
       * RESTE (necessite materiel reel) : elimination COMPLETE via controle
         de flux RTS (desasserter RTS pendant un rendu long pour mettre le
-        Pico en pause, si le firmware l'honore) OU reception par IRQ sur
-        RDRF remplissant un ring. A valider sur vrai LOCI+Pico.
+        Pico en pause, si le firmware l'honore - NON VERIFIE) OU reception
+        par IRQ sur RDRF remplissant un ring. A valider sur vrai LOCI+Pico.
 - [x] Decouplage de la machine d'etats modem AT dans at_modem.c (0.2.44),
       testable sur l'hote (faux modem) : matcher ancre sur les lignes
       (anti-faux-positif OK/CONNECT), trace de debug derriere #ifdef DEBUG,

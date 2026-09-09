@@ -146,7 +146,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag test test-videotex test-serial test-serial-noraw test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -170,6 +170,26 @@ diag: $(DIAG_OBJS) $(CFG)
 		-m diag.map $(TARGET).lib
 	@echo "=== Diag compile: $(DIAGOUT) ==="
 	@ls -la $(DIAGOUT)
+
+# ============================================================================
+# Banc de mesure du cout CPU du rendu (bench.tap)
+# Chiffre en CYCLES 6502 reels le cout des passes de rendu de display.c, pour
+# le comparer au budget d'un octet a 1200 bauds (8333 cycles a 1 MHz). Sert a
+# dimensionner le correctif anti-overrun RX (cf. ROADMAP).
+# Reutilise tous les modules SAUF main.o (bench_render.c fournit son main()).
+# ============================================================================
+BENCHOUT   = bench.tap
+BENCH_OBJS = $(BLDDIR)/bench_render.o $(filter-out $(BLDDIR)/main.o,$(OBJS))
+
+$(BENCHOUT): $(BENCH_OBJS) $(CFG)
+	$(LD65) -C $(CFG) -o $(BENCHOUT) $(BENCH_OBJS) \
+		-m bench.map $(TARGET).lib
+	@echo "=== Bench compile: $(BENCHOUT) ==="
+	@ls -la $(BENCHOUT)
+
+# Execute le banc sous Phosphoric headless et depouille la trace serie.
+bench-render: $(BENCHOUT)
+	@$(TESTDIR)/bench_render.sh
 
 # ============================================================================
 # Image disquette Sedoric 3 (.dsk)

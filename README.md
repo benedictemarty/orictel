@@ -97,6 +97,7 @@ make test           # Tests host (Videotex, ACIA/SMC, modem AT, clavier, bridge)
 make fuzz           # Fuzzing du decodeur Videotex (ASAN/UBSAN, FUZZ_TIME=30)
 make coverage       # Couverture host gcov (Videotex + modem AT)
 make test-server    # Serveur Videotex local de demo (test manuel)
+make bench-render   # Banc de mesure : cout du rendu HIRES en cycles 6502 reels
 make clean          # Nettoyage
 ```
 

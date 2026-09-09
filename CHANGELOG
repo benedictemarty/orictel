@@ -1,5 +1,67 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — banc de mesure du rendu : overrun RX chiffré (facteur 74, pas marginal)
+
+Ajout de `make bench-render`, un **banc de mesure en cycles 6502 réels** du coût des
+passes de rendu HIRES, pour dimensionner le correctif anti-overrun RX (cf. ROADMAP).
+Motivé par un affichage corrompu observé sur `run-loci-real` (montage sans
+`--serial-buffer`, 6551 fidèle à 1 octet) : mots tronqués en plein milieu, lignes
+mélangées — signature d'octets perdus, pas d'un bug du décodeur Videotex.
+
+### Méthode
+- `src/bench_render.c` (→ `bench.tap`) encadre chaque région mesurée par un octet
+  **marqueur** écrit dans le registre DATA de l'ACIA `$0380`. `--serial-trace` de
+  Phosphoric horodate chaque accès **en cycles émulés** : la différence donne le coût
+  exact, IRQ ROM comprises. Le Timer 1 du VIA est inutilisable (l'IRQ ROM 100 Hz le
+  recharge en permanence) — d'où le choix des marqueurs série.
+- ACIA programmée en `Control=$00` (horloge externe → transfert instantané côté
+  Phosphoric) : l'écriture du marqueur ne fausse pas la mesure.
+- `tests/bench_render.sh` dépouille la trace (min/moy/max sur 8 répétitions) et compare
+  au budget d'un octet à 1200 bauds : **8333 cycles** à 1 MHz.
+- **Calibration intégrée** (id 8) : boucle asm de 256 tours au coût connu (1280 cycles).
+  Mesurée à 1347 → la chaîne de mesure est validée, l'unité est bien le cycle CPU. Sans
+  ce garde-fou, aucun autre chiffre du banc ne serait exploitable.
+
+### Résultats (Oric @ 1 MHz, mode hybride, ROM `basic11b`)
+
+| Région mesurée | cycles (min) | temps-octet @1200 bauds |
+|---|---|---|
+| `display_render()` — la passe budgétée de `main.c` (2 lignes) | **605 484** | **73,9** |
+| 1 ligne hybride (couleurs + attributs série, 40 col) | 272 025 | 33,2 |
+| 1 ligne double hauteur (40 col) | 362 336 | 44,1 |
+| 1 ligne brute monochrome (40 col) | 93 350 | 11,8 |
+| 1 ligne brute, span d'**une seule** colonne | 73 265 | 9,4 |
+| `vtx_process()` × 40 caractères G0 (drain seul) | 157 258 | 19,5 |
+| *dont* pré-scan seul (40 lectures `screen[row][col]`) | 17 735 | 2,7 |
+| *dont* blit pur, 1 cellule G0 | 1 593 | 0,8 |
+
+### Ce que ça établit
+- **Overrun RX confirmé, et massif** : une passe `display_render()` dure 0,61 s, soit
+  **74 temps-octet**. Le 6551 ne tamponne qu'UN octet et n'a pas d'IRQ → **~73 octets
+  perdus par passe de rendu**. C'est exactement l'affichage observé.
+- Le commentaire `display.c:744` (« ~20-40 ms par ligne à 1 MHz ») **sous-estime d'un
+  facteur ~10** : c'est 272 ms pour une ligne hybride, 363 ms en double hauteur.
+- Une page complète (25 lignes hybrides) demande **~6,8 s** de rendu, alors qu'elle
+  arrive en ~8,3 s à 1200 bauds : le moteur est à la limite **même sans rafale**.
+- Le dirty-span n'aide presque pas : une ligne d'**une** cellule coûte 73 265 cycles,
+  soit 79 % d'une ligne pleine — les deux pré-scans de 40 cellules dominent.
+- `vtx_process()` seul coûte ~3 930 cycles/caractère, déjà la moitié du budget d'un
+  octet, **avant même de rendre quoi que ce soit**.
+
+### Conséquence pour le correctif (ROADMAP mise à jour)
+Un ring buffer RX + polling fin **ne suffit pas** : il bornerait la fenêtre d'overrun,
+mais avec un rendu de page à 6,8 s il faudrait un tampon de plusieurs centaines
+d'octets et l'affichage traînerait des secondes derrière le flux. Le levier réel est
+le **coût par cellule** du chemin C de `render_cell_hires` (~1 600 cycles pour écrire
+8 octets, alors que le blit assembleur `blit_cell8` en coûte ~190) et les pré-scans
+par ligne. Aucun code de production n'est modifié par ce commit : c'est l'instrument
+de mesure et son verdict.
+
+### Tests
+- Suite complète : **313/313** (aucune régression, `make test` inchangé).
+- Le banc est hors suite (`make bench-render`) : il exige l'émulateur + une ROM, et
+  produit une mesure, pas un verdict binaire. SKIP propre si l'un ou l'autre manque.
+
 ## [Non publié] — cible `run-loci-cosim` : ACIA $0380 servie par le firmware LOCI co-simulé
 
 Nouvelle cible Makefile pour valider OricTel sur le chemin **le plus fidèle** : l'ACIA
