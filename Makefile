@@ -118,11 +118,16 @@ EMU_OPTS_LOCI_EMU = --loci --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 40
 # local tools/oric1-emu-sdl est desormais en 1.27.6 (>= 1.27 -> --loci mappe
 # l'ACIA a $0380), il sert donc aussi pour ce scenario. Specificites : ROM
 # Oric-1 (basic10) au lieu d'Atmos, et AUCUN --serial-buffer : le 6551 garde
-# son unique octet RX, conditions proches du vrai materiel (le correctif
-# anti-overrun a un sens). Ajouter LOCI_BUFFER=512 si la reception est instable.
+# son unique octet RX. ATTENTION : ce n'est PAS le montage reel. Le firmware
+# LOCI place un anneau de 32 octets devant le registre de donnees
+# (~/loci/firmware/src/mia/oric/acia.c, ACIA_RX_BUFFER_SIZE) : sans tampon on
+# est donc PLUS PESSIMISTE que le materiel. Constate sur dongle physique :
+# sans tampon la page Videotex arrive corrompue, avec --serial-buffer 32 elle
+# est propre. LOCI_BUFFER vaut donc 32 par defaut (fidele au firmware) ;
+# LOCI_BUFFER= (vide) donne le mode STRESS 1 octet, utile comme garde-fou.
 EMU_LOCI_REAL  = $(EMU)
 ROM_ORIC1      ?= $(ORIC_ROMS)/basic10.rom
-LOCI_BUFFER    =
+LOCI_BUFFER    ?= 32
 EMU_OPTS_LOCI_REAL = --loci --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) \
                      $(if $(LOCI_BUFFER),--serial-buffer $(LOCI_BUFFER),)
 

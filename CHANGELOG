@@ -1,5 +1,59 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — validation sur PicoWiFiModemUSB physique : `at_hangup` prouvé, bug de sondage AT corrigé
+
+Première campagne sur **dongle physique** (`/dev/ttyACM0`), émulateur headless en
+`--realtime`. Elle tranche la seule question que le logiciel seul ne pouvait pas trancher,
+et en révèle une autre.
+
+### 1. Le dongle honore bien `+++` / `ATH` — le correctif est validé
+Scénario du bug reproduit à l'identique : une session est laissée **en cours** (émulateur
+arrêté sans raccrocher, modem toujours en communication), puis OricTel est relancé.
+
+Trace série de la relance :
+```
+ATZ         -> pas de reponse (modem en mode donnees)
++++  ATH    -> echappement Hayes
+ATZ         -> OK
+ATI  ATDTpavi.3617.fr:3617
+```
+…et la page d'accueil PAVI s'affiche **proprement**, identique à une connexion normale.
+Le `at_hangup` de `7a8969c` fait donc exactement ce qu'il promet **sur le vrai matériel**,
+et la « première page illisible » ne se reproduit plus.
+
+### 2. Bug trouvé par cette campagne : le pas de sondage AT était trop grossier
+Premier essai, sans tampon : `ATZ` recevait `OK` en **75 ms** — largement dans les 3 s de
+timeout — et pourtant `at_wait_response` ne le reconnaissait pas, déclenchant un
+raccrochage inutile puis un échec de connexion.
+
+Cause : à 1200 bauds un octet arrive toutes les **8,33 ms**, alors que `at_wait_response`
+dormait **10 ms** entre deux sondages quand la ligne paraissait vide. On prend 1,6 ms de
+retard par octet ; le registre d'un octet du 6551 finit écrasé et `\r\nOK\r\n` parvient
+mutilé, la ligne ne correspond plus.
+
+Le handshake ne tenait donc que grâce à l'anneau de 32 octets du firmware LOCI.
+
+Correction : `AT_POLL_MS = 2`, soit une marge de 4× sur le temps-octet. **Vérifié sur
+matériel** : le handshake complet passe désormais **sans aucun tampon**.
+
+### 3. `run-loci-real` n'était pas fidèle au montage réel
+La cible tournait **sans** `--serial-buffer`, alors que le firmware LOCI expose un anneau
+de 32 octets. Elle était donc plus pessimiste que le matériel — et c'est ce qui rendait sa
+sortie trompeuse. Constaté sur dongle : sans tampon la page Videotex arrive corrompue,
+avec `--serial-buffer 32` elle est propre.
+
+`LOCI_BUFFER` vaut désormais **32** par défaut (fidèle au firmware). `LOCI_BUFFER=` (vide)
+reste disponible comme **mode stress** à 1 octet.
+
+### Ce qui reste vrai
+Sans tampon, la phase session déborde toujours (~18 octets perdus par passe de rendu) —
+conforme à ce qu'annonce `make bench-render`, et sans objet sur le montage réel.
+
+### Tests
+- Suite complète : **323/323**.
+- Validation matérielle : 4 campagnes sur dongle physique (avec/sans tampon, modem au repos
+  et modem laissé en ligne).
+
 ## [Non publié] — écran d'échec vérifié de bout en bout, et test de menus automatisé
 
 `--type-keys` de Phosphoric ayant été corrigé (>= **v1.118.0-alpha**), la vérification qui

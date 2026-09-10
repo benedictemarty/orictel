@@ -96,6 +96,10 @@ void at_send_kv(const char* prefix, const char* value)
 
 /* --- Attente de reponse (matcher ancre sur les lignes) ------------------- */
 
+/* Pas de sondage de la reception, en ms. Doit rester nettement sous le
+ * temps-octet de la liaison (8,33 ms a 1200 bauds). */
+#define AT_POLL_MS 2
+
 unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms)
 {
     unsigned int  elapsed = 0;
@@ -127,14 +131,23 @@ unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms)
             pending = 1;
             /* Rafale plafonnee sans interruption: faire avancer le timeout
              * pour qu'il finisse par expirer (entree non fiable). */
-            if (burst >= AT_DRAIN_BURST) elapsed += 10;
+            if (burst >= AT_DRAIN_BURST) elapsed += AT_POLL_MS;
         } else {
             if (pending) {              /* creux: ligne au repos, rendu sur */
                 if (s_on_idle) s_on_idle();
                 pending = 0;
             }
-            at_delay_ms(10);
-            elapsed += 10;
+            /* PAS DE SONDAGE : il doit rester nettement sous le temps-octet,
+             * sinon on prend du retard sur le flux et le registre d'UN octet
+             * du 6551 est ecrase avant d'etre lu.
+             * A 1200 bauds un octet arrive toutes les 8,33 ms ; un pas de
+             * 10 ms perdait la course (constate sur materiel reel : le "OK"
+             * d'un ATZ arrivait en 75 ms mais parvenait mutile, la ligne ne
+             * correspondait plus et la connexion echouait). Le handshake ne
+             * tenait que grace a l'anneau de 32 octets du firmware LOCI.
+             * AT_POLL_MS = 2 laisse une marge de 4x sur le temps-octet. */
+            at_delay_ms(AT_POLL_MS);
+            elapsed += AT_POLL_MS;
         }
     }
     return 0;

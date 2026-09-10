@@ -172,6 +172,20 @@ utilisable avec les serveurs Minitel modernes via Internet.
             (maintenus par vtx_process) au lieu d'etre recalcules.
           - indexation cc65 &ctx->screen[row][col] : ~440 cy par cellule
             lue (multiplication 16 bits par 240 a chaque tour).
+      * VALIDE SUR MATERIEL (dongle physique /dev/ttyACM0) : avec l'anneau
+        de 32 octets (--serial-buffer 32, fidele au firmware LOCI) la page
+        Videotex arrive PROPRE ; sans tampon elle est corrompue, conforme aux
+        ~18 octets/passe annonces par le banc. run-loci-real utilise donc
+        desormais LOCI_BUFFER=32 par defaut (LOCI_BUFFER= vide = mode stress).
+      * VALIDE SUR MATERIEL : le PicoWiFiModemUSB honore bien l'echappement
+        +++ / ATH. Session laissee en cours, relance -> ATZ sans reponse,
+        +++/ATH, ATZ -> OK, ATI, ATDT, page propre. Le correctif at_hangup
+        fait ce qu'il promet.
+      * CORRIGE (trouve par cette campagne) : at_wait_response dormait 10 ms
+        entre deux sondages alors qu'un octet arrive toutes les 8,33 ms a
+        1200 bauds -> retard cumule, registre 1 octet ecrase, "OK" recu en
+        75 ms mais mutile. AT_POLL_MS = 2 (marge 4x). Le handshake passe
+        desormais SANS AUCUN TAMPON, verifie sur materiel.
       * RESTE (necessite materiel reel) : elimination COMPLETE via controle
         de flux RTS (desasserter RTS pendant un rendu long pour mettre le
         Pico en pause, si le firmware l'honore - NON VERIFIE) OU reception
