@@ -62,6 +62,7 @@ LABELS = {
     5: "1 ligne G1        (mosaiques, dithering, 40 col)",
     6: "1 ligne double hauteur (40 col)",
     7: "vtx_process() x40 caracteres G0 (drain seul, sans rendu)",
+   17: "  dont: dispatch seul (x40 octets C0 neutres, sans put_char)",
     9: "  forme NON hissee : pre-scan screen[row][col] (avant optim.)",
    15: "  forme HISSEE    : meme pre-scan (== code actuel)",
    10: "  dont: blit pur       1 cellule G0",

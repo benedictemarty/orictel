@@ -374,7 +374,11 @@ fuzz: $(TESTDIR)/fuzz_videotex.c $(SRCDIR)/videotex.c | $(BLDDIR)
 		-fsanitize=fuzzer,address,undefined \
 		$(TESTDIR)/fuzz_videotex.c $(SRCDIR)/videotex.c $(SRCDIR)/fonts.c \
 		-o $(BLDDIR)/fuzz_videotex
-	$(BLDDIR)/fuzz_videotex -max_total_time=$(FUZZ_TIME) -print_final_stats=1
+	@# -print_funcs=0 : sans llvm-symbolizer installe, libFuzzer se BLOQUE en
+	@# tentant de symboliser chaque "NEW_FUNC". Le fuzzing tournait alors a ~4
+	@# executions au lieu de ~365 000 (22 800/s) : garde-fou silencieusement mort.
+	$(BLDDIR)/fuzz_videotex -max_total_time=$(FUZZ_TIME) -print_funcs=0 \
+		-print_final_stats=1
 
 # Couverture host (gcov) du decodeur Videotex et du modem AT : compile les
 # tests avec --coverage, les execute, puis affiche le % de lignes couvertes.

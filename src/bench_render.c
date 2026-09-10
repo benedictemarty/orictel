@@ -184,6 +184,9 @@ static void dirty_all(void)
  * id 10: render_cell_hires() d'UNE cellule G0 (blit pur, 8 octets)
  * id 11: render_cell_hires() x40 cellules G0 (blit pur d'une ligne)
  * id 12: render_cell_hires() x40 cellules G1 (blit + dithering)
+ * id 17: vtx_process() x40 octets NEUTRES ($00 : code C0 sans effet). Isole le
+ *         cout du DISPATCH (masquage, resync ESC, switch d'etat, test C0) de
+ *         celui de put_char. id 7 - id 17 = cout reel de put_char.
  * id 16: ligne hybride REALISTE (mots de couleur constante) - le cas courant,
  *         a opposer a id 2 qui est un pire cas pathologique
  * id 13: scan "row_has_dblh" seul (2e pre-scan de 40 cellules)
@@ -290,6 +293,13 @@ static void bench_all(void)
         for (col = 0; col < VTX_COLS; ++col)
             display_render_cell(&vtx.screen[5][col], col, 5);
         mark(MK_END(12));
+    }
+
+    /* --- id 17 : dispatch seul (octet C0 sans effet) --- */
+    for (rep = 0; rep < BENCH_REPS; ++rep) {
+        mark(MK_BEG(17));
+        for (col = 0; col < 40; ++col) vtx_process(&vtx, 0x00);
+        mark(MK_END(17));
     }
 
     /* --- id 16 : ligne hybride realiste (mots de couleur constante) --- */

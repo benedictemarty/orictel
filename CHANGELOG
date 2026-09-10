@@ -1,5 +1,58 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — décodeur : `vtx_process` 1,3× — et `make fuzz` réparé (garde-fou mort)
+
+Quatrième passe d'optimisation. Le rendu n'étant plus le goulot, la cible devient le
+décodeur : `vtx_process` coûtait **3 950 cycles par caractère**, soit la moitié du budget
+d'un octet à 1200 bauds, avant même d'afficher quoi que ce soit.
+
+### Mesure d'abord : c'est `put_char`, pas le dispatch
+Nouveau scénario `id 17` (40 octets C0 neutres) pour isoler le dispatch : **387 cy/octet**.
+Tout le reste — **3 077 cy/caractère** — est dans `put_char`.
+
+L'assembleur généré par cc65 donne la raison exacte : **66 `jsr` dans `put_char`, dont 38
+`ldptr1ysp`**, le helper qui recharge un pointeur *paramètre* depuis la pile logicielle à
+chaque déréférencement (~50 cycles l'appel).
+
+### 1. Tables d'offsets pour l'adressage des cellules
+`&ctx->screen[row][col]` fait calculer `row * 240` puis `col * 6` : deux multiplications
+16 bits par caractère. Deux tables (`row_byte_offset`, `col_byte_offset` — 39×6 = 234 tient
+dans un octet) les remplacent par des lectures indexées. **157 806 → 138 583 cy** pour 40
+caractères.
+
+### 2. Pointeur de contexte de portée fichier
+`put_char` ne prend plus `ctx` en paramètre : `vtx_process` mémorise `s_ctx = ctx` une fois
+en entrée. Sur l'assembleur généré : **`jsr` 66 → 24, `ldptr1ysp` 38 → 0**.
+**138 583 → 119 848 cy.** Sûr : `put_char` est statique et n'est atteignable que depuis
+`vtx_process`, et le décodeur n'a aucune réentrance (pas d'IRQ).
+
+**Bilan `vtx_process` : 157 806 → 119 848 cy (1,32×), 3 950 → 3 000 cy/caractère.**
+
+### `make fuzz` ne fuzzait plus rien
+En voulant valider la modification du décodeur — LA surface d'attaque réseau d'OricTel — le
+fuzzer s'est révélé **bloqué** : 4 exécutions au lieu de centaines de milliers, `exec/s: 0`.
+
+Cause : **`llvm-symbolizer` est absent de la machine**, et libFuzzer se fige en tentant de
+symboliser chaque `NEW_FUNC`. Vérifié pré-existant (le décodeur d'avant modification se
+bloque identiquement) : ce n'est pas une régression, mais le garde-fou était mort en
+silence, alors que `VERSION_TRACKING` annonce « 1.2M runs OK ».
+
+Correction : `-print_funcs=0` dans la cible `make fuzz`. Résultat : **1 683 302 exécutions
+en 46 s (36 600/s), aucun crash** sous ASAN+UBSAN — l'ordre de grandeur annoncé est
+retrouvé, et la modification du décodeur est réellement validée.
+
+### État du moteur après quatre passes
+
+| | départ de session | maintenant |
+|---|---|---|
+| passe `display_render()` | 606 227 cy (74 t.-o.) | **151 144 cy (18,8 t.-o.)** |
+| `vtx_process` (40 caractères) | 157 806 cy | **119 848 cy** |
+
+### Tests
+- Suite complète : **318/318**.
+- Fuzzing : **1 683 302 exécutions**, aucun crash.
+- Empreinte framebuffer `6c2c39eb…` inchangée.
+
 ## [Non publié] — rendu : blit assembleur double hauteur + prédicat calculé une seule fois
 
 Troisième passe d'optimisation, toujours guidée par `make bench-render`, toujours

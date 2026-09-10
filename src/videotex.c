@@ -200,83 +200,120 @@ void vtx_set_cursor(vtx_context_t* ctx, unsigned char row, unsigned char col)
 
 static void scroll_up(vtx_context_t* ctx);
 
-static void put_char(vtx_context_t* ctx, unsigned char ch, unsigned char cs)
+/* ===================================================================
+ *  Adressage rapide des cellules
+ *
+ *  &ctx->screen[row][col] fait calculer a cc65 row * 240 puis col * 6 :
+ *  deux multiplications 16 bits par des constantes qui ne sont pas des
+ *  puissances de deux, payees A CHAQUE CARACTERE recu (put_char etait
+ *  mesure a ~3 950 cycles/caractere, cf. make bench-render). Deux tables
+ *  d'offsets les remplacent par de simples lectures indexees.
+ *
+ *  39 * 6 = 234 : les offsets de colonne tiennent dans un octet.
+ * =================================================================== */
+static const unsigned int row_byte_offset[VTX_ROWS] = {
+    0, 240, 480, 720, 960, 1200, 1440, 1680, 1920, 2160, 2400, 2640, 2880, 3120, 3360, 3600, 3840, 4080, 4320, 4560, 4800, 5040, 5280, 5520, 5760
+};
+static const unsigned char col_byte_offset[VTX_COLS] = {
+    0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 84, 90, 96, 102, 108, 114, 120, 126, 132, 138, 144, 150, 156, 162, 168, 174, 180, 186, 192, 198, 204, 210, 216, 222, 228, 234
+};
+
+/* Cellule (row, col) sans multiplication. row < VTX_ROWS et col < VTX_COLS
+ * sont des PRECONDITIONS : les appelants les verifient deja. */
+#define CELL_AT(ctx, row, col)                                          \
+    ((vtx_cell_t*)((unsigned char*)((ctx)->screen)                       \
+                   + row_byte_offset[(row)] + col_byte_offset[(col)]))
+
+/* Contexte courant, memorise UNE FOIS par appel a vtx_process().
+ *
+ * cc65 recharge un pointeur PARAMETRE depuis sa pile logicielle a chaque
+ * dereferencement : un `jsr ldptr1ysp` (~50 cycles) par acces. put_char en
+ * comptait 38, soit ~1 900 des 3 077 cycles/caractere mesures. Passer par un
+ * pointeur de portee fichier les ramene a ZERO (verifie sur l'assembleur
+ * genere : jsr 66 -> 24, ldptr1ysp 38 -> 0).
+ *
+ * Sur : put_char() est statique et n'est atteignable QUE depuis vtx_process(),
+ * qui affecte s_ctx en entree. Aucune reentrance (pas d'IRQ dans le decodeur).
+ */
+static vtx_context_t* s_ctx;
+
+static void put_char(unsigned char ch, unsigned char cs)
 {
     vtx_cell_t* cell;
 
-    if (ctx->cur_y >= VTX_ROWS || ctx->cur_x >= VTX_COLS) {
+    if (s_ctx->cur_y >= VTX_ROWS || s_ctx->cur_x >= VTX_COLS) {
         return;
     }
 
     /* Mode majuscule force (defaut Minitel 1B) : 'a'-'z' -> 'A'-'Z'.
      * Ne s'applique qu'au jeu G0 (alphanumerique). G1 mosaique et
      * G2 supplementaire ne sont pas affectes. */
-    if (cs == CHARSET_G0 && !ctx->lowercase_mode &&
+    if (cs == CHARSET_G0 && !s_ctx->lowercase_mode &&
         ch >= 'a' && ch <= 'z') {
         ch -= 32;
     }
 
-    cell = &ctx->screen[ctx->cur_y][ctx->cur_x];
+    cell = CELL_AT(s_ctx, s_ctx->cur_y, s_ctx->cur_x);
     cell->ch = ch;
     cell->charset = cs;
-    cell->fg = ctx->fg_color;
-    cell->bg = ctx->bg_color;
-    cell->flags = ctx->attr_flags;
-    cell->size = ctx->attr_size;
+    cell->fg = s_ctx->fg_color;
+    cell->bg = s_ctx->bg_color;
+    cell->flags = s_ctx->attr_flags;
+    cell->size = s_ctx->attr_size;
 
     /* Appliquer les attributs en attente sur un delimiteur (espace G0) */
-    if (ch == 0x20 && cs == CHARSET_G0 && ctx->has_pending) {
-        cell->bg = ctx->pending_bg;
-        if (ctx->pending_underline) {
+    if (ch == 0x20 && cs == CHARSET_G0 && s_ctx->has_pending) {
+        cell->bg = s_ctx->pending_bg;
+        if (s_ctx->pending_underline) {
             cell->flags |= ATTR_UNDERLINE;
         }
-        ctx->bg_color = ctx->pending_bg;
-        if (ctx->pending_underline) {
-            ctx->attr_flags |= ATTR_UNDERLINE;
+        s_ctx->bg_color = s_ctx->pending_bg;
+        if (s_ctx->pending_underline) {
+            s_ctx->attr_flags |= ATTR_UNDERLINE;
         } else {
-            ctx->attr_flags &= ~ATTR_UNDERLINE;
+            s_ctx->attr_flags &= ~ATTR_UNDERLINE;
         }
-        ctx->has_pending = 0;
+        s_ctx->has_pending = 0;
     }
 
     /* Marquer la plage modifiee: la cellule, +1 colonne en double
      * largeur/taille (moitie droite du glyphe) */
     {
-        unsigned char span_end = ctx->cur_x;
-        if ((ctx->attr_size == SIZE_DOUBLE_WIDTH ||
-             ctx->attr_size == SIZE_DOUBLE_SIZE) &&
+        unsigned char span_end = s_ctx->cur_x;
+        if ((s_ctx->attr_size == SIZE_DOUBLE_WIDTH ||
+             s_ctx->attr_size == SIZE_DOUBLE_SIZE) &&
             span_end < VTX_COLS - 1) {
             ++span_end;
         }
-        vtx_touch(ctx, ctx->cur_y, ctx->cur_x, span_end);
+        vtx_touch(s_ctx, s_ctx->cur_y, s_ctx->cur_x, span_end);
         /* Double hauteur/taille: la moitie haute du glyphe est rendue
          * dans les lignes pixel de la ligne du dessus. Sans ce dirty,
          * un re-rendu isole de cur_y-1 ecraserait la moitie haute. */
-        if ((ctx->attr_size == SIZE_DOUBLE_HEIGHT ||
-             ctx->attr_size == SIZE_DOUBLE_SIZE) && ctx->cur_y > 0) {
-            vtx_touch(ctx, ctx->cur_y - 1, ctx->cur_x, span_end);
+        if ((s_ctx->attr_size == SIZE_DOUBLE_HEIGHT ||
+             s_ctx->attr_size == SIZE_DOUBLE_SIZE) && s_ctx->cur_y > 0) {
+            vtx_touch(s_ctx, s_ctx->cur_y - 1, s_ctx->cur_x, span_end);
         }
     }
-    ctx->last_char = ch;
-    ctx->last_charset = cs;
+    s_ctx->last_char = ch;
+    s_ctx->last_charset = cs;
 
     /* Avancer le curseur (2 colonnes pour double largeur/taille) */
-    if (ctx->attr_size == SIZE_DOUBLE_WIDTH ||
-        ctx->attr_size == SIZE_DOUBLE_SIZE) {
-        ctx->cur_x += 2;
+    if (s_ctx->attr_size == SIZE_DOUBLE_WIDTH ||
+        s_ctx->attr_size == SIZE_DOUBLE_SIZE) {
+        s_ctx->cur_x += 2;
     } else {
-        ctx->cur_x++;
+        s_ctx->cur_x++;
     }
-    if (ctx->cur_x >= VTX_COLS) {
-        ctx->cur_x = 0;
-        ctx->cur_y++;
-        if (ctx->cur_y >= VTX_ROWS) {
-            if (ctx->rolling_mode) {
-                scroll_up(ctx);
-                ctx->cur_y = VTX_ROWS - 1;
+    if (s_ctx->cur_x >= VTX_COLS) {
+        s_ctx->cur_x = 0;
+        s_ctx->cur_y++;
+        if (s_ctx->cur_y >= VTX_ROWS) {
+            if (s_ctx->rolling_mode) {
+                scroll_up(s_ctx);
+                s_ctx->cur_y = VTX_ROWS - 1;
             } else {
                 /* Mode page (defaut): retour en ligne 1 (pas 0 = status) */
-                ctx->cur_y = 1;
+                s_ctx->cur_y = 1;
             }
         }
     }
@@ -728,6 +765,9 @@ static void dispatch_pro(vtx_context_t* ctx)
 
 void vtx_process(vtx_context_t* ctx, unsigned char byte)
 {
+    /* Contexte courant pour put_char (voir s_ctx). */
+    s_ctx = ctx;
+
     /* Masquer bit 7 (7 bits Videotex) */
     byte &= 0x7F;
 
@@ -785,7 +825,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
             return;
         }
         /* Caractere G2 standalone (ex: $23=livre, $30=degre) */
-        put_char(ctx, byte, CHARSET_G2);
+        put_char(byte, CHARSET_G2);
         ctx->state = VTX_STATE_NORMAL;
         return;
 
@@ -830,10 +870,10 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                     break;
             }
             if (acc_ch) {
-                put_char(ctx, acc_ch, CHARSET_G2);
+                put_char(acc_ch, CHARSET_G2);
             } else {
                 /* Combinaison inconnue: afficher la lettre de base */
-                put_char(ctx, byte, CHARSET_G0);
+                put_char(byte, CHARSET_G0);
             }
         }
         ctx->state = VTX_STATE_NORMAL;
@@ -848,7 +888,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                                   ? (byte - VTX_ADDR_BASE) : 0;
             if (count > 40) count = 40;
             while (count-- > 0) {
-                put_char(ctx, ctx->last_char, ctx->last_charset);
+                put_char(ctx->last_char, ctx->last_charset);
             }
         }
         ctx->state = VTX_STATE_NORMAL;
@@ -953,7 +993,7 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
                 clear_eol(ctx);
                 break;
             case 0x1A:  /* SUB - substitution (affiche espace) */
-                put_char(ctx, ' ', ctx->charset);
+                put_char(' ', ctx->charset);
                 break;
             case 0x1B:  /* ESC */
                 ctx->state = VTX_STATE_ESC;
@@ -972,5 +1012,5 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
     }
 
     /* Caracteres affichables ($20-$7F) */
-    put_char(ctx, byte, ctx->charset);
+    put_char(byte, ctx->charset);
 }

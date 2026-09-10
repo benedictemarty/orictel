@@ -134,6 +134,18 @@ utilisable avec les serveurs Minitel modernes via Internet.
         il faudra un autre garde-fou. Et vtx_process lui-meme (3 950 cy par
         caractere, 157 806 cy pour 40) est desormais du meme ordre que le
         rendu : c'est la prochaine grosse cible.
+      * FAIT (4e passe, decodeur) : vtx_process 157 806 -> 119 848 cy (1,32x),
+        3 950 -> 3 000 cy/caractere. Mesure : le dispatch ne coute que 387
+        cy/octet, tout le reste est dans put_char (3 077). Cause exacte lue
+        sur l'asm cc65 : 66 jsr dont 38 ldptr1ysp (rechargement du pointeur
+        PARAMETRE depuis la pile logicielle, ~50 cy l'appel). Deux
+        correctifs : tables d'offsets row/col (plus de multiplication par
+        240 ni par 6) et pointeur de contexte de portee fichier (s_ctx pose
+        une fois par vtx_process) -> jsr 66 -> 24, ldptr1ysp 38 -> 0.
+      * make fuzz REPARE : il ne fuzzait plus rien (4 executions, exec/s 0).
+        llvm-symbolizer est absent de la machine et libFuzzer se fige sur la
+        symbolisation des NEW_FUNC. Pre-existant (verifie sur le decodeur
+        d'avant). -print_funcs=0 retablit 1 683 302 executions en 46 s.
       * MAIS la mesure montre que cela ne SUFFIT PAS : a 6,8 s par page, le
         ring devrait tenir plusieurs centaines d'octets et l'affichage
         traineraient des secondes derriere le flux. Le prealable est
