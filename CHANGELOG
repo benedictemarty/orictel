@@ -1,5 +1,42 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — « 1 Reconnecter » validé sur matériel, et délai de confirmation corrigé
+
+### Le flux complet de reconnexion fonctionne
+Session réelle PAVI 3617. `CTRL+C` (Connexion/Fin) envoyé depuis OricTel, le serveur
+raccroche, et l'appui sur `1 Reconnecter` recompose. Trace série :
+```
+36.62s TX: .I                       <- SEP + code Connexion/Fin
+36.93s RX: NO CARRIER (00:00:16)    <- le serveur raccroche
+57.85s TX: ATZ  -> OK               <- appui sur "1 Reconnecter"
+58.59s TX: ATI  -> CONNECTED TO WIFI
+63.10s TX: ATDTpavi.3617.fr:3617 -> CONNECT 9600 -> la page revient
+```
+La reconnexion ne pouvant partir que de cet écran, sa présence est démontrée par le fait
+même que `ATZ` soit émis à l'appui sur `1`.
+
+### Délai de confirmation : le commentaire mentait d'un facteur ~8
+`CARRIER_CONFIRM_IDLE` était documenté « ~2 s ». La mesure sur matériel dit autre chose :
+`NO CARRIER` reçu à ~59 s, écran affiché **entre 72 s et 80 s** — donc **13 à 21 s** pour
+2000 itérations, soit ~8,5 ms par itération à vide.
+
+L'erreur venait d'une extrapolation depuis le compteur d'inactivité (`30000 ~ 30 s`), qui
+tourne dans une boucle différemment chargée. Attendre 15 à 20 s avant de prévenir
+l'utilisateur que la ligne est tombée, c'est trop long.
+
+Constante ramenée à **500** (~4 s sur la base mesurée). La marge anti-faux-positif reste
+large : 4 s de silence, c'est ~480 octets à 1200 bauds — une pause qu'un serveur en pleine
+émission de page ne fait pas. Le commentaire porte désormais la mesure, sa méthode et sa
+limite, au lieu d'une estimation.
+
+### Tests
+- Suite complète : **328/328**.
+
+### Non revalidé
+Le dongle s'est déconnecté à nouveau en fin de campagne (`/dev/ttyACM*` absent) : le
+nouveau délai de 4 s **n'a pas été observé sur matériel**, seule la valeur de 2000 l'a été.
+Le calcul est une règle de trois sur la mesure ; à confirmer au prochain branchement.
+
 ## [Non publié] — perte de porteuse validée sur matériel + le dongle se ré-énumère
 
 ### La détection fonctionne, observée sur le vrai montage

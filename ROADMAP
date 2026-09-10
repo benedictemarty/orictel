@@ -43,7 +43,10 @@ utilisable avec les serveurs Minitel modernes via Internet.
       PORTEUSE affiche comme attendu. Absence de faux positif desormais
       verifiee automatiquement par make test-servers. Pas de recomposition
       silencieuse : choix explicite, comme l'ecran d'echec de connexion.
-      RESTE (optionnel) : exercer le bouton "1 Reconnecter" de bout en bout.
+      "1 Reconnecter" VALIDE de bout en bout sur materiel (CTRL+C -> serveur
+      raccroche -> NO CARRIER 00:00:16 -> appui sur 1 -> ATZ/ATI/ATDT -> page).
+      RESTE : confirmer le nouveau delai CARRIER_CONFIRM_IDLE=500 (~4 s) sur
+      materiel - seule la valeur 2000 (mesuree a 13-21 s) l'a ete.
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
 - [x] Protection SEI/PLP des acces octet ACIA (v0.3.6) : `send_raw` (ecriture

@@ -29,10 +29,23 @@
 #define ORICTEL_VERSION "v0.3.7"
 
 /* Iterations de boucle sans le moindre octet exigees pour CONFIRMER une
- * presomption de perte de porteuse. Meme echelle que le timeout d'inactivite
- * (30000 ~ 30 s) : ici ~2 s, assez pour distinguer un modem repasse en mode
- * commande d'une page qui marque une pause. */
-#define CARRIER_CONFIRM_IDLE 2000u
+ * presomption de perte de porteuse (un vrai NO CARRIER n'est suivi de RIEN,
+ * une page qui citerait ces mots continuerait de defiler).
+ *
+ * L'unite est l'ITERATION, pas la milliseconde : il n'y a pas de base de temps
+ * dans la boucle de session. MESURE sur materiel (session PAVI reelle,
+ * NO CARRIER a ~59 s, ecran affiche entre 72 s et 80 s) : 2000 iterations
+ * valaient 13 a 21 s, soit environ 8,5 ms par iteration a vide - et NON les
+ * "~2 s" qu'annoncait le commentaire d'origine, qui extrapolait a tort depuis
+ * le compteur d'inactivite (celui-ci tourne dans une boucle differemment
+ * chargee). 15 a 20 s avant de prevenir l'utilisateur, c'est trop long.
+ *
+ * 500 iterations -> environ 4 s sur la meme base. La marge anti-faux-positif
+ * reste large : 4 s de silence, c'est ~480 octets a 1200 bauds, une pause
+ * qu'un serveur en pleine emission de page ne fait pas.
+ *
+ * A re-mesurer si la boucle de session change de cout (make bench-render). */
+#define CARRIER_CONFIRM_IDLE 500u
 
 /* Contexte Videotex global */
 static vtx_context_t vtx;
