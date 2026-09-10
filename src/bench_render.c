@@ -35,7 +35,9 @@
 
 #define BENCH_REPS 8
 
-/* Marqueurs : debut = $10+id, fin = $60+id, fin de campagne = $FF */
+/* Marqueurs : debut = $10+id ($10-$2F), fin = $60+id ($60-$7F), id 0..31.
+ * Fin de campagne = $FF. Les plages ne doivent pas se chevaucher : un id > 31
+ * casserait le depouillement (la region disparait silencieusement du tableau). */
 #define MK_BEG(id) ((unsigned char)(0x10 + (id)))
 #define MK_END(id) ((unsigned char)(0x60 + (id)))
 #define MK_DONE    0xFF
@@ -104,6 +106,26 @@ static void fill_row_hybrid(unsigned char row)
     }
 }
 
+/* Ligne hybride REALISTE : mots de couleur CONSTANTE separes par des espaces,
+ * comme une vraie page Minitel. Les courses de cellules pleines sont longues,
+ * donc peu d'appels a render_span_raw. A opposer a fill_row_hybrid, qui change
+ * de couleur A CHAQUE COLONNE et casse toutes les courses en longueur 1 :
+ * c'est un pire cas pathologique, pas le cas courant. */
+static void fill_row_hybrid_real(unsigned char row)
+{
+    unsigned char col, fg = 1;
+    for (col = 0; col < VTX_COLS; ++col) {
+        vtx_cell_t* c = &vtx.screen[row][col];
+        if ((col % 8) == 7) {
+            cell_set(c, ' ', CHARSET_G0, fg, VTX_BLACK, 0, SIZE_NORMAL);
+            ++fg; if (fg > 7) fg = 1;          /* couleur du mot suivant */
+        } else {
+            cell_set(c, (unsigned char)('A' + (col % 26)), CHARSET_G0,
+                     fg, VTX_BLACK, 0, SIZE_NORMAL);
+        }
+    }
+}
+
 /* Ligne monochrome pleine : pas de couleur -> use_attrs = 0 (span brut). */
 static void fill_row_raw(unsigned char row)
 {
@@ -154,11 +176,16 @@ static void dirty_all(void)
  * id 5 : une ligne G1 mosaiques (dithering)
  * id 6 : une ligne double hauteur
  * id 7 : vtx_process() de 40 caracteres G0 (cout du drain, hors rendu)
- * id 9 : boucle de PRE-SCAN seule (les 40 lectures &ctx->screen[row][col]
- *         que render_row_hires fait AVANT de decider du mode de rendu)
+ * id 9 / 13 / 15 : formes d'INDEXATION comparees, pas le code actuel.
+ *         9 et 13 gardent la forme NON hissee (&ctx->screen[row][col] avec row
+ *         variable) telle qu'elle etait AVANT optimisation ; 15 la forme hissee,
+ *         qui est celle du code aujourd'hui. Elles servent de reference sur le
+ *         cout de l'indexation cc65, pas de mesure du moteur en place.
  * id 10: render_cell_hires() d'UNE cellule G0 (blit pur, 8 octets)
  * id 11: render_cell_hires() x40 cellules G0 (blit pur d'une ligne)
  * id 12: render_cell_hires() x40 cellules G1 (blit + dithering)
+ * id 16: ligne hybride REALISTE (mots de couleur constante) - le cas courant,
+ *         a opposer a id 2 qui est un pire cas pathologique
  * id 13: scan "row_has_dblh" seul (2e pre-scan de 40 cellules)
  * id 14: blit_run() ASSEMBLEUR seul sur 40 cellules G0 eligibles
  *        -> tranche la question : le chemin rapide asm tient-il ses ~190
@@ -263,6 +290,15 @@ static void bench_all(void)
         for (col = 0; col < VTX_COLS; ++col)
             display_render_cell(&vtx.screen[5][col], col, 5);
         mark(MK_END(12));
+    }
+
+    /* --- id 16 : ligne hybride realiste (mots de couleur constante) --- */
+    for (rep = 0; rep < BENCH_REPS; ++rep) {
+        fill_row_hybrid_real(5);
+        dirty_row(5, 0, VTX_COLS - 1);
+        mark(MK_BEG(16));
+        display_render_cell_row(&vtx, 5);
+        mark(MK_END(16));
     }
 
     /* --- id 13 : 2e pre-scan (row_has_dblh sur la ligne du dessous) --- */

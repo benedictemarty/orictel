@@ -37,6 +37,7 @@ extern unsigned char* blit_dst;
 extern const unsigned char* blit_and;
 extern unsigned char blit_or;
 void __fastcall__ blit_cell8(void);
+void __fastcall__ blit_cell4x2(void);   /* double hauteur: 4 lignes -> 8 */
 
 /* Moteur de rendu de plage assembleur (display_asm.s): rend une suite
  * de cellules taille normale G0/G1 sans flash/concealed/souligne, et
@@ -395,6 +396,32 @@ static void render_cell_hires(const vtx_cell_t* cell,
             }
         } else {
             /* DOUBLE HAUTEUR seulement (pas double largeur) */
+
+            /* Chemin rapide assembleur (blit_cell4x2): la boucle C coutait
+             * ~6 280 cy/cellule, faisant de la ligne double hauteur le PIRE
+             * CAS du moteur (251 315 cy) - au ras de la tolerance de l'anneau
+             * RX du LOCI (~250 000 cy). Le souligne garde la boucle C (il
+             * force glyph[7] a $3F AVANT dithering), comme pour la taille
+             * normale. */
+            if (!(cell->flags & ATTR_UNDERLINE)) {
+                const unsigned char* andt =
+                    use_dither ? &g1_dither[cell->fg & 7][0] : no_dither;
+                blit_or = inv_bit;
+                /* Moitie basse (glyphe 4-7) sur la ligne courante */
+                blit_src = glyph + 4;
+                blit_and = andt + 4;
+                blit_dst = hires_row_base[char_row] + col;
+                blit_cell4x2();
+                /* Moitie haute (glyphe 0-3) sur la ligne du dessus */
+                if (char_row > 0) {
+                    blit_src = glyph;
+                    blit_and = andt;
+                    blit_dst = hires_row_base[char_row - 1] + col;
+                    blit_cell4x2();
+                }
+                return;
+            }
+
             /* Moitie basse (lignes 4-7 du glyphe) sur la ligne courante */
             ptr = hires_row_base[char_row] + col;
             for (line = 0; line < 4; ++line) {
@@ -565,7 +592,18 @@ static void render_span_raw(vtx_context_t* ctx, unsigned char row,
     }
 }
 
-static void render_row_hires(vtx_context_t* ctx, unsigned char row)
+/* Rendu d'une ligne. `dblh_below` = resultat DEJA CALCULE de
+ * row_has_dblh(ctx, row+1). Il est passe en parametre parce que l'appelant
+ * (render_dirty) en a besoin lui aussi : le calculer ici ET la-bas revenait a
+ * scanner deux fois 40 cellules par ligne et par passe, ~23 000 cycles jetes
+ * (cf. make bench-render).
+ *
+ * Valeur speciale DBLH_UNKNOWN: le predicat n'est pas connu de l'appelant et
+ * sera calcule ici, paresseusement. */
+#define DBLH_UNKNOWN 0xFF
+
+static void render_row_hires_ex(vtx_context_t* ctx, unsigned char row,
+                                unsigned char dblh_below)
 {
     unsigned char col;
     unsigned char prev_fg;
@@ -624,8 +662,13 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
             if (c->size == SIZE_DOUBLE_HEIGHT || c->size == SIZE_DOUBLE_SIZE)
                 has_dblh = 1;
         }
-        if (!has_dblh && row + 1 < SCREEN_ROWS) {
-            has_dblh = row_has_dblh(ctx, row + 1);
+        if (!has_dblh) {
+            /* DBLH_UNKNOWN: l'appelant n'avait pas le predicat sous la main,
+             * on le calcule ici - et seulement si la ligne elle-meme n'a pas
+             * deja tranche (has_dblh), pour ne pas scanner pour rien. */
+            has_dblh = (dblh_below == DBLH_UNKNOWN)
+                       ? ((row + 1 < SCREEN_ROWS) ? row_has_dblh(ctx, row + 1) : 0)
+                       : dblh_below;
         }
         use_attrs = (has_colors && has_empty && !has_dblh) ? 1 : 0;
     }
@@ -734,6 +777,13 @@ static void render_row_hires(vtx_context_t* ctx, unsigned char row)
     }
 }
 
+/* Ancienne signature, pour les appelants qui n'ont pas deja le predicat:
+ * il sera calcule paresseusement, et seulement si necessaire. */
+static void render_row_hires(vtx_context_t* ctx, unsigned char row)
+{
+    render_row_hires_ex(ctx, row, DBLH_UNKNOWN);
+}
+
 /* ===================================================================
  *  API publiques
  * =================================================================== */
@@ -784,8 +834,13 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
 
     rendered = 0;
     for (row = 0; row < SCREEN_ROWS && rendered < max_rows; ++row) {
+        unsigned char dblh_below;
         if (!ctx->dirty[row]) continue;
-        render_row_hires(ctx, row);
+        /* UN SEUL scan de la ligne du dessous par ligne rendue: le predicat
+         * sert au choix du mode de rendu ET, plus bas, a decider de re-salir
+         * la ligne du dessous. */
+        dblh_below = (row + 1 < SCREEN_ROWS) ? row_has_dblh(ctx, row + 1) : 0;
+        render_row_hires_ex(ctx, row, dblh_below);
         ctx->dirty[row] = 0;
         /* Retablir l'invariant: ligne propre = span plein */
         ctx->dirty_min[row] = 0;
@@ -799,7 +854,7 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
          * du dessous dessine les moities hautes de ses glyphes double
          * hauteur: la re-rendre entierement (cet appel si le budget le
          * permet, sinon le suivant). */
-        if (row + 1 < SCREEN_ROWS && row_has_dblh(ctx, row + 1)) {
+        if (dblh_below) {
             vtx_touch(ctx, row + 1, 0, SCREEN_COLS - 1);
         }
     }

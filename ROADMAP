@@ -114,6 +114,26 @@ utilisable avec les serveurs Minitel modernes via Internet.
         hauteur 251 315 cy (30,2) -> SOUS l'anneau LOCI. Debit inchange (la
         boucle de main.c rappelle display_render tant qu'aucun octet n'attend).
         Cumule au hissage : 606 227 -> 159 388 cy, soit 3,8x.
+      * FAIT (3e passe) : blit assembleur double hauteur (blit_cell4x2) -
+        blit_run s'arretait sur toute taille non normale, la ligne double
+        hauteur repassait entierement par le C (pire cas 251 315 cy, au ras
+        de l'anneau LOCI). Desormais 133 986 cy (1,88x). Et row_has_dblh(row+1)
+        n'est plus calcule deux fois par ligne et par passe (sentinelle
+        DBLH_UNKNOWN pour garder le calcul paresseux cote API ligne-seule).
+        BILAN des 3 passes : display_render() 606 227 -> 150 853 cy (4,0x),
+        74 -> 18,7 temps-octet. Rendu pixel-exact a chaque etape (empreinte
+        SHA-256 du framebuffer inchangee).
+      * ATTENTION mesure : le scenario "ligne hybride" du banc changeait de
+        couleur A CHAQUE COLONNE (courses de longueur 1, ~35 appels a
+        render_span_raw) - pire cas pathologique, pas le cas courant. Une
+        ligne hybride REALISTE (mots de couleur constante) coute 79 290 cy
+        (10,1 temps-octet), soit ~2x moins. Les deux sont mesures (id 2 et 16).
+      * RESTE : le 1er pre-scan (~14 400 cy/ligne, hisse) a memoriser dans le
+        contexte - ATTENTION, un tel cache serait maintenu par vtx_process et
+        le banc ecrit les cellules EN DIRECT : il ne le validerait donc PAS,
+        il faudra un autre garde-fou. Et vtx_process lui-meme (3 950 cy par
+        caractere, 157 806 cy pour 40) est desormais du meme ordre que le
+        rendu : c'est la prochaine grosse cible.
       * MAIS la mesure montre que cela ne SUFFIT PAS : a 6,8 s par page, le
         ring devrait tenir plusieurs centaines d'octets et l'affichage
         traineraient des secondes derriere le flux. Le prealable est

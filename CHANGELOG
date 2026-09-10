@@ -1,5 +1,66 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — rendu : blit assembleur double hauteur + prédicat calculé une seule fois
+
+Troisième passe d'optimisation, toujours guidée par `make bench-render`, toujours
+**pixel-exacte** (empreinte framebuffer `6c2c39eb…` inchangée).
+
+### 1. Blit assembleur pour la double hauteur (`blit_cell4x2`)
+`blit_run` s'arrête net sur toute cellule de taille non normale
+(`ldy #5 / beq @szok / jmp @ret`) : une ligne double hauteur ne bénéficiait donc
+d'**aucune** accélération, chaque cellule repassait par la boucle C (~6 280 cy). C'était
+le **pire cas du moteur** (251 315 cy/ligne), au ras de la tolérance de l'anneau RX du
+LOCI (~250 000 cy).
+
+Nouvelle routine `blit_cell4x2` (`display_asm.s`) : 4 lignes source étirées sur 8 lignes
+pixel, chaque octet écrit deux fois. Même interface que `blit_cell8`, appelée deux fois
+(moitié basse `glyph+4` sur la ligne courante, moitié haute `glyph` sur la ligne du
+dessus). Le souligné garde la boucle C — il force `glyph[7]` à `$3F` avant dithering —
+exactement comme le fait déjà la taille normale.
+
+**Ligne double hauteur : 251 315 → 133 986 cycles (1,88×).** Ce n'est plus le pire cas.
+
+### 2. `row_has_dblh(row+1)` calculé une fois au lieu de deux
+Le prédicat était évalué **deux fois par ligne et par passe** : une fois dans
+`render_row_hires` (choix du mode de rendu), une fois dans `render_dirty` (décision de
+re-salir la ligne du dessous). `render_dirty` le calcule désormais une seule fois et le
+passe à `render_row_hires_ex`.
+
+Une valeur sentinelle `DBLH_UNKNOWN` préserve le calcul **paresseux** pour les appelants
+qui n'ont pas le prédicat (`display_render_cell_row`) : sans elle, le wrapper le calculait
+systématiquement et faisait *regresser* la ligne double hauteur de 133 986 à 142 679 —
+attrapé à la mesure, corrigé.
+
+### État du moteur après les trois passes
+
+| | départ de session | maintenant | gain |
+|---|---|---|---|
+| **passe `display_render()`** | 606 227 cy (74 t.-o.) | **150 853 cy (18,7 t.-o.)** | **4,0×** |
+| ligne double hauteur | 362 581 | 133 986 | 2,7× |
+| ligne brute (40 col) | 93 430 | 45 581 | 2,0× |
+| mise à jour d'une cellule | 73 347 | 30 421 | 2,4× |
+
+### Correction d'un biais de mesure : le « cas courant » n'en était pas un
+`fill_row_hybrid` change de couleur **à chaque colonne**, ce qui casse toutes les courses
+en longueur 1 et provoque ~35 appels à `render_span_raw` par ligne. C'est un pire cas
+pathologique, pas une page Minitel. Nouveau scénario `id 16`, mots de couleur constante
+séparés par des espaces : **79 290 cycles (10,1 temps-octet)**, soit près de **2× moins**
+que ce que j'annonçais comme cas courant. Les deux sont désormais mesurés et étiquetés
+comme tels.
+
+Deux étiquettes du banc devenues fausses ont aussi été corrigées : les scénarios `id 9` et
+`id 13` mesurent la forme d'indexation **non hissée**, celle d'avant optimisation — pas le
+code actuel. Elles servent de référence sur le coût de l'indexation cc65, et le tableau le
+dit maintenant explicitement.
+
+L'encodage des marqueurs a été élargi (`$10-$2F` / `$60-$7F`, id 0..31) : au-delà de l'id
+15 une région disparaissait **silencieusement** du tableau, ce qui est exactement ce qui
+est arrivé au premier essai de `id 16`.
+
+### Tests
+- Suite complète : **318/318**, aucune régression.
+- Empreinte framebuffer `6c2c39eb…` inchangée : les deux optimisations sont pixel-exactes.
+
 ## [Non publié] — le retour de `modem_connect` n'est plus ignoré
 
 Dernier maillon du bug de « première page illisible ». Le raccrochage automatique

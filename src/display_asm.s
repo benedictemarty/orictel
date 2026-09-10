@@ -24,6 +24,7 @@
 ; ===========================================================================
 
         .export _blit_cell8
+        .export _blit_cell4x2
         .export _blit_src, _blit_dst, _blit_and, _blit_or
         .export _blit_run
         .export _run_cells, _run_dst, _run_count, _run_mode
@@ -51,6 +52,18 @@ _run_mode:  .res 1          ; dither: 0=aucun, 1=G1 seul, 2=tout
         and     (ptr3),y
         ora     tmp1
         ldy     #dofs
+        sta     (ptr2),y
+.endmacro
+
+; Une ligne source ecrite DEUX fois (etirement vertical double hauteur)
+.macro  DBLLINE line, dofs0, dofs1
+        ldy     #line
+        lda     (ptr1),y
+        and     (ptr3),y
+        ora     tmp1
+        ldy     #dofs0
+        sta     (ptr2),y
+        ldy     #dofs1
         sta     (ptr2),y
 .endmacro
 
@@ -120,6 +133,49 @@ _blit_cell8:
         lda     _blit_or
         sta     tmp1
         jmp     do_blit
+
+; ---------------------------------------------------------------------------
+; blit_cell4x2 - DOUBLE HAUTEUR: 4 lignes source etirees sur 8 lignes pixel.
+;
+; Meme interface que blit_cell8 (_blit_src / _blit_dst / _blit_and / _blit_or),
+; mais chaque octet source est ecrit DEUX FOIS consecutivement. L'appelant fait
+; deux appels : glyph+4 / and+4 sur la ligne courante (moitie basse), puis
+; glyph / and sur la ligne du dessus (moitie haute).
+;
+; Remplace une boucle C qui coutait ~6 280 cy/cellule : une ligne double
+; hauteur (251 315 cy) etait le PIRE CAS du moteur et frolait la tolerance de
+; l'anneau RX du LOCI (~250 000 cy). Voir make bench-render.
+; ---------------------------------------------------------------------------
+_blit_cell4x2:
+        lda     _blit_src
+        sta     ptr1
+        lda     _blit_src+1
+        sta     ptr1+1
+        lda     _blit_dst
+        sta     ptr2
+        lda     _blit_dst+1
+        sta     ptr2+1
+        lda     _blit_and
+        sta     ptr3
+        lda     _blit_and+1
+        sta     ptr3+1
+        lda     _blit_or
+        sta     tmp1
+
+        DBLLINE 0, 0, 40
+        DBLLINE 1, 80, 120
+
+        ; dst += 160 : l'offset Y plafonne a 255, 240/280 ne passent pas
+        clc
+        lda     ptr2
+        adc     #160
+        sta     ptr2
+        bcc     @nohi
+        inc     ptr2+1
+@nohi:
+        DBLLINE 2, 0, 40
+        DBLLINE 3, 80, 120
+        rts
 
 ; ---------------------------------------------------------------------------
 ; blit_run - plage de cellules via les globales _run_*

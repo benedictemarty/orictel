@@ -55,18 +55,19 @@ import sys, collections
 
 LABELS = {
     1: "display_render()  page pleine (passe budgetee main.c, 2 lignes)",
-    2: "1 ligne hybride   (couleurs + attributs serial, 40 col)",
+    2: "1 ligne hybride   PIRE CAS (couleur differente a chaque colonne)",
+   16: "1 ligne hybride   REALISTE (mots de couleur constante)",
     3: "1 ligne brute     (monochrome, 40 col)",
     4: "1 ligne brute     (span 1 colonne, cas incremental)",
     5: "1 ligne G1        (mosaiques, dithering, 40 col)",
     6: "1 ligne double hauteur (40 col)",
     7: "vtx_process() x40 caracteres G0 (drain seul, sans rendu)",
-    9: "  dont: pre-scan seul  screen[row][col], ligne VARIABLE (reel)",
-   15: "  CANDIDAT: meme pre-scan, pointeur de ligne HISSE",
+    9: "  forme NON hissee : pre-scan screen[row][col] (avant optim.)",
+   15: "  forme HISSEE    : meme pre-scan (== code actuel)",
    10: "  dont: blit pur       1 cellule G0",
    11: "  dont: blit pur      40 cellules G0",
    12: "  dont: blit+dither   40 cellules G1",
-   13: "  dont: 2e pre-scan   row_has_dblh, ligne VARIABLE (reel)",
+   13: "  forme NON hissee : row_has_dblh (avant optim.)",
    14: "  dont: blit_run ASM  40 cellules G0 (chemin rapide seul)",
     8: "CALIBRATION boucle asm 256 tours (attendu ~1280 cycles)",
 }
@@ -91,9 +92,10 @@ if not events:
 runs = collections.defaultdict(list)
 open_at = {}
 for cyc, b in events:
-    if 0x10 <= b <= 0x1F:
+    # Marqueurs : debut = $10+id, fin = $60+id, pour id 0..31.
+    if 0x10 <= b <= 0x2F:
         open_at[b - 0x10] = cyc
-    elif 0x60 <= b <= 0x6F:
+    elif 0x60 <= b <= 0x7F:
         i = b - 0x60
         if i in open_at:
             runs[i].append(cyc - open_at.pop(i))
