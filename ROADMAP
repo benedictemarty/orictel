@@ -146,6 +146,18 @@ utilisable avec les serveurs Minitel modernes via Internet.
         llvm-symbolizer est absent de la machine et libFuzzer se fige sur la
         symbolisation des NEW_FUNC. Pre-existant (verifie sur le decodeur
         d'avant). -print_funcs=0 retablit 1 683 302 executions en 46 s.
+      * FAIT (5e passe) : touch_here() (variante interne de vtx_touch sur
+        s_ctx, un argument de moins) + pointeur cell en statique.
+        vtx_process 119 848 -> 104 877 cy ; jsr dans put_char 24 -> 12.
+        BILAN decodeur : 157 806 -> 104 877 cy (1,50x), 2 622 cy/octet pour
+        un budget de 8 333.
+      * ARRET VOLONTAIRE de l'optimisation ici : il ne reste dans put_char
+        que le passage d'arguments des deux touch_here. Descendre plus bas
+        imposerait de reecrire put_char en assembleur - disproportionne pour
+        un chemin a 26 % du budget d'un octet. Cibles restantes si besoin :
+        1er pre-scan de display.c (~14 400 cy/ligne, a memoriser dans le
+        contexte - ATTENTION, non validable par l'empreinte, cf. plus haut),
+        et process_csi (59 jsr) qui n'est pas sur le chemin chaud.
       * MAIS la mesure montre que cela ne SUFFIT PAS : a 6,8 s par page, le
         ring devrait tenir plusieurs centaines d'octets et l'affichage
         traineraient des secondes derriere le flux. Le prealable est

@@ -1,5 +1,57 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — décodeur (suite) : `put_char` dégraissé, `vtx_process` à 1,50×
+
+Cinquième et dernière passe d'optimisation. Poursuite du travail sur `put_char`, guidée
+par le décompte d'appels dans l'assembleur généré par cc65.
+
+### 1. `touch_here()` : variante interne de `vtx_touch` sur `s_ctx`
+`put_char` appelait `vtx_touch(ctx, row, from, to)` — quatre arguments, dont le pointeur
+de contexte que cc65 empile via `pushax`, plus un rechargement du pointeur paramètre à
+chaque déréférencement dans le corps. La variante interne travaille sur `s_ctx` : un
+argument de moins et plus aucun rechargement.
+
+`vtx_touch` reste l'entrée publique (`display.c` et `main.c` l'appellent avec leur propre
+contexte) ; le wrapper **sauvegarde et restaure `s_ctx`**, pour qu'un appel externe pendant
+un rendu ne perturbe pas un décodage en cours.
+
+### 2. Pointeur `cell` en statique
+Un pointeur *local* vit dans la pile logicielle de cc65 et impose un `jsr ldptr10sp` à
+chaque accès. En portée fichier, il est adressé directement.
+
+### Résultat
+
+| | avant cette passe | après |
+|---|---|---|
+| `vtx_process` (40 caractères) | 119 848 cy | **104 877 cy** |
+| `put_char` | 2 573 cy/car. | **2 198 cy/car.** |
+| `jsr` dans `put_char` | 24 | **12** |
+
+**Bilan du décodeur sur les deux passes : `vtx_process` 157 806 → 104 877 cy, soit 1,50×**
+(3 950 → 2 622 cy par octet, contre un budget de 8 333 cy à 1200 bauds).
+
+### Pourquoi s'arrêter là
+Il ne reste dans `put_char` que le passage d'arguments des deux `touch_here` (`pusha` ×6).
+Descendre plus bas demanderait de réécrire `put_char` en assembleur : effort et risque
+disproportionnés pour un chemin qui consomme désormais 26 % du budget d'un octet. Les
+cibles restantes sont notées en ROADMAP.
+
+### Tests
+- Suite complète : **318/318**.
+- Fuzzing : **1 625 243 exécutions**, aucun crash (ASAN+UBSAN).
+- Empreinte framebuffer `6c2c39eb…` inchangée.
+
+### Bilan de la session d'optimisation
+
+| | départ | arrivée | gain |
+|---|---|---|---|
+| passe `display_render()` | 606 227 cy — 74 temps-octet | **151 144 cy — 18,8** | **4,0×** |
+| `vtx_process` (40 car.) | 157 806 cy | **104 877 cy** | **1,50×** |
+| ligne double hauteur | 362 581 cy | 133 986 cy | 2,7× |
+| mise à jour d'une cellule | 73 347 cy | 30 421 cy | 2,4× |
+
+Rendu **pixel-exact à chaque étape** (même empreinte SHA-256 du framebuffer depuis le début).
+
 ## [Non publié] — décodeur : `vtx_process` 1,3× — et `make fuzz` réparé (garde-fou mort)
 
 Quatrième passe d'optimisation. Le rendu n'étant plus le goulot, la cible devient le

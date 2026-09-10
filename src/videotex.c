@@ -69,20 +69,36 @@ static void send_ident(void)
  *  Dirty spans
  * =================================================================== */
 
-void vtx_touch(vtx_context_t* ctx, unsigned char row,
-               unsigned char col_from, unsigned char col_to)
+/* Declaree tot: s_ctx est defini plus bas, pres de put_char. */
+static vtx_context_t* s_ctx;
+
+/* Variante interne de vtx_touch travaillant sur s_ctx. Un argument de moins
+ * (le pointeur, que cc65 empile via pushax) et plus aucun rechargement du
+ * pointeur parametre. vtx_touch reste l'entree publique (display.c, main.c
+ * l'appellent avec leur propre contexte). */
+static void touch_here(unsigned char row,
+                       unsigned char col_from, unsigned char col_to)
 {
     if (row >= VTX_ROWS) {
         return;
     }
-    if (!ctx->dirty[row]) {
-        ctx->dirty[row] = 1;
-        ctx->dirty_min[row] = col_from;
-        ctx->dirty_max[row] = col_to;
+    if (!s_ctx->dirty[row]) {
+        s_ctx->dirty[row] = 1;
+        s_ctx->dirty_min[row] = col_from;
+        s_ctx->dirty_max[row] = col_to;
     } else {
-        if (col_from < ctx->dirty_min[row]) ctx->dirty_min[row] = col_from;
-        if (col_to   > ctx->dirty_max[row]) ctx->dirty_max[row] = col_to;
+        if (col_from < s_ctx->dirty_min[row]) s_ctx->dirty_min[row] = col_from;
+        if (col_to   > s_ctx->dirty_max[row]) s_ctx->dirty_max[row] = col_to;
     }
+}
+
+void vtx_touch(vtx_context_t* ctx, unsigned char row,
+               unsigned char col_from, unsigned char col_to)
+{
+    vtx_context_t* saved = s_ctx;
+    s_ctx = ctx;
+    touch_here(row, col_from, col_to);
+    s_ctx = saved;      /* appel externe: ne pas perturber le decodage en cours */
 }
 
 /* Retablit l'invariant "ligne propre = span plein" sur une plage de
@@ -235,11 +251,12 @@ static const unsigned char col_byte_offset[VTX_COLS] = {
  * Sur : put_char() est statique et n'est atteignable QUE depuis vtx_process(),
  * qui affecte s_ctx en entree. Aucune reentrance (pas d'IRQ dans le decodeur).
  */
-static vtx_context_t* s_ctx;
-
 static void put_char(unsigned char ch, unsigned char cs)
 {
-    vtx_cell_t* cell;
+    /* static: cc65 adresse une variable de portee fichier directement, alors
+     * qu'un pointeur LOCAL vit dans sa pile logicielle et impose un
+     * `jsr ldptr10sp` a chaque acces. Pas de reentrance ici. */
+    static vtx_cell_t* cell;
 
     if (s_ctx->cur_y >= VTX_ROWS || s_ctx->cur_x >= VTX_COLS) {
         return;
@@ -285,13 +302,13 @@ static void put_char(unsigned char ch, unsigned char cs)
             span_end < VTX_COLS - 1) {
             ++span_end;
         }
-        vtx_touch(s_ctx, s_ctx->cur_y, s_ctx->cur_x, span_end);
+        touch_here(s_ctx->cur_y, s_ctx->cur_x, span_end);
         /* Double hauteur/taille: la moitie haute du glyphe est rendue
          * dans les lignes pixel de la ligne du dessus. Sans ce dirty,
          * un re-rendu isole de cur_y-1 ecraserait la moitie haute. */
         if ((s_ctx->attr_size == SIZE_DOUBLE_HEIGHT ||
              s_ctx->attr_size == SIZE_DOUBLE_SIZE) && s_ctx->cur_y > 0) {
-            vtx_touch(s_ctx, s_ctx->cur_y - 1, s_ctx->cur_x, span_end);
+            touch_here(s_ctx->cur_y - 1, s_ctx->cur_x, span_end);
         }
     }
     s_ctx->last_char = ch;
