@@ -1,5 +1,46 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — mise à jour complète de la documentation (fin de session)
+
+Revue de toute la documentation, qui n'avait été maintenue en cours de session que sur
+`CHANGELOG`, `ROADMAP` et `VERSION_TRACKING`.
+
+### Erreurs factuelles corrigées
+- **`docs/ARCHITECTURE.md`** documentait `Contrôle $28 = 1200 bauds, 7 bits` et
+  `Commande $69` (V23 7E1). Le code utilise **`$18` (1200 8N1)** et **`$0B`** depuis la
+  v0.3.2 — la doc décrivait une configuration qui ne correspond plus à aucun montage.
+- **`README.md`** annonçait « page complète ~0,3 s, écho de frappe ~1 ms ». La mesure dit
+  ~2 à 4 s pour une page et **~30 ms** pour une cellule. C'étaient des estimations, jamais
+  vérifiées ; remplacées par le tableau de `make bench-render`.
+- **`ARCHITECTURE.md`** décrivait un rendu « à chaque trame (50 Hz) ». Il est en réalité
+  budgeté à **une ligne par passe**, depuis la boucle principale, pour borner la fenêtre
+  pendant laquelle la réception n'est pas relue.
+- **`CIRRUS_OS`** listait encore l'interface « 6551 + 6850 » et le « mode direct TCP »,
+  tous deux retirés en 0.2.45/0.2.46.
+
+### Contenu ajouté
+- `ARCHITECTURE.md` : montage de référence LOCI + PicoWiFi et son **anneau RX de
+  32 octets**, modules manquants (`at_modem.c`, `serial_tx.c`, `ui.c`, `display_asm.s`),
+  coûts mesurés, chemins rapides assembleur, et les deux pièges cc65 (multiplication par
+  240 sur `screen[row][col]`, rechargement d'un pointeur paramètre).
+- `MANUEL_UTILISATION.md` : les deux nouveaux écrans (**échec de connexion**, **perte de
+  porteuse**) avec leur maquette, trois entrées de dépannage dont la **ré-énumération du
+  dongle** (`ttyACM0` → `ttyACM1`), et correction des limites connues (V23, /DCD).
+- `AGILE_PLAN.md` : backlog remis à jour **avec preuve** — G2, double hauteur,
+  clignotement, masquage, PRO et mode rouleau vérifiés dans le code avant d'être clos ;
+  DRCS et barre de statut restent ouverts. Sprint courant documenté, `Definition of Done`
+  étendue (gain mesuré + empreinte pour une optimisation, validation matérielle sinon).
+- `README.md` : tolérance de réception, tableau de performance mesuré, robustesse de la
+  liaison, et `tests/vtx_page.py` comme outil de diagnostic autonome.
+
+### Cohérence
+`ORICTEL_VERSION` restait figé à `v0.3.7` alors que le suivi était à 0.3.16 — le splash
+affichait une version fausse, défaut déjà corrigé une fois par le passé (`9e8d145`).
+Aligné et vérifié à l'écran.
+
+### Tests
+- Suite complète : **328/328**.
+
 ## [Non publié] — délai de confirmation de perte de porteuse mesuré sur matériel (3,6-5,6 s)
 
 Le dernier point ouvert est clos. `CARRIER_CONFIRM_IDLE = 500` était une règle de trois

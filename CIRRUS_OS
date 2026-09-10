@@ -14,16 +14,33 @@
 
 | Cible           | Plateforme | Status     | Date       |
 |-----------------|------------|------------|------------|
+| orictel.tap     | atmos+oric1| BUILD OK v0.3.16 (perte de porteuse, ecran d echec, rendu 4,0x) | 2026-09-10 |
+| chaine co-simulee| oric1     | VALIDE : firmware LOCI reel + PicoWiFiModemUSB physique, page PAVI complete | 2026-09-10 |
+| montage reel    | oric1      | VALIDE : ATZ/ATH/ATDT, raccrochage, NO CARRIER, reconnexion | 2026-09-10 |
+| suite complete  | host       | 328/328 (Videotex 219, SMC 22, AT 28, clavier 22, UI 9, menus 5, bridge 23) | 2026-09-10 |
+| fuzzing Videotex| host       | 1,6 M executions ASAN/UBSAN, debit minimal exige (FUZZ_MIN_RATE) | 2026-09-10 |
+| test-servers    | oric1+dongle| PAVI 3617 + MiniPavi : ancres stables trouvees | 2026-09-10 |
 | orictel.tap     | atmos+oric1| BUILD OK v0.3.7 (HIRES Oric-1 jsr $F8E3 + detection ROM $C002) | 2026-08-25 |
 | orictel.tap     | atmos      | BUILD OK v0.3.6 (send_raw/recv sous SEI/PLP) | 2026-08-25 |
 | driver ACIA SEI | atmos      | acces octet proteges (anti-corruption MIA) | 2026-08-25 |
 | orictel.tap     | atmos      | BUILD OK   | 2026-06-24 |
 | orictel.dsk     | sedoric3   | BOOT OK    | 2026-06-24 |
-| mode direct TCP | host       | OK         | 2026-03-24 |
+| mode direct TCP | host       | RETIRE en 0.2.46 (le Pico est un modem AT, connexion via ATD) | 2026-03-24 |
 | mode modem AT   | host       | OK         | 2026-03-24 |
-| interfaces      | atmos      | 6551 + 6850| 2026-06-21 |
+| interfaces      | atmos      | 6551 seul (6850/DTL2000 RETIRE en 0.2.45) | 2026-06-21 |
 | bridge          | linux/x64  | OK         | 2026-03-24 |
 | suite complete  | host       | 313/313 (Videotex 219, SMC ACIA 22, AT 18, clavier 22, UI 9, bridge 23) | 2026-08-25 |
+
+## Tolerance de reception (dimensionnement)
+
+Le firmware LOCI place un anneau de **32 octets** devant le registre du 6551
+(`~/loci/firmware/src/mia/oric/acia.c`, `ACIA_RX_BUFFER_SIZE`), soit ~30
+utilisables : **~250 000 cycles** de tolerance entre deux lectures a 1200 bauds.
+Une passe de rendu coute ~151 000 cycles, elle passe donc largement dessous.
+
+Emuler le montage SANS `--serial-buffer` est PLUS PESSIMISTE que le materiel
+(registre d'un seul octet, 8 333 cycles) : utile comme garde-fou, trompeur comme
+reference. `LOCI_BUFFER` vaut 32 par defaut.
 
 ## Configuration memoire (cible Oric)
 - ZP:    $00E2-$00FB (26 octets)

@@ -26,7 +26,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.7"
+#define ORICTEL_VERSION "v0.3.16"
 
 /* Iterations de boucle sans le moindre octet exigees pour CONFIRMER une
  * presomption de perte de porteuse (un vrai NO CARRIER n'est suivi de RIEN,

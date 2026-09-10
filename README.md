@@ -190,8 +190,27 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 - **Protocole:** Videotex Teletel/Antiope (STUM 1B); l'identification
   ENQ/ENQROM est volontairement muette (alignement miedit: les serveurs
   modernes echoient la reponse dans le champ de saisie)
-- **Performance:** page complete ~0,3 s, echo de frappe ~1 ms (rendu de la
-  cellule seule)
+- **Reception:** le firmware LOCI place un anneau de **32 octets** devant le
+  registre du 6551 (~250 000 cycles de tolerance a 1200 bauds). Emuler sans
+  `--serial-buffer` est plus pessimiste que le materiel reel.
+- **Performance** (mesuree par `make bench-render`, cycles 6502 reels ; budget
+  d'un octet a 1200 bauds = 8 333 cycles) :
+
+  | region | cycles | temps-octet |
+  |---|---|---|
+  | passe de rendu (1 ligne) | ~151 000 | 18,8 |
+  | ligne de texte colore realiste | ~79 000 | 10,1 |
+  | ligne double hauteur | ~134 000 | 16,7 |
+  | mise a jour d'une cellule | ~30 000 | 3,6 |
+  | `vtx_process()` (40 caracteres) | ~105 000 | 13,2 |
+
+  Une page complete demande donc environ 2 a 4 s de rendu, a comparer aux ~8 s
+  que met la page a arriver a 1200 bauds. (Les valeurs "~0,3 s / ~1 ms"
+  annoncees precedemment etaient des estimations, invalidees par la mesure.)
+- **Robustesse de la liaison:** reprise automatique sur modem reste en ligne
+  (`+++`/`ATH`), ecran d'echec explicite plutot qu'une entree en session a
+  l'aveugle, detection de perte de porteuse (`NO CARRIER`) avec proposition de
+  reconnexion.
 - **Reference:** emulateur JS miedit/telenet pour la validite du protocole
 
 ## Documentation
@@ -204,6 +223,9 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 - `CHANGELOG` - Historique des modifications
 - `VERSION_TRACKING` - Suivi des versions par composant
 - `CIRRUS_OS` - Statut de build et plateforme cible
+- `tests/vtx_page.py` - Outil autonome : affiche la page Videotex decodee depuis
+  un vidage RAM de l'emulateur (`--dump-ram-at`). Utile pour diagnostiquer une
+  page suspecte sans passer par une capture d'ecran.
 
 ## Licence
 

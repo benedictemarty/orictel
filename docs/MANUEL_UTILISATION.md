@@ -56,6 +56,41 @@ perd dans le flux. OricTel le detecte (pas de « OK »), affiche brievement
 (`+++` puis `ATH`) et rejoue `ATZ` avant de composer. Aucun geste manuel n'est
 requis ; ce detour n'a lieu que si le premier `ATZ` echoue.
 
+**Si la connexion echoue quand meme.** Sans « CONNECT », la ligne ne porte aucun
+flux Videotex exploitable : soit rien du tout (modem absent ou muet), soit — si
+le raccrochage n'a pas suffi — un flux commence EN COURS DE PAGE, qui s'affiche
+en bouillie. OricTel n'entre donc plus en session en silence, il vous laisse
+choisir :
+
+```
+        ECHEC DE CONNEXION
+Pas de CONNECT: la ligne ne porte
+aucun flux Videotex exploitable.
+
+        1 Reessayer
+        2 Choisir un autre serveur
+        3 Entrer quand meme
+```
+
+L'option 3 reproduit l'ancien comportement, mais comme un choix explicite.
+
+**Perte de porteuse en cours de session.** Quand le serveur raccroche (ou que la
+liaison tombe), le modem repasse en mode commande et emet `NO CARRIER`. OricTel
+le reconnait, attend quelques secondes de silence pour confirmer — une page qui
+citerait ces mots continuerait de defiler — puis propose :
+
+```
+        PERTE DE PORTEUSE
+Le modem a signale NO CARRIER:
+la communication est terminee.
+
+        1 Reconnecter
+        2 Rester en local
+```
+
+`1` recompose le meme serveur. Il n'y a pas de recomposition automatique
+silencieuse : la reconnexion coute une communication, c'est a vous de la decider.
+
 ### Mode WebSocket (via bridge)
 
 `make run-ws` lance le bridge Python (`orictel_bridge.py`) qui relaie
@@ -167,6 +202,9 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 | « PAS DE MODEM » / retour apres ATZ | l'emulateur n'est pas en `--serial modem`/`picowifi` (aucun modem ne repond « OK ») | utiliser `make run` (ou `make run-loci`/`run-loci-emu`) |
 | `NO CARRIER (00:00:00)` (Pico reel) | format de numerotation (`ATD<hote>` : le 1er car. de l'hote pris pour un modificateur Hayes) ou WiFi non associe | corrige en 0.2.42 (OricTel compose `ATDT<hote>`) ; si ca persiste : menu `2 - Config WiFi` pour (re)configurer le reseau |
 | Premiere page illisible / ecran noir, les suivantes correctes | modem reste en communication d'une session precedente : `ATZ` perdu dans le flux, aucune numerotation, decodage demarre en cours de page | corrige : OricTel raccroche (`+++`/`ATH`) et rejoue `ATZ` automatiquement. Sur une version anterieure : raccrocher a la main avant de relancer |
+| « PERTE DE PORTEUSE » en cours de consultation | le serveur a raccroche (inactivite) ou la liaison est tombee | `1 Reconnecter` recompose le meme serveur |
+| Page corrompue SANS ecran d'erreur, sur emulateur | montage emule sans tampon RX : le 6551 nu ne garde qu'un octet, alors que le vrai firmware LOCI en tamponne 32 | ajouter `--serial-buffer 32` (c'est le defaut de `make run-loci-real` depuis 0.3.x) |
+| « aucun modem ne repond » alors que le dongle est branche | le PicoWiFiModemUSB **se re-enumere** apres un debranchement : `ttyACM0` devient `ttyACM1`… | le Makefile detecte desormais le premier `/dev/ttyACM*` ; sinon forcer `PICO_DEV=/dev/ttyACMx` |
 | Indicateur `F` permanent | pas de donnees du serveur | verifier la connexion Internet ; CTRL+F puis CTRL+E (repetition) |
 | Caracteres perdus a la frappe | n'arrive plus depuis 0.2.24 | verifier que le tap est a jour (`make`) |
 | Cartouches inverses illisibles | echelle d'affichage 1x | F3 (echelle x2-x4) |
@@ -182,6 +220,12 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 - L'identification terminal (ENQ/ENQROM) est volontairement muette :
   les serveurs modernes (MiniPavi) echoient la reponse dans le champ
   de saisie au lieu de la consommer (meme comportement que miedit).
-- La configuration V23 reelle (1200/75 bauds, 7E1) pour vrai materiel
-  Oric + modem est en ROADMAP ; sous emulateur le transfert est
-  instantane.
+- La configuration V23 asymetrique (1200/75 bauds, 7E1) n'est plus une cible :
+  le montage supporte est LOCI + PicoWiFiModemUSB, qui dialogue en **1200 8N1**
+  (Controle `$18`, Commande `$0B`).
+- Le bit /DCD du 6551 ne peut pas servir a detecter une perte de porteuse sur
+  LOCI : le firmware ne le pilote que depuis le montage USB et DTR, jamais
+  depuis l'etat de l'appel. D'ou la detection par `NO CARRIER`.
+- Le delai de confirmation de perte de porteuse est compte en ITERATIONS de
+  boucle (~4 s mesurees), pas en secondes : une optimisation du rendu ou du
+  decodeur le raccourcit mecaniquement.
