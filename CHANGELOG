@@ -1,5 +1,39 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — audit des garde-fous : le fuzzing se surveille désormais lui-même
+
+Suite à la découverte que `make fuzz` ne fuzzait plus rien depuis des mois sans que rien ne
+le signale, audit de toutes les cibles de qualité.
+
+### État constaté
+| garde-fou | état |
+|---|---|
+| `make coverage` | **vivant** — 83,40 % (`videotex.c`), 94,59 % (`at_modem.c`), conforme au suivi |
+| tests hôte (×5) | **vivants** — tous retournent un code non nul en cas d'échec, vérifié |
+| `make fuzz` | **était mort en silence** — corrigé en `eb187ed`, mais rien ne l'aurait redit |
+
+La CI lançait bien `make fuzz`, mais **elle n'aurait jamais échoué** : libFuzzer sort avec
+le code 0 même après 4 exécutions. Un garde-fou qui ne garde plus rien doit le dire.
+
+### Le fuzzing exige désormais un débit minimal
+`FUZZ_MIN_RATE` (500 exec/s par défaut) : en dessous, la cible échoue avec un message qui
+nomme la cause connue (llvm-symbolizer absent → libFuzzer se fige sur la symbolisation).
+Le débit réel mesuré étant d'environ 36 000 exec/s, le seuil laisse une marge de 70× et ne
+peut pas se déclencher sur un runner lent.
+
+Vérifié dans les deux sens : cas nominal `ok : 1 012 004 executions en 10s (minimum 5000)`,
+et seuil irréaliste → `make` échoue.
+
+### Un piège évité de justesse
+La première version écrivait `fuzz_videotex … | tee fuzz.log`. Dans un pipeline, make ne
+voit que le code de retour du **dernier maillon** : un crash trouvé par le fuzzer (ASAN,
+UBSAN) aurait été avalé silencieusement — exactement le défaut que cette cible est censée
+ne plus avoir. Remplacé par une redirection explicite avec test du code de retour, et la
+construction a été vérifiée séparément.
+
+### Tests
+- Suite complète : **323/323**.
+
 ## [Non publié] — `make test-servers` : fidélité du décodage contre de vrais serveurs
 
 Le bug de « première page illisible » n'avait été détecté que parce qu'un humain a regardé

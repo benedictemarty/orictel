@@ -388,6 +388,9 @@ test-server:
 # a rejouer : `build/fuzz_videotex crash-xxxx`.
 FUZZCC    ?= clang
 FUZZ_TIME ?= 30
+# Debit minimal exige du fuzzing, en executions/seconde (voir la cible fuzz).
+FUZZ_MIN_RATE ?= 500
+
 fuzz: $(TESTDIR)/fuzz_videotex.c $(SRCDIR)/videotex.c | $(BLDDIR)
 	$(FUZZCC) -O1 -g -DTEST_HOST -I$(SRCDIR) \
 		-fsanitize=fuzzer,address,undefined \
@@ -396,8 +399,35 @@ fuzz: $(TESTDIR)/fuzz_videotex.c $(SRCDIR)/videotex.c | $(BLDDIR)
 	@# -print_funcs=0 : sans llvm-symbolizer installe, libFuzzer se BLOQUE en
 	@# tentant de symboliser chaque "NEW_FUNC". Le fuzzing tournait alors a ~4
 	@# executions au lieu de ~365 000 (22 800/s) : garde-fou silencieusement mort.
-	$(BLDDIR)/fuzz_videotex -max_total_time=$(FUZZ_TIME) -print_funcs=0 \
-		-print_final_stats=1
+	@# PAS de `| tee` ici : dans un pipeline, make ne voit que le code de retour
+	@# du DERNIER maillon. Un crash signale par le fuzzer (bug trouve, ASAN,
+	@# UBSAN) serait alors avale silencieusement - precisement le defaut que
+	@# cette cible est censee ne plus avoir.
+	@if ! $(BLDDIR)/fuzz_videotex -max_total_time=$(FUZZ_TIME) -print_funcs=0 \
+		-print_final_stats=1 > $(BLDDIR)/fuzz.log 2>&1; then \
+	   cat $(BLDDIR)/fuzz.log; \
+	   echo "FAIL : le fuzzer a signale une erreur (crash / ASAN / UBSAN)"; \
+	   exit 1; \
+	 fi
+	@cat $(BLDDIR)/fuzz.log
+	@# GARDE-FOU DU GARDE-FOU. libFuzzer sort avec le code 0 meme s'il n'a
+	@# quasiment rien execute : c'est ainsi que ce fuzzing est reste mort des
+	@# mois sans que la CI ne bronche. On exige donc un DEBIT MINIMAL. Le debit
+	@# reel mesure est d'environ 36 000 exec/s : le seuil de 500/s laisse une
+	@# marge de 70x et ne peut pas se declencher sur un runner lent.
+	@executed=$$(awk '/number_of_executed_units/{print $$NF}' $(BLDDIR)/fuzz.log); \
+	 min=$$(( $(FUZZ_TIME) * $(FUZZ_MIN_RATE) )); \
+	 if [ -z "$$executed" ]; then \
+	   echo "FAIL : statistiques de fuzzing absentes (le fuzzer a-t-il tourne ?)"; \
+	   exit 1; \
+	 fi; \
+	 if [ "$$executed" -lt "$$min" ]; then \
+	   echo "FAIL : $$executed executions en $(FUZZ_TIME)s, minimum attendu $$min."; \
+	   echo "       Le fuzzing ne garde plus rien. Cause connue : llvm-symbolizer"; \
+	   echo "       absent -> libFuzzer se fige sur la symbolisation des NEW_FUNC."; \
+	   exit 1; \
+	 fi; \
+	 echo "ok   : $$executed executions en $(FUZZ_TIME)s (minimum $$min)"
 
 # Couverture host (gcov) du decodeur Videotex et du modem AT : compile les
 # tests avec --coverage, les execute, puis affiche le % de lignes couvertes.
