@@ -102,7 +102,10 @@ EMU_OPTS_PICOWIFI = --loci --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 40
 # backend `com:B,D,P,S,DEV` (baud,databits,parite,stop,device - baud EN PREMIER,
 # device EN DERNIER). OricTel pilote l'ACIA en 8N1. Le PicoWiFiModemUSB en
 # USB-CDC dialogue a 115200 bauds cote DTE.
-PICO_DEV  ?= /dev/ttyACM0
+# Le PicoWiFiModemUSB se RE-ENUMERE a chaque reconnexion (ttyACM0 -> ttyACM1...).
+# On prend le premier noeud present plutot que de figer ttyACM0, qui rendait les
+# cibles run-* faussement defaillantes apres un simple debranchement.
+PICO_DEV  ?= $(firstword $(wildcard /dev/ttyACM*) /dev/ttyACM0)
 PICO_BAUD = 115200
 
 # Scenario B : montage reel Oric + LOCI + Pico. La cartouche LOCI expose l'ACIA

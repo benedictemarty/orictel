@@ -38,10 +38,12 @@ utilisable avec les serveurs Minitel modernes via Internet.
       pilote ACIA_STAT_NOT_DCD que depuis le montage CDC et DTR, jamais depuis
       l'etat de l'appel (5 affectations relues). Piege documente dans serial.h
       (logique INVERSEE : non nul = PAS de porteuse).
-      RESTE : validation sur materiel (dongle debranche au moment du test) -
-      absence de faux positif en session reelle, et declenchement effectif
-      quand le serveur raccroche. Pas de recomposition silencieuse : choix
-      explicite, comme l'ecran d'echec de connexion.
+      VALIDE SUR MATERIEL : session reelle PAVI 3617, le serveur a raccroche
+      seul apres ~1 min, trace "NO CARRIER (00:01:04)" et ecran PERTE DE
+      PORTEUSE affiche comme attendu. Absence de faux positif desormais
+      verifiee automatiquement par make test-servers. Pas de recomposition
+      silencieuse : choix explicite, comme l'ecran d'echec de connexion.
+      RESTE (optionnel) : exercer le bouton "1 Reconnecter" de bout en bout.
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
 - [x] Protection SEI/PLP des acces octet ACIA (v0.3.6) : `send_raw` (ecriture

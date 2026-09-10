@@ -1,5 +1,50 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — perte de porteuse validée sur matériel + le dongle se ré-énumère
+
+### La détection fonctionne, observée sur le vrai montage
+Session réelle vers PAVI 3617 via la chaîne co-simulée. Le serveur a raccroché de lui-même
+après ~1 minute, et la trace se termine par :
+```
+<CR><LF>NO CARRIER (00:01:04)<CR><LF>
+```
+OricTel a affiché l'écran attendu :
+```
+           PERTE DE PORTEUSE
+   Le modem a signale NO CARRIER:
+   la communication est terminee.
+            1 Reconnecter
+            2 Rester en local
+```
+C'est précisément la forme `NO CARRIER (hh:mm:ss)` du PicoWiFiModemUSB couverte en test
+unitaire ; la confirmation par le silence a joué et les libellés tiennent dans 40 colonnes.
+La déconnexion n'a pas été provoquée : elle est spontanée, donc d'autant plus représentative.
+
+### Absence de faux positif, désormais vérifiée automatiquement
+`test-servers` contrôle maintenant que l'écran `PERTE DE PORTEUSE` **n'est pas** affiché à
+la fin d'une session réelle. Le veilleur tourne sur chaque octet reçu : ce garde-fou évite
+qu'une régression ne coupe des sessions valides. Vérifié sur PAVI 3617.
+
+### Cause des échecs intermittents : le dongle change de port
+Le PicoWiFiModemUSB **se ré-énumère à chaque reconnexion** — il passe de `/dev/ttyACM0` à
+`/dev/ttyACM1`, etc. `PICO_DEV` étant figé sur `ttyACM0`, l'émulateur échouait à ouvrir le
+backend série :
+```
+ERROR: Serial COM: open(/dev/ttyACM0) failed: No such file or directory
+```
+…et le test rapportait un échec de connexion sans rapport avec le code. C'est ce qui
+expliquait un premier `test-servers` en échec suivi d'un succès immédiat.
+
+Corrigé des deux côtés :
+- `Makefile` : `PICO_DEV ?= $(firstword $(wildcard /dev/ttyACM*) /dev/ttyACM0)` — profite à
+  toutes les cibles `run-loci*` ;
+- `tests/test_servers.sh` : prend le premier nœud présent, toujours surchargeable par
+  `PICO_DEV`.
+
+### Tests
+- Suite complète : **328/328**.
+- `make test-servers` : fidélité OK, y compris le nouveau contrôle anti-faux-positif.
+
 ## [Non publié] — perte de porteuse : le DCD est inutilisable ici, détection par `NO CARRIER`
 
 ### Le DCD ne peut pas servir sur ce montage

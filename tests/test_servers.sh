@@ -29,6 +29,15 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 EMU="${EMU:-$HOME/Oric1/oric1-emu}"
 ROM="${ROM:-$HOME/Oric1/roms/basic11b.rom}"
 FW_ELF="${FW_ELF:-$HOME/loci/firmware/build-xip/src/loci-firmware.elf}"
+# Le PicoWiFiModemUSB se RE-ENUMERE a chaque reconnexion : il passe de
+# /dev/ttyACM0 a ttyACM1, etc. Coder ttyACM0 en dur rendait le test
+# faussement instable (backend serie qui n'ouvre pas -> connexion impossible).
+# On prend donc le premier noeud present, surchargeable par PICO_DEV.
+if [ -z "${PICO_DEV:-}" ]; then
+    for d in /dev/ttyACM*; do
+        [ -c "$d" ] && { PICO_DEV="$d"; break; }
+    done
+fi
 PICO_DEV="${PICO_DEV:-/dev/ttyACM0}"
 TAP="$HERE/orictel.tap"
 ALL="${ALL:-0}"
@@ -39,7 +48,7 @@ skip() { echo "SKIP : $1"; exit 0; }
 [ -f "$ROM" ]     || skip "ROM Oric introuvable ($ROM)"
 [ -f "$TAP" ]     || skip "orictel.tap absent (make)"
 [ -f "$FW_ELF" ]  || skip "firmware LOCI introuvable ($FW_ELF)"
-[ -c "$PICO_DEV" ] || skip "PicoWiFiModemUSB non branche ($PICO_DEV)"
+[ -c "$PICO_DEV" ] || skip "PicoWiFiModemUSB non branche (aucun /dev/ttyACM*)"
 "$EMU" --help 2>&1 | grep -q -- "--loci-emu" || \
     skip "Phosphoric sans co-simulation (--loci-emu requis, >= v1.118.1)"
 
@@ -76,6 +85,16 @@ run_server() {
         return
     fi
     check 0 "$name : connexion etablie"
+
+    # Le veilleur de porteuse (at_carrier_watch) tourne sur CHAQUE octet recu.
+    # Une page reelle ne doit jamais le declencher : si c'etait le cas, l'ecran
+    # "PERTE DE PORTEUSE" aurait remplace la page. Garde-fou anti-faux-positif.
+    "$HERE/tests/vtx_page.py" "$dump" "PERTE DE PORTEUSE"
+    if [ $? -eq 0 ]; then
+        check 1 "$name : pas de fausse perte de porteuse"
+    else
+        check 0 "$name : pas de fausse perte de porteuse"
+    fi
 
     for anchor in "$@"; do
         "$HERE/tests/vtx_page.py" "$dump" "$anchor"
