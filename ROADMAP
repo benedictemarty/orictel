@@ -136,6 +136,11 @@ utilisable avec les serveurs Minitel modernes via Internet.
       testable sur l'hote (faux modem) : matcher ancre sur les lignes
       (anti-faux-positif OK/CONNECT), trace de debug derriere #ifdef DEBUG,
       14 tests unitaires (OK/CONNECT/NO CARRIER/timeout/overrun/ATI).
+- [ ] Test automatise des ecrans de menu : IMPOSSIBLE en l'etat avec
+      --type-keys de Phosphoric (renvoie la machine au BASIC, car OricTel
+      scanne la matrice VIA/PSG directement et non la ROM que --type-keys
+      alimente). Reproduit sur plusieurs commits : limite du harnais, pas
+      une regression. Piste : injection au niveau matrice cote emulateur.
 - [ ] Support Telestrat natif facilite par la base ACIA configurable
       (verifier l'adresse de l'ACIA integree Telestrat)
 - [ ] Compatibilite Oric-1 (ROM BASIC 1.0)

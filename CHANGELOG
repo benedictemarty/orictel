@@ -1,5 +1,40 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — le retour de `modem_connect` n'est plus ignoré
+
+Dernier maillon du bug de « première page illisible ». Le raccrochage automatique
+(`at_hangup`) traite la **cause**, mais il restait le **garde-fou** : `main.c` appelait
+`modem_connect(&vtx, srv_idx);` **sans lire sa valeur de retour**, et le commentaire
+d'origine assumait le comportement (« on entre en session sans connexion »).
+
+Conséquence : sans `CONNECT`, OricTel entrait quand même en session et décodait soit rien
+du tout (modem absent ou muet), soit — si le raccrochage avait échoué — un flux commencé
+**en cours de page**, affiché en bouillie.
+
+### Correction
+- Le site d'appel boucle désormais sur le retour :
+  ```c
+  while (!modem_connect(&vtx, srv_idx)) {
+      if (!connect_failed_page(&vtx, &srv_idx)) break;
+  }
+  ```
+- Nouvel écran `connect_failed_page()` laissant l'utilisateur décider :
+  `1 Réessayer` · `2 Choisir un autre serveur` (relance `select_server`, met à jour
+  `srv_idx`) · `3 Entrer en session quand même`.
+- L'ancien comportement reste accessible, mais devient un **choix explicite** au lieu
+  d'un défaut silencieux.
+
+### Vérification — et sa limite, honnêtement
+- Compilation OK, chaînes présentes dans `orictel.tap`, suite complète **318/318**.
+- La vérification visuelle de bout en bout **n'a pas pu être faite** : piloter les menus
+  d'OricTel sous Phosphoric avec `--type-keys` renvoie la machine au BASIC. OricTel scanne
+  la matrice clavier directement via le VIA/PSG (`keyboard.c`) et non la ROM, que
+  `--type-keys` alimente. **Reproduit à l'identique sur le commit précédent**, sans ce
+  changement : c'est une limite pré-existante du harnais, pas une régression. Cela
+  explique aussi l'absence de test automatisé des écrans de menu.
+- Reste donc à valider à la main sur le montage réel : lancer avec le modem laissé en
+  ligne, vérifier que l'écran d'échec apparaît si le raccrochage ne suffit pas.
+
 ## [Non publié] — le vrai LOCI tamponne 32 octets : budget de rendu à 1 ligne, overrun résorbé
 
 Découverte qui recadre tout le travail anti-overrun : le **firmware LOCI n'expose pas un

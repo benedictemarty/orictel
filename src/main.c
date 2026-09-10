@@ -683,6 +683,49 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
     return 0;
 }
 
+/* Ecran d'echec de connexion.
+ *
+ * Sans "CONNECT", la ligne ne porte AUCUN flux Videotex exploitable : soit
+ * rien du tout (modem absent/muet), soit - si le raccrochage a echoue - un
+ * flux commence EN COURS DE PAGE, que le decodeur affiche en bouillie
+ * (premiere page illisible). Entrer en session dans ces conditions ne peut
+ * rien donner de bon, donc on ne le fait plus en silence : l'utilisateur
+ * decide.
+ *
+ * Retour : 1 = reessayer, 0 = entrer en session malgre tout (ancien
+ * comportement, desormais un choix explicite). Peut modifier *srv_idx.
+ */
+static unsigned char connect_failed_page(vtx_context_t* ctx,
+                                         unsigned char* srv_idx)
+{
+    unsigned char key;
+
+    vtx_clear_page(ctx);
+    ui_print(ctx, 6, 11, "ECHEC DE CONNEXION", VTX_RED);
+    ui_print(ctx, 8,  3, "Pas de CONNECT: la ligne ne porte", VTX_WHITE);
+    ui_print(ctx, 9,  3, "aucun flux Videotex exploitable.", VTX_WHITE);
+    ui_menu_item(ctx, 12, "1 Reessayer");
+    ui_menu_item(ctx, 14, "2 Choisir un autre serveur");
+    ui_menu_item(ctx, 16, "3 Entrer en session quand meme");
+    display_render_all(ctx);
+
+    for (;;) {
+        key = keyboard_scan();
+        if (key == '1') {
+            return 1;
+        }
+        if (key == '2') {
+            vtx_clear_page(ctx);
+            *srv_idx = select_server(ctx);
+            vtx_clear_page(ctx);
+            return 1;
+        }
+        if (key == '3') {
+            return 0;
+        }
+    }
+}
+
 /* Indicateur connexion sur ligne 0, col 38:
  * 'C' inverse = connecte, 'F' inverse = deconnecte */
 static void set_connexion_indicator(vtx_context_t* ctx, unsigned char ch)
@@ -747,7 +790,17 @@ int main(void)
          * 100 ms suffisent pour la stabilisation. */
         (void)mode;
         delay_ms(100);
-        modem_connect(&vtx, srv_idx);
+
+        /* Le retour de modem_connect n'est PLUS ignore. Il l'etait, et une
+         * connexion echouee faisait quand meme entrer en session : OricTel
+         * decodait alors un flux inexistant ou commence en cours de page,
+         * d'ou la "premiere page illisible". On boucle tant que
+         * l'utilisateur veut reessayer. */
+        while (!modem_connect(&vtx, srv_idx)) {
+            if (!connect_failed_page(&vtx, &srv_idx)) {
+                break;      /* entree en session forcee, choix explicite */
+            }
+        }
         vtx_clear_page(&vtx);
     }
 
