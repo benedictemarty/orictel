@@ -100,8 +100,25 @@ unsigned char __fastcall__ serial_recv(void);
 unsigned char __fastcall__ serial_poll(void);
 
 /**
- * Etat de la porteuse (DCD). Non utilise actuellement par la boucle
- * principale ; conserve pour la symetrie d'API entre drivers.
+ * Bit 5 du registre de statut du 6551. ATTENTION, DEUX PIEGES :
+ *
+ *  1. LOGIQUE INVERSEE. Le bit est /DCD : un retour NON NUL signifie
+ *     "PAS de porteuse". Le nom de la fonction se lit naturellement a
+ *     l'envers - ne pas ecrire `if (serial_dcd())` en pensant "connecte".
+ *
+ *  2. SUR LOCI, CE BIT NE DIT PAS SI UN APPEL EST EN COURS. Le firmware
+ *     (~/loci/firmware/src/mia/oric/acia.c) ne pilote ACIA_STAT_NOT_DCD que
+ *     depuis deux choses : le montage du peripherique CDC et l'etat de DTR
+ *     (acia_do_cmd). Aucune de ses affectations n'est liee a l'etat de la
+ *     communication. Le bit passe donc a "porteuse presente" des que le
+ *     dongle est branche et DTR pose, et ne retombe PAS quand le serveur
+ *     raccroche.
+ *
+ * Consequence : ce bit est INUTILISABLE pour detecter une perte de porteuse
+ * sur ce montage. La detection passe par la reponse "NO CARRIER" du modem,
+ * cf. at_carrier_watch() dans at_modem.h.
+ *
+ * Conserve pour la symetrie d'API entre drivers ; aucun appelant a ce jour.
  */
 unsigned char __fastcall__ serial_dcd(void);
 

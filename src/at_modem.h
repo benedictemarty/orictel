@@ -71,4 +71,26 @@ unsigned char at_wait_ip(unsigned int timeout_ms);
  * la confirmation reelle est le ATZ suivant qui repond enfin "OK". */
 unsigned char at_hangup(void);
 
+/* --- Surveillance de la porteuse pendant une session -------------------- */
+
+/* Un modem Hayes qui perd la communication repasse en mode commande et emet
+ * "\r\nNO CARRIER\r\n". C'est le SEUL signal exploitable sur le montage
+ * LOCI + PicoWiFiModemUSB : le bit /DCD du 6551 n'y suit que le montage USB
+ * et DTR, pas l'etat de l'appel (voir serial.h).
+ *
+ * at_carrier_watch() consomme le flux de session octet par octet et retourne 1
+ * la premiere fois qu'une LIGNE "NO CARRIER" est reconnue (ancrage CR/LF, comme
+ * at_wait_response : pas de correspondance en sous-chaine).
+ *
+ * ATTENTION : un retour a 1 n'est qu'une PRESOMPTION. Rien n'interdit a une
+ * page Videotex de contenir ce texte en debut de ligne. L'appelant doit
+ * confirmer par le SILENCE qui suit : apres un vrai NO CARRIER le modem est
+ * repasse en mode commande et plus aucune donnee n'arrive, alors qu'une page
+ * qui contiendrait ces mots continue de defiler.
+ *
+ * at_carrier_reset() reinitialise l'etat (a l'entree en session, et apres
+ * chaque presomption traitee). */
+void at_carrier_reset(void);
+unsigned char at_carrier_watch(unsigned char byte);
+
 #endif /* AT_MODEM_H */

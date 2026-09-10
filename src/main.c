@@ -28,6 +28,12 @@
  * VERSION_TRACKING a chaque release. */
 #define ORICTEL_VERSION "v0.3.7"
 
+/* Iterations de boucle sans le moindre octet exigees pour CONFIRMER une
+ * presomption de perte de porteuse. Meme echelle que le timeout d'inactivite
+ * (30000 ~ 30 s) : ici ~2 s, assez pour distinguer un modem repasse en mode
+ * commande d'une page qui marque une pause. */
+#define CARRIER_CONFIRM_IDLE 2000u
+
 /* Contexte Videotex global */
 static vtx_context_t vtx;
 
@@ -729,6 +735,30 @@ static unsigned char connect_failed_page(vtx_context_t* ctx,
     }
 }
 
+/* Ecran de perte de porteuse. Retour : 1 = recomposer, 0 = rester en local.
+ *
+ * NB: cet ecran efface la page (vtx_clear_page) pour s'afficher ; le choix
+ * "rester" ne la restaure donc PAS - la communication etant terminee, plus
+ * rien ne la reenverra. Il rend simplement la main sans recomposer. */
+static unsigned char carrier_lost_page(vtx_context_t* ctx)
+{
+    unsigned char key;
+
+    vtx_clear_page(ctx);
+    ui_print(ctx, 6, 11, "PERTE DE PORTEUSE", VTX_RED);
+    ui_print(ctx, 8,  3, "Le modem a signale NO CARRIER:", VTX_WHITE);
+    ui_print(ctx, 9,  3, "la communication est terminee.", VTX_WHITE);
+    ui_menu_item(ctx, 12, "1 Reconnecter");
+    ui_menu_item(ctx, 14, "2 Rester en local");
+    display_render_all(ctx);
+
+    for (;;) {
+        key = keyboard_scan();
+        if (key == '1') return 1;
+        if (key == '2') return 0;
+    }
+}
+
 /* Indicateur connexion sur ligne 0, col 38:
  * 'C' inverse = connecte, 'F' inverse = deconnecte */
 static void set_connexion_indicator(vtx_context_t* ctx, unsigned char ch)
@@ -752,6 +782,9 @@ int main(void)
     unsigned int  idle_counter;     /* Compteur sans donnees */
     unsigned char connected;        /* 0=deconnecte, 1=connecte */
     unsigned      acia_base;        /* Base ACIA choisie (LOCI $0380) */
+    unsigned char srv_idx;          /* Serveur retenu (recompose sur perte de porteuse) */
+    unsigned char carrier_pending;  /* "NO CARRIER" vu, en attente de confirmation */
+    unsigned int  carrier_idle;     /* Silence accumule depuis cette presomption */
 
     vtx_init(&vtx);
     display_init();
@@ -767,7 +800,6 @@ int main(void)
 
     {
         unsigned char mode;
-        unsigned char srv_idx;
 
         /* ACIA montee avant les menus: la page Config WiFi (AT$SCAN...)
          * dialogue avec le PicoWiFiModemUSB des le menu. */
@@ -810,6 +842,9 @@ int main(void)
     /* Indicateur initial: F */
     connected = 0;
     idle_counter = 0;
+    carrier_pending = 0;
+    carrier_idle = 0;
+    at_carrier_reset();
     set_connexion_indicator(&vtx, 'F');
     display_render_all(&vtx);
 
@@ -830,6 +865,16 @@ int main(void)
         got_data = 0;
         while (serial_poll()) {
             byte = serial_recv();
+            /* Surveillance de la porteuse AVANT le decodeur : on observe le
+             * flux brut. Un "NO CARRIER" n'est qu'une presomption (une page
+             * Videotex pourrait contenir ces mots) ; tout octet de contenu
+             * qui suit l'infirme, et seul le silence la confirme plus bas. */
+            if (at_carrier_watch(byte)) {
+                carrier_pending = 1;
+                carrier_idle = 0;
+            } else if (carrier_pending && byte != 0x0D && byte != 0x0A) {
+                carrier_pending = 0;    /* la page continue: fausse alerte */
+            }
             vtx_process(&vtx, byte);
             got_data = 1;
             serial_tx_pump();
@@ -864,6 +909,27 @@ int main(void)
                 set_connexion_indicator(&vtx, 'C');
             }
         } else {
+            /* Confirmation de la perte de porteuse par le SILENCE : apres un
+             * vrai NO CARRIER le modem est repasse en mode commande et plus
+             * rien n'arrive. */
+            if (carrier_pending && ++carrier_idle >= CARRIER_CONFIRM_IDLE) {
+                carrier_pending = 0;
+                carrier_idle = 0;
+                connected = 0;
+                at_carrier_reset();
+                if (carrier_lost_page(&vtx)) {
+                    vtx_clear_page(&vtx);
+                    while (!modem_connect(&vtx, srv_idx)) {
+                        if (!connect_failed_page(&vtx, &srv_idx)) break;
+                    }
+                    vtx_clear_page(&vtx);
+                    keyboard_flush();
+                }
+                set_connexion_indicator(&vtx, 'F');
+                vtx.full_refresh = 1;
+                idle_counter = 0;
+                continue;
+            }
             if (idle_counter < 60000u) {
                 ++idle_counter;
             }

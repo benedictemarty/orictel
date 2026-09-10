@@ -32,7 +32,16 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Texte masque (concealed) avec revele au clic
 - [ ] Barre de statut interactive
 - [x] Gestion des erreurs de connexion WiFi (statut no ip / link up)
-- [ ] Reconnexion automatique apres perte de porteuse
+- [~] Reconnexion apres perte de porteuse : DETECTION FAITE (at_carrier_watch,
+      ligne "NO CARRIER" ancree + confirmation par le silence) et ecran de
+      reconnexion. Le DCD du 6551 est INUTILISABLE ici : le firmware LOCI ne
+      pilote ACIA_STAT_NOT_DCD que depuis le montage CDC et DTR, jamais depuis
+      l'etat de l'appel (5 affectations relues). Piege documente dans serial.h
+      (logique INVERSEE : non nul = PAS de porteuse).
+      RESTE : validation sur materiel (dongle debranche au moment du test) -
+      absence de faux positif en session reelle, et declenchement effectif
+      quand le serveur raccroche. Pas de recomposition silencieuse : choix
+      explicite, comme l'ecran d'echec de connexion.
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
 - [x] Protection SEI/PLP des acces octet ACIA (v0.3.6) : `send_raw` (ecriture

@@ -265,3 +265,32 @@ unsigned char at_hangup(void)
 
     return in_command;
 }
+
+/* --- Surveillance de la porteuse (voir at_modem.h) ----------------------- */
+
+static char          s_car_line[AT_LINE_MAX];
+static unsigned char s_car_len;
+
+void at_carrier_reset(void)
+{
+    s_car_len = 0;
+}
+
+unsigned char at_carrier_watch(unsigned char byte)
+{
+    /* Ancrage sur les lignes, comme at_wait_response : un "NO CARRIER" au
+     * milieu d'un texte ne declenche rien, seul un DEBUT de ligne compte. */
+    if (byte == 0x0D || byte == 0x0A) {
+        unsigned char hit = 0;
+        s_car_line[s_car_len] = 0;
+        if (s_car_len && str_prefix(s_car_line, "NO CARRIER")) {
+            hit = 1;
+        }
+        s_car_len = 0;
+        return hit;
+    }
+    if (s_car_len < AT_LINE_MAX - 1) {
+        s_car_line[s_car_len++] = (char)byte;
+    }
+    return 0;
+}

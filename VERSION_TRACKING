@@ -9,6 +9,7 @@
 | orictel.tap (v0.3.5)| 0.3.5     | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
 | orictel.tap (v0.3.4)| 0.3.4     | 2026-07-03 | REGRESSION gel (Cmd=$07, TIC=01=IRQ TX) |
 | orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | REGRESSION gel (Cmd=$05, TIC=01=IRQ TX) |
+| at_carrier_watch + ecran porteuse| 0.3.15 | 2026-09-10 | detection NO CARRIER (ancree + silence), 5 tests ; DCD inutilisable sur LOCI (documente) |
 | make fuzz (auto-verifiant)| 0.3.14 | 2026-09-10 | FUZZ_MIN_RATE : echoue si le debit s effondre (libFuzzer sort 0 meme a 4 executions) |
 | test_servers.sh + vtx_page.py| 0.1.0 | 2026-09-10 | fidelite du decodage sur vrais serveurs (PAVI 3617 + MiniPavi), ancres stables |
 | chaine co-simulee (run-loci-cosim)| - | 2026-09-10 | VALIDEE : firmware LOCI reel + dongle physique, page PAVI complete (double hauteur incluse) |

@@ -1,5 +1,56 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — perte de porteuse : le DCD est inutilisable ici, détection par `NO CARRIER`
+
+### Le DCD ne peut pas servir sur ce montage
+En voulant câbler `serial_dcd()` — jamais appelé jusqu'ici — la lecture du firmware LOCI
+(`~/loci/firmware/src/mia/oric/acia.c`) montre que `ACIA_STAT_NOT_DCD` n'est piloté que par
+**deux choses** : le montage du périphérique CDC et l'état de DTR (`acia_do_cmd`). Les
+cinq affectations de ce bit (lignes 117, 132, 228, 231, 353) ont été relues : **aucune**
+n'est liée à l'état de l'appel.
+
+Le bit passe donc à « porteuse présente » dès que le dongle est branché et DTR posé, et ne
+retombe pas quand le serveur raccroche. Inutilisable pour détecter une perte de porteuse.
+
+### Un piège désamorcé au passage
+`serial_dcd()` renvoie `status & 0x20`, soit **non nul = PAS de porteuse** (logique inversée
+du 6551), alors que sa documentation disait seulement « État de la porteuse (DCD) » — qui se
+lit exactement à l'envers. Personne ne l'appelait ; le premier à le câbler se serait trompé
+de sens. La documentation nomme désormais les deux pièges explicitement.
+
+### Détection réelle : la réponse `NO CARRIER`
+Un modem Hayes qui perd la communication repasse en mode commande et émet
+`\r\nNO CARRIER\r\n`. C'est le seul signal exploitable ici.
+
+`at_carrier_watch()` (dans `at_modem.c`, donc **testable sur l'hôte**) consomme le flux de
+session et signale une ligne `NO CARRIER`, **ancrée sur les délimiteurs** comme
+`at_wait_response` — pas de correspondance en sous-chaîne.
+
+**Une détection n'est qu'une présomption** : rien n'interdit à une page Videotex de contenir
+ces mots. La confirmation vient du **silence** — après un vrai `NO CARRIER` le modem est en
+mode commande et plus rien n'arrive, alors qu'une page qui les citerait continuerait de
+défiler. Tout octet de contenu qui suit annule la présomption ; ~2 s de silence la confirme.
+
+### Écran de perte de porteuse
+`1 Reconnecter` (recompose le même serveur, avec l'écran d'échec en secours) ou
+`2 Rester en local`. Pas de recomposition silencieuse : cohérent avec l'écran d'échec de
+connexion, où l'entrée en session est aussi un choix explicite.
+
+Largeur des libellés vérifiée (≤ 40 colonnes), après le libellé tronqué trouvé sur l'écran
+d'échec.
+
+### Tests
+- `test_atmodem` : **28/28** (5 nouveaux) — ligne reconnue, forme `NO CARRIER (00:05:46)`
+  du PicoWiFi, **absence de faux positif en milieu de ligne**, ligne incomplète, purge.
+- Suite complète : **328/328**.
+
+### Non encore validé
+Le dongle a été débranché en cours de session (`/dev/ttyACM*` absent) : **la vérification
+matérielle n'a pas pu être faite**. Restent à observer sur le vrai montage : l'absence de
+faux positif sur une session réelle (le veilleur tourne sur chaque octet reçu) et le
+déclenchement effectif quand le serveur raccroche. `make test-servers` a correctement
+basculé en SKIP.
+
 ## [Non publié] — audit des garde-fous : le fuzzing se surveille désormais lui-même
 
 Suite à la découverte que `make fuzz` ne fuzzait plus rien depuis des mois sans que rien ne

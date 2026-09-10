@@ -215,6 +215,50 @@ int main(void)
     rx_infinite = 1;
     CHECK(at_hangup() == 0, "at_hangup: flux continu -> sortie bornee");
     rx_infinite = 0;
+    /* ------------------------------------------------------------------ */
+    /*  Surveillance de la porteuse (at_carrier_watch)                     */
+    /* ------------------------------------------------------------------ */
+    {
+        const char* s1 = "\r\nNO CARRIER\r\n";
+        int hit = 0, k;
+        at_carrier_reset();
+        for (k = 0; s1[k]; ++k) if (at_carrier_watch((unsigned char)s1[k])) hit = 1;
+        CHECK(hit == 1, "carrier: ligne NO CARRIER reconnue");
+
+        /* Ancrage sur les lignes : en MILIEU de ligne, aucune detection.
+         * C'est ce qui evite qu'une page Videotex citant ces mots ne coupe
+         * la session. */
+        at_carrier_reset();
+        hit = 0;
+        s1 = "\r\nTAPEZ NO CARRIER POUR QUITTER\r\n";
+        for (k = 0; s1[k]; ++k) if (at_carrier_watch((unsigned char)s1[k])) hit = 1;
+        CHECK(hit == 0, "carrier: pas de faux positif en milieu de ligne");
+
+        /* Une ligne qui COMMENCE par NO CARRIER est bien reconnue meme
+         * suivie d'autre chose (forme "NO CARRIER (00:05:46)" du Pico). */
+        at_carrier_reset();
+        hit = 0;
+        s1 = "\r\nNO CARRIER (00:05:46)\r\n";
+        for (k = 0; s1[k]; ++k) if (at_carrier_watch((unsigned char)s1[k])) hit = 1;
+        CHECK(hit == 1, "carrier: forme PicoWiFi avec duree reconnue");
+
+        /* Sans delimiteur de fin, rien n'est conclu (ligne incomplete). */
+        at_carrier_reset();
+        hit = 0;
+        s1 = "NO CARRIE";
+        for (k = 0; s1[k]; ++k) if (at_carrier_watch((unsigned char)s1[k])) hit = 1;
+        CHECK(hit == 0, "carrier: ligne incomplete ne declenche pas");
+
+        /* at_carrier_reset purge l'etat en cours. */
+        at_carrier_reset();
+        at_carrier_watch('N'); at_carrier_watch('O');
+        at_carrier_reset();
+        hit = 0;
+        s1 = " CARRIER\r";
+        for (k = 0; s1[k]; ++k) if (at_carrier_watch((unsigned char)s1[k])) hit = 1;
+        CHECK(hit == 0, "carrier: reset purge la ligne en cours");
+    }
+
 
     printf("\n=== Resultats: %d/%d passes ===\n", tests_passed, tests_run);
     return (tests_passed == tests_run) ? 0 : 1;
