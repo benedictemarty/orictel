@@ -9,7 +9,7 @@
 | orictel.tap (v0.3.5)| 0.3.5     | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
 | orictel.tap (v0.3.4)| 0.3.4     | 2026-07-03 | REGRESSION gel (Cmd=$07, TIC=01=IRQ TX) |
 | orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | REGRESSION gel (Cmd=$05, TIC=01=IRQ TX) |
-| at_carrier_watch + ecran porteuse| 0.3.15 | 2026-09-10 | VALIDE MATERIEL (NO CARRIER 00:01:04 -> ecran affiche) ; DCD inutilisable sur LOCI (documente) |
+| at_carrier_watch + ecran porteuse| 0.3.16 | 2026-09-10 | VALIDE MATERIEL de bout en bout : detection, ecran, delai 3,6-5,6 s, bouton Reconnecter (ATZ/ATI/ATDT) |
 | PICO_DEV auto-detecte| - | 2026-09-10 | le dongle se re-enumere (ttyACM0 -> ttyACM1) : port fige = echecs intermittents |
 | make fuzz (auto-verifiant)| 0.3.14 | 2026-09-10 | FUZZ_MIN_RATE : echoue si le debit s effondre (libFuzzer sort 0 meme a 4 executions) |
 | test_servers.sh + vtx_page.py| 0.1.0 | 2026-09-10 | fidelite du decodage sur vrais serveurs (PAVI 3617 + MiniPavi), ancres stables |

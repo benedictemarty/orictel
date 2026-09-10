@@ -1,5 +1,34 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — délai de confirmation de perte de porteuse mesuré sur matériel (3,6-5,6 s)
+
+Le dernier point ouvert est clos. `CARRIER_CONFIRM_IDLE = 500` était une règle de trois
+depuis la mesure à 2000 ; il est désormais **observé**.
+
+Session réelle PAVI 3617, raccrochage provoqué par `CTRL+C` (Connexion/Fin), écran encadré
+par cinq vidages mémoire :
+
+| instant | écran |
+|---|---|
+| `NO CARRIER` reçu | **60,36 s** |
+| 62 s, 64 s | session |
+| 66 s, 68 s, 72 s | **PERTE DE PORTEUSE** |
+
+Délai réel : **3,6 à 5,6 s**, conforme aux ~4 s calculés. Le commentaire porte maintenant
+l'observation, plus l'extrapolation.
+
+Vérifié dans la foulée que le délai raccourci ne provoque pas de faux positif :
+`make test-servers` passe, contrôle anti-fausse-perte inclus.
+
+La mise en garde reste, et elle est réelle : la valeur est un **nombre d'itérations**, pas
+une durée. Toute optimisation du rendu ou du décodeur la raccourcit mécaniquement — les
+quatre passes d'optimisation de cette session auraient à elles seules divisé ce délai par
+plusieurs si la constante avait été calibrée avant.
+
+### Tests
+- Suite complète : **328/328**.
+- `make test-servers` : fidélité OK.
+
 ## [Non publié] — « 1 Reconnecter » validé sur matériel, et délai de confirmation corrigé
 
 ### Le flux complet de reconnexion fonctionne

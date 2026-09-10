@@ -32,7 +32,7 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Texte masque (concealed) avec revele au clic
 - [ ] Barre de statut interactive
 - [x] Gestion des erreurs de connexion WiFi (statut no ip / link up)
-- [~] Reconnexion apres perte de porteuse : DETECTION FAITE (at_carrier_watch,
+- [x] Reconnexion apres perte de porteuse : DETECTION FAITE (at_carrier_watch,
       ligne "NO CARRIER" ancree + confirmation par le silence) et ecran de
       reconnexion. Le DCD du 6551 est INUTILISABLE ici : le firmware LOCI ne
       pilote ACIA_STAT_NOT_DCD que depuis le montage CDC et DTR, jamais depuis
@@ -45,8 +45,10 @@ utilisable avec les serveurs Minitel modernes via Internet.
       silencieuse : choix explicite, comme l'ecran d'echec de connexion.
       "1 Reconnecter" VALIDE de bout en bout sur materiel (CTRL+C -> serveur
       raccroche -> NO CARRIER 00:00:16 -> appui sur 1 -> ATZ/ATI/ATDT -> page).
-      RESTE : confirmer le nouveau delai CARRIER_CONFIRM_IDLE=500 (~4 s) sur
-      materiel - seule la valeur 2000 (mesuree a 13-21 s) l'a ete.
+      Delai CARRIER_CONFIRM_IDLE=500 MESURE sur materiel : NO CARRIER a
+      60,36 s, ecran absent a 64 s et present a 66 s -> 3,6 a 5,6 s. Attention,
+      c'est un NOMBRE D'ITERATIONS et non une duree : toute optimisation du
+      rendu ou du decodeur le raccourcit mecaniquement, a re-mesurer alors.
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
 - [x] Protection SEI/PLP des acces octet ACIA (v0.3.6) : `send_raw` (ecriture

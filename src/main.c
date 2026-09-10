@@ -40,11 +40,16 @@
  * le compteur d'inactivite (celui-ci tourne dans une boucle differemment
  * chargee). 15 a 20 s avant de prevenir l'utilisateur, c'est trop long.
  *
- * 500 iterations -> environ 4 s sur la meme base. La marge anti-faux-positif
- * reste large : 4 s de silence, c'est ~480 octets a 1200 bauds, une pause
- * qu'un serveur en pleine emission de page ne fait pas.
+ * 500 iterations : MESURE SUR MATERIEL a son tour (session PAVI, NO CARRIER
+ * recu a 60,36 s, ecran absent a 64 s et present a 66 s) -> 3,6 a 5,6 s. La
+ * regle de trois depuis la mesure a 2000 tenait donc.
  *
- * A re-mesurer si la boucle de session change de cout (make bench-render). */
+ * La marge anti-faux-positif reste large : ~4 s de silence, c'est ~480 octets
+ * a 1200 bauds, une pause qu'un serveur en pleine emission de page ne fait pas.
+ *
+ * A RE-MESURER si la boucle de session change de cout : la valeur est un
+ * NOMBRE D'ITERATIONS, pas une duree, et toute optimisation du rendu ou du
+ * decodeur la raccourcit mecaniquement (cf. make bench-render). */
 #define CARRIER_CONFIRM_IDLE 500u
 
 /* Contexte Videotex global */
