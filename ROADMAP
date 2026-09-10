@@ -180,11 +180,14 @@ utilisable avec les serveurs Minitel modernes via Internet.
       testable sur l'hote (faux modem) : matcher ancre sur les lignes
       (anti-faux-positif OK/CONNECT), trace de debug derriere #ifdef DEBUG,
       14 tests unitaires (OK/CONNECT/NO CARRIER/timeout/overrun/ATI).
-- [ ] Test automatise des ecrans de menu : IMPOSSIBLE en l'etat avec
-      --type-keys de Phosphoric (renvoie la machine au BASIC, car OricTel
-      scanne la matrice VIA/PSG directement et non la ROM que --type-keys
-      alimente). Reproduit sur plusieurs commits : limite du harnais, pas
-      une regression. Piste : injection au niveau matrice cote emulateur.
+- [x] Test automatise des ecrans de menu (make test-menus, 5 checks) : etait
+      IMPOSSIBLE tant que --type-keys de Phosphoric renvoyait la machine au
+      BASIC (OricTel scanne la matrice VIA/PSG, pas la ROM). Corrige cote
+      Phosphoric >= v1.118.0-alpha. Le test rejoue splash -> interface ->
+      mode -> serveur -> echec ATZ -> at_hangup -> ecran d'echec, et verifie
+      que "1 Reessayer" relance une tentative. Assertion sur le BUFFER ECRAN
+      en RAM (cellule = 6 octets, caractere a l'offset 0 -> pas de 6), pas sur
+      des pixels. SKIP si emulateur absent ou < v1.118.
 - [ ] Support Telestrat natif facilite par la base ACIA configurable
       (verifier l'adresse de l'ACIA integree Telestrat)
 - [ ] Compatibilite Oric-1 (ROM BASIC 1.0)

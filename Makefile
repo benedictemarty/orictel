@@ -146,7 +146,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-menus test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -310,7 +310,7 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-serial test-atmodem test-keyboard test-ui test-serial-noraw test-bridge
+test: test-videotex test-serial test-atmodem test-keyboard test-ui test-serial-noraw test-menus test-bridge
 
 # Garde-fou reception FIDELE au 6551 reel : rejoue une rafale sur $0380 via le
 # backend `file:` de Phosphoric SANS --serial-buffer (RX 1 octet), verifie via
@@ -318,6 +318,13 @@ test: test-videotex test-serial test-atmodem test-keyboard test-ui test-serial-n
 # une ROM (surcharge EMU=/ROM=) ; en leur absence (CI host-only) -> SKIP (rc 0).
 test-serial-noraw: diag.tap
 	@$(TESTDIR)/test_serial_noraw.sh
+
+# Parcours de menus de bout en bout sous Phosphoric headless : jusqu'a l'ecran
+# d'echec de connexion (non-regression du retour de modem_connect ignore, qui
+# faisait entrer en session sur un flux inexistant). Necessite Phosphoric
+# >= v1.118 (avant, --type-keys renvoyait la machine au BASIC) ; sinon SKIP.
+test-menus: $(OUTPUT)
+	@$(TESTDIR)/test_menus.sh
 
 test-videotex: $(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_videotex \

@@ -706,7 +706,10 @@ static unsigned char connect_failed_page(vtx_context_t* ctx,
     ui_print(ctx, 9,  3, "aucun flux Videotex exploitable.", VTX_WHITE);
     ui_menu_item(ctx, 12, "1 Reessayer");
     ui_menu_item(ctx, 14, "2 Choisir un autre serveur");
-    ui_menu_item(ctx, 16, "3 Entrer en session quand meme");
+    /* Libelles bornes a 28 caracteres : ui_menu_item ecrit en colonne 12, et
+     * ui_print clippe a 40 colonnes. "3 Entrer en session quand meme" (30 car.)
+     * s'affichait tronque en "...quand me". */
+    ui_menu_item(ctx, 16, "3 Entrer quand meme");
     display_render_all(ctx);
 
     for (;;) {

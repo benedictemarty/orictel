@@ -1,5 +1,40 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — écran d'échec vérifié de bout en bout, et test de menus automatisé
+
+`--type-keys` de Phosphoric ayant été corrigé (>= **v1.118.0-alpha**), la vérification qui
+était impossible devient faisable — et un test automatisé remplace la validation manuelle.
+
+### Vérification du correctif `modem_connect`
+Parcours complet sous émulateur headless, aucun modem qui répond : splash → interface →
+mode → serveur → échec `ATZ` → `at_hangup` → second échec `ATZ` → **écran d'échec**. Les
+trois options ont été exercées : `1 Réessayer` relance bien une tentative (retour à
+`ATZ...`), `3 Entrer quand même` entre en session (page vide, indicateur `F` inversé).
+Le comportement corrigé est donc confirmé sur cible, pas seulement à la lecture du code.
+
+### Défaut trouvé par cette vérification : libellé tronqué
+L'écran affichait « **3 Entrer en session quand me** ». `ui_menu_item` écrit en colonne 12
+et le libellé faisait 30 caractères, soit 42 colonnes : `ui_print` clippait proprement (pas
+de débordement, le comportement testé), mais le texte était coupé. Raccourci en
+« 3 Entrer quand meme » (19 car., 31 colonnes). C'est exactement le genre de défaut qu'une
+relecture de code ne montre pas.
+
+### Nouveau : `make test-menus` (5 checks)
+`tests/test_menus.sh` rejoue ce parcours et vérifie l'écran d'échec. L'assertion ne compare
+**pas des pixels** (fragile) : elle cherche le texte dans le **buffer écran Videotex** de la
+RAM, où chaque cellule fait 6 octets et le caractère est à l'offset 0 — la chaîne apparaît
+donc avec un pas de 6. Intégré à `make test`.
+
+C'est la non-régression du bug de « première page illisible » : sans ce garde-fou, le
+retour de `modem_connect` pourrait être ré-ignoré sans que rien ne le signale.
+
+Le test **SKIP proprement** si l'émulateur est absent, ou trop ancien pour `--type-keys`
+(le bundle `tools/oric1-emu-sdl` est resté en v1.27.6 ; le build live est en v1.118).
+La ROADMAP notait ce test comme impossible : l'entrée est retirée.
+
+### Tests
+- Suite complète : **323/323** (318 + 5 nouveaux).
+
 ## [Non publié] — décodeur (suite) : `put_char` dégraissé, `vtx_process` à 1,50×
 
 Cinquième et dernière passe d'optimisation. Poursuite du travail sur `put_char`, guidée

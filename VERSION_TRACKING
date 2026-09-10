@@ -9,6 +9,7 @@
 | orictel.tap (v0.3.5)| 0.3.5     | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
 | orictel.tap (v0.3.4)| 0.3.4     | 2026-07-03 | REGRESSION gel (Cmd=$07, TIC=01=IRQ TX) |
 | orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | REGRESSION gel (Cmd=$05, TIC=01=IRQ TX) |
+| test_menus.sh (parcours menus)| 0.1.0 | 2026-09-10 | 5 checks : ecran d echec verifie sur cible (Phosphoric >= v1.118) ; libelle tronque corrige |
 | videotex.c (decodeur, suite)| 0.3.12 | 2026-09-10 | touch_here + cell statique : vtx_process 104 877 cy (1,50x depuis le debut), jsr put_char 66 -> 12 |
 | videotex.c (decodeur optimise)| 0.3.11 | 2026-09-10 | tables offsets + s_ctx : vtx_process 157 806 -> 119 848 cy ; make fuzz repare (1,68M runs) |
 | display_asm (blit dbl hauteur)| 0.3.10 | 2026-09-10 | blit_cell4x2 : ligne double hauteur 251 315 -> 133 986 cy ; passe de rendu 150 853 cy (4,0x depuis le debut) |
