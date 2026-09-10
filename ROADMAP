@@ -103,6 +103,17 @@ utilisable avec les serveurs Minitel modernes via Internet.
         render_cell_hires (~1 590 cy pour 8 octets contre 190 cy pour
         blit_cell8) qui domine le pire cas double hauteur (251 315 cy/ligne) ;
         vtx_process (3 930 cy/caractere).
+      * RECADRAGE MAJEUR : le vrai firmware LOCI n'expose PAS un 6551 nu. Il
+        place un anneau de 32 octets devant le registre de donnees
+        (~/loci/firmware/src/mia/oric/acia.c, ACIA_RX_BUFFER_SIZE), ~30
+        utilisables -> tolerance ~250 000 cycles par passe, pas 8 333.
+        run-loci-real (sans --serial-buffer) est donc PLUS PESSIMISTE que le
+        materiel reel : bon garde-fou, mauvaise reference.
+      * FAIT (2e passe) : budget de display_render() ramene de 2 lignes a 1.
+        Passe : 323 149 -> 159 388 cy (20,3 temps-octet), pire cas double
+        hauteur 251 315 cy (30,2) -> SOUS l'anneau LOCI. Debit inchange (la
+        boucle de main.c rappelle display_render tant qu'aucun octet n'attend).
+        Cumule au hissage : 606 227 -> 159 388 cy, soit 3,8x.
       * MAIS la mesure montre que cela ne SUFFIT PAS : a 6,8 s par page, le
         ring devrait tenir plusieurs centaines d'octets et l'affichage
         traineraient des secondes derriere le flux. Le prealable est

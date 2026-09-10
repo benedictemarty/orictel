@@ -1,5 +1,57 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — le vrai LOCI tamponne 32 octets : budget de rendu à 1 ligne, overrun résorbé
+
+Découverte qui recadre tout le travail anti-overrun : le **firmware LOCI n'expose pas un
+6551 nu**. Il place un anneau de 32 octets devant le registre de données
+(`~/loci/firmware/src/mia/oric/acia.c`, `ACIA_RX_BUFFER_SIZE 32`), rempli depuis l'USB-CDC
+et vidé d'un octet dans `acia_io->data` dès que le 6502 a consommé le précédent
+(~30 octets réellement utilisables, 2 slots de garde).
+
+### Conséquences
+- La tolérance réelle par passe de rendu n'est pas de **8 333** cycles (1 octet) mais de
+  **~250 000** (30 octets à 1200 bauds).
+- `run-loci-real`, la cible qui a produit l'affichage corrompu, tourne **sans**
+  `--serial-buffer` : elle est donc **plus pessimiste que le matériel réel**. Utile comme
+  garde-fou, trompeuse comme référence.
+- Sous `--loci-emu` (co-simulation du vrai firmware), c'est bien l'anneau de 32 octets
+  qui s'applique.
+
+### Correction : budget de rendu ramené de 2 lignes à 1
+`display_render()` rendait 2 lignes par passe, soit 323 149 cycles — **au-dessus** de
+l'anneau, donc perte d'octets. À 1 ligne :
+
+| | avant (budget 2) | après (budget 1) |
+|---|---|---|
+| passe `display_render()` | 323 149 cy — 38,8 temps-octet | **159 388 cy — 20,3 temps-octet** |
+| pire cas (ligne double hauteur) | — | 251 315 cy — 30,2 temps-octet |
+
+**Le débit n'est pas affecté** : la boucle de `main.c` rappelle `display_render()` tant
+qu'il reste des lignes sales *et* qu'aucun octet n'attend. Seule la granularité entre deux
+`serial_poll()` change — précisément ce qu'on cherchait à resserrer.
+
+Cumulé au hissage des pointeurs de ligne, la passe de rendu passe de **606 227 à 159 388
+cycles, soit 3,8×**, et de 74 à 20,3 temps-octet.
+
+### Garde-fou d'empreinte rendu canonique
+L'empreinte SHA-256 du framebuffer dépendait du budget (à budget 1, le scénario rendait 8
+lignes au lieu de 16) : elle mesurait le budget autant que le rendu. Le banc rend désormais
+une **page canonique** (lignes hybrides, brutes, G1 et double hauteur) via
+`display_render_all()` avant de prendre l'empreinte — indépendante du budget, elle ne bouge
+que si le rendu lui-même change.
+
+Vérification : `display.c` d'origine et `display.c` optimisé donnent `6c2c39eb…`,
+**identique**. Les deux optimisations sont strictement pixel-exactes.
+
+### Verdict du banc, désormais donné sur les deux montages
+`make bench-render` affiche le résultat contre les deux seuils :
+- vrai LOCI (anneau ~30 octets) : **OK, sous le tampon** ;
+- `run-loci-real` (1 octet) : overrun résiduel ~19 octets — attendu, ce montage étant
+  plus pessimiste que le matériel.
+
+### Tests
+- Suite complète : **318/318**, aucune régression.
+
 ## [Non publié] — optimisation du rendu : hissage des pointeurs de ligne (1,9×, pixel-exact)
 
 Première passe d'optimisation du moteur de rendu, guidée par `make bench-render`.

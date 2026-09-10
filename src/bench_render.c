@@ -324,6 +324,26 @@ static void bench_all(void)
     }
 }
 
+/* Page canonique : contenu mixte (hybride, brut, G1, double hauteur) rendu
+ * INTEGRALEMENT via display_render_all(). L'empreinte du framebuffer prise
+ * ensuite ne depend donc PAS du budget de display_render() (nombre de lignes
+ * par passe) : elle ne bouge que si le RENDU LUI-MEME change. C'est le
+ * garde-fou pixel-exact des optimisations. */
+static void render_canonical_page(void)
+{
+    unsigned char row;
+    for (row = 0; row < VTX_ROWS; ++row) {
+        switch (row & 3) {
+            case 0: fill_row_hybrid(row); break;
+            case 1: fill_row_raw(row);    break;
+            case 2: fill_row_g1(row);     break;
+            default: fill_row_dblh(row);  break;
+        }
+    }
+    dirty_all();
+    display_render_all(&vtx);
+}
+
 int main(void)
 {
     vtx_init(&vtx);
@@ -334,6 +354,9 @@ int main(void)
     vtx.cur_visible = 0;        /* pas de barre curseur : mesure du rendu seul */
 
     bench_all();
+
+    /* Etat final deterministe et independant du budget de rendu. */
+    render_canonical_page();
 
     mark(MK_DONE);
     for (;;) { }

@@ -816,10 +816,24 @@ static void render_dirty(vtx_context_t* ctx, unsigned char max_rows)
     }
 }
 
-/* Boucle principale: rendu budgete pour garder le clavier reactif */
+/* Boucle principale: rendu budgete pour garder le clavier reactif ET borner
+ * la fenetre pendant laquelle la reception n'est pas relue.
+ *
+ * BUDGET = 1 LIGNE (etait 2). Le vrai firmware LOCI place un anneau de 32
+ * octets devant le registre de donnees (src/mia/oric/acia.c, ACIA_RX_BUFFER_SIZE),
+ * soit ~30 octets utilisables = ~250 000 cycles de tolerance a 1200 bauds.
+ * Une passe de 2 lignes coutait 323 149 cy (mesure make bench-render) : au-dela
+ * du tampon, donc perte d'octets. A 1 ligne, le pire cas (double hauteur,
+ * 251 315 cy) repasse sous la barre et le cas courant (hybride) tombe a
+ * ~150 000 cy.
+ *
+ * Le DEBIT n'est pas affecte : la boucle de main.c rappelle display_render()
+ * tant qu'il reste des lignes sales ET qu'aucun octet n'attend. Seule la
+ * granularite entre deux serial_poll() change - c'est precisement ce qu'on
+ * veut resserrer. */
 void display_render(vtx_context_t* ctx)
 {
-    render_dirty(ctx, 2);
+    render_dirty(ctx, 1);
 }
 
 /* Menus/splash: rendu complet en un appel (pas de boucle de rendu

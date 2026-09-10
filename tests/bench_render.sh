@@ -123,17 +123,26 @@ for i in sorted(runs):
     print("%-58s %8d %8d %8d %10.1f" % (LABELS.get(i, "id %d" % i), mn, av, mx, mx / BUDGET))
 print("-" * 96)
 print("* octets = combien d'octets a 1200 bauds arrivent pendant la region (max).")
-print("  Le 6551 ne tamponne QU'UN octet : au-dela de 1.0, les suivants sont perdus.")
+print()
+print("SEUILS (deux montages, deux tolerances tres differentes) :")
+print("  - Vrai LOCI / --loci-emu : le firmware place un anneau de 32 octets devant")
+print("    le registre (src/mia/oric/acia.c, ACIA_RX_BUFFER_SIZE), ~30 utilisables")
+print("    -> tolerance ~%d cycles par passe de rendu." % (30 * BUDGET))
+print("  - run-loci-real (backend com: SANS --serial-buffer) : registre d'UN octet,")
+print("    tolerance %d cycles. Plus pessimiste que le materiel reel." % BUDGET)
 print()
 p1 = runs.get(1)
 if p1:
     lost = max(p1) / BUDGET
-    verdict = "OVERRUN CONFIRME" if lost > 1.0 else "dans le budget"
-    print("VERDICT : une passe display_render() = %d cycles au pire = %.1f temps-octet -> %s"
-          % (max(p1), lost, verdict))
-    if lost > 1.0:
-        print("          ~%d octets perdus par passe de rendu a 1200 bauds."
-              % int(lost - 1 + 0.5))
+    print("VERDICT : une passe display_render() = %d cycles au pire = %.1f temps-octet."
+          % (max(p1), lost))
+    print("  vrai LOCI (anneau ~30 octets) : %s"
+          % ("OK, sous le tampon" if lost <= 30 else
+             "OVERRUN, ~%d octets perdus" % int(lost - 30 + 0.5)))
+    print("  run-loci-real (1 octet)       : %s"
+          % ("OK" if lost <= 1.0 else
+             "overrun, ~%d octets perdus (montage plus pessimiste que le reel)"
+             % int(lost - 1 + 0.5)))
 PY
 
 # Empreinte du framebuffer HIRES ($A000-$BF3F). Le banc rend une sequence

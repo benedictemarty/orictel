@@ -9,6 +9,7 @@
 | orictel.tap (v0.3.5)| 0.3.5     | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
 | orictel.tap (v0.3.4)| 0.3.4     | 2026-07-03 | REGRESSION gel (Cmd=$07, TIC=01=IRQ TX) |
 | orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | REGRESSION gel (Cmd=$05, TIC=01=IRQ TX) |
+| display.c (budget 1 ligne)| 0.3.9 | 2026-09-10 | passe de rendu 159 388 cy (20,3 temps-octet) : sous l anneau 32 octets du firmware LOCI |
 | display.c (rendu optimise)| 0.3.8 | 2026-09-10 | hissage pointeurs de ligne : display_render 1,88x (606k -> 323k cy), pixel-exact |
 | bench.tap (banc rendu)| 0.1.1 | 2026-09-10 | + empreinte framebuffer (garde-fou pixel-exact), pre-scans mesures a ligne variable |
 | bench.tap (banc rendu)| 0.1.0 | 2026-09-10 | make bench-render : cout du rendu en cycles, overrun RX chiffre a 74 temps-octet/passe |
