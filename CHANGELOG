@@ -1,5 +1,49 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — `make test-servers` : fidélité du décodage contre de vrais serveurs
+
+Le bug de « première page illisible » n'avait été détecté que parce qu'un humain a regardé
+une capture. Ce test comble ce trou : il se connecte pour de bon à un serveur Minitel via
+la chaîne co-simulée (firmware LOCI réel + PicoWiFiModemUSB physique), extrait la page
+**décodée** de la RAM et vérifie qu'elle contient les ancres attendues. Une régression du
+décodeur ou du moteur de rendu les fait disparaître, et le test tombe.
+
+### `tests/vtx_page.py` — extraction de la page depuis un vidage RAM
+Le buffer écran (`vtx_context_t.screen`, 25×40 cellules de 6 octets) est localisé **par
+signature** et non par adresse — la map de liens change à chaque build : sur 1000 cellules
+consécutives, `charset<=2`, `fg<=7`, `bg<=7`, `size<=3`, ce qu'une zone mémoire quelconque
+ne satisfait pas sur 6 Ko d'affilée. Utilisable seul (`vtx_page.py dump.bin`) pour afficher
+une page, ou en mode assertion.
+
+**Piège rencontré** : ne pas contraindre `ch` à `0x7F`. Les accents sont stockés avec des
+codes G2 **internes ≥ 0x80** (`0x80` = é, cf. `VTX_STATE_SS2_ACC`) — huit cellules de la
+page PAVI, les « É » de TÉLÉTEL et PÉRIODE. Mon premier détecteur les rejetait et ne
+trouvait rien. Ils sont désormais translittérés vers la lettre de base, et la comparaison
+est insensible à la casse (le serveur envoie « é » minuscule au milieu d'un mot en
+capitales).
+
+### Ancres stables uniquement
+La page PAVI affiche une période tarifaire et un tarif qui dépendent de **l'heure**
+(« PÉRIODE ROUGE », « 0,77F »), la page MiniPavi un numéro de session (« Pin:9738 ») :
+aucun ne sert d'ancre, sinon le test serait instable. Les ancres portent sur la structure
+du service, qui ne bouge pas.
+
+| serveur | ancres |
+|---|---|
+| PAVI 3617 | `TELETEL 1/2/3`, `DU SERVICE`, `FIN DE COMMUNICATION`, `LISTE DES SERVICES` |
+| MiniPavi | `Minitel is still alive`, `www.minipavi.fr`, `Code du service`, `Annuaire des services` |
+
+Le test vérifie aussi que l'écran d'échec **n'est pas** affiché, c'est-à-dire que la
+connexion a réellement abouti.
+
+### Hors de `make test`
+~2 min par serveur (1200 bauds en temps réel), et tributaire du réseau et du dongle : cible
+dédiée `make test-servers` (`ALL=1` pour les deux serveurs). **SKIP propre** si l'émulateur,
+le firmware LOCI, le dongle ou la co-simulation manquent.
+
+### Résultat
+Les deux serveurs passent, toutes ancres trouvées. Suite rapide inchangée : **323/323**.
+
 ## [Non publié] — chaîne co-simulée validée : firmware LOCI réel + dongle physique
 
 `--loci-emu` / `--loci-cdc` sont disponibles dans Phosphoric **v1.118.1-alpha** (le build

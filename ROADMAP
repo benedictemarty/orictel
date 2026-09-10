@@ -222,7 +222,13 @@ utilisable avec les serveurs Minitel modernes via Internet.
       `LOAD"ORICTEL"`, boot Microdisc/Sedoric V3.0 valide. Outils OSDK
       (tap2dsk + old2mfm) embarques dans tools/dsktools.
 - [x] Documentation utilisateur complete (docs/MANUEL_UTILISATION.md, 0.2.33)
-- [ ] Tests de compatibilite avec differents serveurs
+- [x] Tests de compatibilite avec differents serveurs (make test-servers) :
+      connexion reelle via la chaine co-simulee (firmware LOCI + dongle),
+      extraction de la page DECODEE depuis la RAM (tests/vtx_page.py, buffer
+      localise par signature et non par adresse) et verification d'ancres
+      STABLES (pas de tarif ni de periode, qui dependent de l'heure ; pas de
+      numero de session). PAVI 3617 et MiniPavi passent. Hors de make test
+      (~2 min/serveur, reseau + materiel), SKIP propre sinon.
 - [ ] Packaging et distribution
 - [ ] Support Telestrat natif (ACIA integree)
 

@@ -151,7 +151,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-menus test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-menus test-servers test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -330,6 +330,13 @@ test-serial-noraw: diag.tap
 # >= v1.118 (avant, --type-keys renvoyait la machine au BASIC) ; sinon SKIP.
 test-menus: $(OUTPUT)
 	@$(TESTDIR)/test_menus.sh
+
+# Fidelite du decodage contre de VRAIS serveurs Minitel, via la chaine
+# co-simulee (firmware LOCI reel + PicoWiFiModemUSB physique). Lent (~2 min par
+# serveur, 1200 bauds en temps reel) et tributaire du reseau + du dongle : HORS
+# de `make test`. ALL=1 pour tester aussi MiniPavi. SKIP si materiel absent.
+test-servers: $(OUTPUT)
+	@ALL=$(if $(ALL),$(ALL),0) $(TESTDIR)/test_servers.sh
 
 test-videotex: $(TESTDIR)/test_videotex.c $(SRCDIR)/videotex.c
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_videotex \

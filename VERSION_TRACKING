@@ -9,6 +9,7 @@
 | orictel.tap (v0.3.5)| 0.3.5     | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
 | orictel.tap (v0.3.4)| 0.3.4     | 2026-07-03 | REGRESSION gel (Cmd=$07, TIC=01=IRQ TX) |
 | orictel.tap (v0.3.3)| 0.3.3     | 2026-07-03 | REGRESSION gel (Cmd=$05, TIC=01=IRQ TX) |
+| test_servers.sh + vtx_page.py| 0.1.0 | 2026-09-10 | fidelite du decodage sur vrais serveurs (PAVI 3617 + MiniPavi), ancres stables |
 | chaine co-simulee (run-loci-cosim)| - | 2026-09-10 | VALIDEE : firmware LOCI reel + dongle physique, page PAVI complete (double hauteur incluse) |
 | at_modem.c (pas de sondage)| 0.3.13 | 2026-09-10 | AT_POLL_MS=2 (etait 10 ms > temps-octet 8,33 ms) : handshake OK sans tampon, valide sur dongle physique |
 | test_menus.sh (parcours menus)| 0.1.0 | 2026-09-10 | 5 checks : ecran d echec verifie sur cible (Phosphoric >= v1.118) ; libelle tronque corrige |

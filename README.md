@@ -99,6 +99,7 @@ make coverage       # Couverture host gcov (Videotex + modem AT)
 make test-server    # Serveur Videotex local de demo (test manuel)
 make bench-render   # Banc de mesure : cout du rendu HIRES en cycles 6502 reels
 make test-menus     # Parcours de menus de bout en bout (Phosphoric >= v1.118)
+make test-servers   # Fidelite du decodage sur de vrais serveurs (dongle requis)
 make clean          # Nettoyage
 ```
 
