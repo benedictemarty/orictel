@@ -1,5 +1,34 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — chaîne co-simulée validée : firmware LOCI réel + dongle physique
+
+`--loci-emu` / `--loci-cdc` sont disponibles dans Phosphoric **v1.118.1-alpha** (le build
+v1.118.0 ne les avait pas encore). La cible `run-loci-cosim` est donc exerçable, et c'est
+le chemin **le plus fidèle** : `Oric → ACIA $0380 → oric/acia.c du VRAI firmware LOCI
+co-simulé → USB-CDC → PicoWiFiModemUSB physique`.
+
+### Résultat
+Page d'accueil PAVI rendue **complète et propre**, y compris le titre **double hauteur**
+« télétel 4 » et la ligne « 0,77F TOUTES LES 20 MIN. » — précisément ce qui manquait via le
+backend comportemental `com:`. C'est aussi une validation en conditions réelles du blit
+assembleur `blit_cell4x2` ajouté en `d7b84ca`.
+
+La trace série de Phosphoric est vide sur ce chemin, ce qui est normal : l'ACIA est servie
+par le firmware, pas par l'émulateur (`ACIA base address: $0380 (co-sim firmware via
+--loci-cdc)` dans le log).
+
+### Raccrochage validé là aussi
+Session laissée en cours, relance immédiate : OricTel récupère et affiche la même page
+complète. `at_hangup` fonctionne donc sur la chaîne co-simulée comme sur le backend `com:`.
+
+### Bilan des trois configurations, sur dongle physique
+
+| configuration | handshake AT | page Videotex |
+|---|---|---|
+| **co-sim** (firmware LOCI réel) | OK, raccrochage OK | **complète et propre** |
+| `com:` + `--serial-buffer 32` (modèle de l'anneau) | OK, raccrochage OK | propre |
+| `com:` sans tampon (mode stress) | OK depuis `AT_POLL_MS=2` | corrompue (~18 octets/passe, conforme au banc) |
+
 ## [Non publié] — validation sur PicoWiFiModemUSB physique : `at_hangup` prouvé, bug de sondage AT corrigé
 
 Première campagne sur **dongle physique** (`/dev/ttyACM0`), émulateur headless en

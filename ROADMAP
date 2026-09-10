@@ -172,6 +172,11 @@ utilisable avec les serveurs Minitel modernes via Internet.
             (maintenus par vtx_process) au lieu d'etre recalcules.
           - indexation cc65 &ctx->screen[row][col] : ~440 cy par cellule
             lue (multiplication 16 bits par 240 a chaque tour).
+      * VALIDE EN CO-SIMULATION (Phosphoric >= v1.118.1, --loci-emu +
+        --loci-cdc) : chaine la plus fidele (Oric -> ACIA $0380 -> vrai
+        firmware LOCI -> USB-CDC -> dongle physique). Page PAVI complete et
+        propre, titre DOUBLE HAUTEUR inclus (validation en conditions reelles
+        du blit blit_cell4x2). Raccrochage at_hangup OK sur ce chemin aussi.
       * VALIDE SUR MATERIEL (dongle physique /dev/ttyACM0) : avec l'anneau
         de 32 octets (--serial-buffer 32, fidele au firmware LOCI) la page
         Videotex arrive PROPRE ; sans tampon elle est corrompue, conforme aux
