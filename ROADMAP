@@ -33,9 +33,10 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Barre de statut interactive
 - [x] ESC = touche de secours (v0.3.17) : en session, question sur la ligne 0
       puis ESC ESC raccroche et revient au menu (decodeur reinitialise) ;
-      ESC = retour sur les ecrans d'echec / perte de porteuse / menus.
-      ANNULATION reste sur CTRL+A. Pas de sortie vers le BASIC (zone
-      programme ecrasee au chargement). Verifie sur cible (test_menus, 11).
+      ESC = retour sur les ecrans d'echec / perte de porteuse / menus ;
+      ESC au menu principal = sortie vers le BASIC (jmp ($FFFC), verifie
+      ROM 1.0 et 1.1). ANNULATION reste sur CTRL+A. Verifie sur cible
+      (test_menus, 12).
 - [x] Gestion des erreurs de connexion WiFi (statut no ip / link up)
 - [x] Reconnexion apres perte de porteuse : DETECTION FAITE (at_carrier_watch,
       ligne "NO CARRIER" ancree + confirmation par le silence) et ecran de

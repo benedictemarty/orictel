@@ -13,7 +13,7 @@
 #   4. reboucler sur une nouvelle tentative si on choisit "1 Reessayer",
 #   5. revenir au menu sur ESC (ecran d'echec), et en session : ESC pose la
 #      question sur la ligne 0, une autre touche reprend, ESC ESC raccroche
-#      et revient au menu.
+#      et revient au menu, ESC sur le menu principal sort vers le BASIC.
 #
 # Le point 3 est la non-regression du bug de "premiere page illisible" : le
 # retour de modem_connect etait ignore et la session demarrait sur un flux
@@ -120,8 +120,23 @@ if find_text "$TMP/resume.bin" "ESC: quitter?"; then check 1 "autre touche : que
 run_to 95000000 "$TMP/quit.bin" --type-keys "62000000:3" --type-keys '66000000:\e' --type-keys '70000000:\e'
 find_text "$TMP/quit.bin" "Mode de connexion"; check $? "ESC ESC en session -> raccroche et retour au menu"
 
+# ESC sur le menu principal : sortie d'OricTel par le vecteur de reset ROM.
+# Preuve : la RAM texte ($BB80) porte le "Ready" du BASIC (pas de 1, pas de 6)
+# et la page Videotex "Mode de connexion" n'est plus la.
+# Appel direct : les --type-keys doivent etre donnes par cycle CROISSANT, et
+# run_to envoie deja "1" a 19 et 22 Mcycles (ici, pas de "1" : on reste au menu et ESC tombe a 24 Mcycles).
+"$EMU" --rom "$ROM" --tape "$TAP" -f \
+    --loci --serial "file:/dev/null:$TMP/null.bin" --headless \
+    --type-keys "14000000:A" --type-keys "16000000:A" --type-keys '24000000:\e' \
+    --dump-ram-at "30000000:$TMP/basic.bin" -c 30500000 >/dev/null 2>&1
+python3 - "$TMP/basic.bin" <<'PY'; check $? "ESC sur le menu -> redemarrage a froid, BASIC Ready"
+import sys
+ram = open(sys.argv[1], 'rb').read()
+sys.exit(0 if b"Ready" in ram[0xBB80:0xBFE0] else 1)
+PY
+
 if [ "$fails" -eq 0 ]; then
-    echo "=== Resultats: 11/11 passes ==="
+    echo "=== Resultats: 12/12 passes ==="
     exit 0
 fi
 echo "=== Resultats: ECHEC ($fails) ==="

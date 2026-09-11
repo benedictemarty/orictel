@@ -20,9 +20,11 @@ suivant). ESC devient la touche de secours, **la même sur tous les écrans**.
 - **Menus et saisies** (`host:port`, WiFi) : ESC annule, comme ANNULATION le faisait.
 - **ANNULATION Minitel** n'est plus sur ESC, seulement sur **CTRL+A** (FUNCT+A sur
   Atmos) : une touche de secours doit toujours faire la même chose.
-- Pas de sortie vers le BASIC : la zone programme BASIC a été écrasée au chargement,
-  un retour à la ROM ne donnerait rien d'utile. Choix explicite, documenté dans le
-  manuel.
+- **Menu principal** : ESC **quitte OricTel** vers le BASIC (`Ready`) par un
+  redémarrage à froid `jmp ($FFFC)` — vecteur de reset, donc indépendant de la ROM.
+  La zone programme BASIC ayant été écrasée au chargement, un simple retour à la ROM
+  ne donnerait rien ; le démarrage à froid, si. Vérifié sur cible avec les ROM 1.0
+  (Oric-1) et 1.1 (Atmos). Chaîne complète : ESC ESC (session → menu), ESC (→ BASIC).
 
 ### Code
 - `keyboard.h/.c` : `KEY_LOCAL_ESCAPE` (0xF9) rendu pour `$1B`.
@@ -36,13 +38,13 @@ suivant). ESC devient la touche de secours, **la même sur tous les écrans**.
   garde-fou ne lisait que le mineur de version (`2.0.0` → 0 < 118). Comparaison sur
   (majeur, mineur) ; le test tourne à nouveau. Encore un garde-fou muet, comme la
   rétrospective du sprint précédent le redoutait.
-- `test_menus.sh` : 5 → **11 checks** — ESC sur l'écran d'échec, question ESC sur la
+- `test_menus.sh` : 5 → **12 checks** — ESC sur l'écran d'échec, question ESC sur la
   ligne 0, reprise par une autre touche, ESC ESC → menu (vérifié sur cible, RAM
-  vidée après `at_hangup`).
+  vidée après `at_hangup`), ESC au menu → `Ready` dans la RAM texte `$BB80`.
 - `test_keyboard.c` : ESC → `KEY_LOCAL_ESCAPE`, CTRL+A → ANNULATION (22 → 23).
 - `test_ui.c` : ESC annule la saisie (9 → 11).
-- Suite complète : **337/337** (Videotex 219, SMC 22, AT 28, clavier 23, UI 11,
-  menus 11, bridge 23).
+- Suite complète : **338/338** (Videotex 219, SMC 22, AT 28, clavier 23, UI 11,
+  menus 12, bridge 23).
 
 ## [Non publié] — mise à jour complète de la documentation (fin de session)
 

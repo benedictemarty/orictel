@@ -264,9 +264,21 @@ static void splash_screen(vtx_context_t* ctx)
  * et a ete retire. */
 #define MODE_MODEM  0
 #define MODE_WIFI   2   /* page de configuration WiFi du PicoWiFiModemUSB */
+#define MODE_QUIT   3   /* ESC : sortir d'OricTel (redemarrage a froid ROM) */
+
+/* Sortie d'OricTel : saut par le VECTEUR DE RESET ($FFFC), donc identique
+ * sur Oric-1 (BASIC 1.0) et Atmos (1.1) sans connaitre l'adresse ROM. Le
+ * demarrage a froid reinitialise VIA, mode TEXT et pointeurs BASIC : la zone
+ * programme ecrasee par OricTel ne compte plus, on retombe sur "Ready".
+ * Un simple RTS vers la ROM ne le ferait pas (programme BASIC detruit). */
+static void oric_cold_reset(void)
+{
+    __asm__("sei");
+    __asm__("jmp ($FFFC)");
+}
 
 /* Menu selection du mode de connexion.
- * Retourne MODE_MODEM ou MODE_WIFI. */
+ * Retourne MODE_MODEM, MODE_WIFI ou MODE_QUIT (ESC). */
 static unsigned char select_mode(vtx_context_t* ctx)
 {
     vtx_clear_page(ctx);
@@ -274,6 +286,7 @@ static unsigned char select_mode(vtx_context_t* ctx)
     ui_print(ctx, 10, 10, "Mode de connexion:", VTX_WHITE);
     ui_menu_item(ctx, 13, "1 - Modem AT");
     ui_menu_item(ctx, 15, "2 - Config WiFi");
+    ui_print(ctx, 19, 12, "ESC Quitter (BASIC)", VTX_WHITE);
 
     display_render_all(ctx);
 
@@ -282,6 +295,7 @@ static unsigned char select_mode(vtx_context_t* ctx)
         unsigned char key = keyboard_scan();
         if (key == '1') return MODE_MODEM;
         if (key == '2') return MODE_WIFI;
+        if (key == KEY_LOCAL_ESCAPE) return MODE_QUIT;
     }
 }
 
@@ -892,6 +906,11 @@ int main(void)
             if (mode == MODE_WIFI) {
                 wifi_config_page(&vtx);
                 continue;
+            }
+            if (mode == MODE_QUIT) {
+                /* Fin de la chaine ESC : session -> menu -> BASIC. Le modem
+                 * a deja ete raccroche en quittant la session. */
+                oric_cold_reset();
             }
             break;
         }

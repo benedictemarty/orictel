@@ -182,9 +182,11 @@ Quel que soit l'ecran, **ESC** ramene en arriere :
 - **dans un menu ou une saisie** (serveur `host:port`, WiFi) : ESC annule
   et revient a l'ecran precedent.
 
-Il n'y a pas de sortie vers le BASIC : OricTel a ecrase la zone programme
-BASIC en se chargeant, un `RTS` vers la ROM ne donnerait rien d'utile. Pour
-quitter reellement : reset de l'Oric.
+- **sur le menu *Mode de connexion*** : ESC **quitte OricTel** et rend la
+  main au BASIC (`Ready`), par un redemarrage a froid de la ROM : la zone
+  programme BASIC ayant ete ecrasee au chargement, c'est la seule sortie
+  propre. La chaine complete est donc ESC, ESC (session -> menu) puis ESC
+  (menu -> BASIC). Verifie sur ROM 1.0 (Oric-1) et 1.1 (Atmos).
 
 ## 5. Les modes de rendu (CTRL+D)
 

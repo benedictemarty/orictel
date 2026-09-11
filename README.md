@@ -174,7 +174,7 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 | Mode rendu        | CTRL+D            |             | (local)        |
 | Effacer ecran     | CTRL+L            |             | (local)        |
 | Reset ACIA        | CTRL+F            |             | (local)        |
-| Quitter / retour  | ESC               |             | (local) ESC ESC en session = raccrocher + menu ; ESC dans un menu = retour |
+| Quitter / retour  | ESC               |             | (local) ESC ESC en session = raccrocher + menu ; ESC dans un menu = retour ; ESC au menu principal = sortie BASIC |
 
 ## Specifications techniques
 

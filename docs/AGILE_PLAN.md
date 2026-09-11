@@ -47,7 +47,7 @@ Scrum adapte avec sprints courts. Chaque sprint produit un increment fonctionnel
 - [x] US-040: Tests unitaires decodeur Videotex
 - [x] US-041: Tests bridge
 - [x] US-042: Tests d'integration end-to-end — `make test-menus` (parcours de
-      menus jusqu'a l'ecran d'echec puis ESC, 11 checks) et `make test-servers` (connexion
+      menus jusqu'a l'ecran d'echec puis ESC, 12 checks) et `make test-servers` (connexion
       reelle a PAVI 3617 / MiniPavi, page decodee extraite de la RAM et verifiee
       par ancres stables). Le second exige le dongle : SKIP propre sinon.
 - [x] US-043: Compatibilite Oric-1 (BASIC 1.0) — passage HIRES corrige (detection
@@ -62,8 +62,9 @@ Scrum adapte avec sprints courts. Chaque sprint produit un increment fonctionnel
       (`at_carrier_watch`), validees sur materiel.
 - [x] US-047: ESC, touche de secours universelle (v0.3.17) — quitter la session
       (question ligne 0, ESC ESC raccroche et revient au menu, decodeur remis a
-      neuf), retour sur echec / perte de porteuse / menus. Parcours verifie sur
-      cible (`test_menus`, 11 checks). Au passage : ce test SKIPpait en silence
+      neuf), retour sur echec / perte de porteuse / menus, sortie vers le BASIC
+      depuis le menu principal (reset a froid ROM). Parcours verifie sur cible
+      (`test_menus`, 12 checks, ROM 1.0 et 1.1). Au passage : ce test SKIPpait en silence
       depuis Phosphoric v2.0 (mineur de version seul compare) — repare.
 
 ## Sprint 1 - Fondations (v0.1.0) [TERMINE]

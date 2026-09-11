@@ -54,7 +54,9 @@ Serveur Minitel (ws://3617.fr/ws)
 que par ESC (confirme sur la ligne 0, sans effacer la page), qui raccroche
 (`at_hangup`) et repart au menu Mode de connexion avec `vtx_init`. Les ecrans
 d'echec de connexion et de perte de porteuse rendent 2 sur ESC pour le meme
-retour. Il n'y a pas de sortie vers le BASIC (zone programme ecrasee).
+retour. ESC sur le menu principal sort d'OricTel par `jmp ($FFFC)` (vecteur
+de reset, independant de la ROM 1.0/1.1) : la zone programme BASIC ayant ete
+ecrasee au chargement, seul un demarrage a froid rend un "Ready" propre.
 
 ### Montage de reference (materiel)
 

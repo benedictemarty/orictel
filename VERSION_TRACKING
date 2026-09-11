@@ -4,8 +4,8 @@
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
-| orictel.tap        | 0.3.17     | 2026-09-11 | ESC : question ligne 0, ESC ESC raccroche + menu ; ESC = retour sur echec/porteuse/menus ; ANNULATION = CTRL+A seul |
-| test_menus.sh (parcours menus)| 0.2.0 | 2026-09-11 | 11 checks (+ESC) ; garde-fou version repare (SKIPpait en silence depuis Phosphoric v2.0) |
+| orictel.tap        | 0.3.17     | 2026-09-11 | ESC : question ligne 0, ESC ESC raccroche + menu ; ESC = retour sur echec/porteuse/menus ; ESC au menu = sortie BASIC (jmp ($FFFC), ROM 1.0 et 1.1) ; ANNULATION = CTRL+A seul |
+| test_menus.sh (parcours menus)| 0.2.0 | 2026-09-11 | 12 checks (+ESC, sortie BASIC) ; garde-fou version repare (SKIPpait en silence depuis Phosphoric v2.0) |
 | orictel.tap        | 0.3.7      | 2026-08-25 | HIRES OK Oric-1 (jsr $F8E3) + Atmos ($EC33), detection ROM en $C002 |
 | orictel.tap (v0.3.6)| 0.3.6     | 2026-08-25 | send_raw/recv sous SEI/PLP (anti-corruption MIA), 313 tests OK |
 | orictel.tap (v0.3.5)| 0.3.5     | 2026-07-03 | Cmd=$0B (TIC=10), sans ISR, PAVI 3617 OK emulateur |
