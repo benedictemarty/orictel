@@ -69,6 +69,17 @@ int main(void)
         CHECK(ui_text_input(&ctx, 7, 3, buf, sizeof buf, 0) == 0xFF, "ANNULATION -> 0xFF");
     }
 
+    /* --- ESC annule aussi la saisie (touche de sortie universelle) --- */
+    {
+        static char buf[40];
+        unsigned char k[2];
+        k[0] = 'A'; k[1] = KEY_LOCAL_ESCAPE;
+        memset(&ctx, 0, sizeof ctx);
+        key_feed(k, 2);
+        CHECK(ui_text_input(&ctx, 7, 3, buf, sizeof buf, 0) == 0xFF, "ESC -> 0xFF (saisie annulee)");
+        CHECK(buf[0] == 0, "ESC -> tampon vide");
+    }
+
     /* --- CORRECTION efface le dernier caractere --- */
     {
         static char buf[40];

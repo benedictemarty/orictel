@@ -212,8 +212,11 @@ unsigned char keyboard_scan(void)
         case 0x7F:  /* DELETE = Correction */
             return KEY_FUNC_FLAG | KEY_CORRECTION;
 
-        case 0x1B:  /* ESC = Annulation */
-            return KEY_FUNC_FLAG | KEY_ANNULATION;
+        case 0x1B:  /* ESC = sortie locale (quitter la session, retour dans
+                     * les menus). N'est PLUS l'ANNULATION Minitel, qui reste
+                     * sur CTRL+A : une touche de secours doit toujours faire
+                     * la meme chose, quel que soit l'ecran. */
+            return KEY_LOCAL_ESCAPE;
 
         default:
             break;

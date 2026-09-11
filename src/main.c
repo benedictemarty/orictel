@@ -17,6 +17,7 @@
  *    ./oric1-emu --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf
  */
 
+#include <string.h>
 #include "serial.h"
 #include "videotex.h"
 #include "display.h"
@@ -26,7 +27,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.16"
+#define ORICTEL_VERSION "v0.3.17"
 
 /* Iterations de boucle sans le moindre octet exigees pour CONFIRMER une
  * presomption de perte de porteuse (un vrai NO CARRIER n'est suivi de RIEN,
@@ -486,7 +487,7 @@ static void wifi_config_page(vtx_context_t* ctx)
             }
             ctx->dirty[row] = 1;
         }
-        ui_print(ctx, 22, 0, "Chiffre=choix REPET=rescan ANNUL=retour",
+        ui_print(ctx, 22, 0, "Chiffre=choix REPET=rescan ESC=retour",
                  VTX_GREEN);
         display_render_all(ctx);
 
@@ -504,8 +505,9 @@ static void wifi_config_page(vtx_context_t* ctx)
                 (key & 0x7F) == KEY_REPETITION) {
                 break;                          /* rescan */
             }
-            if ((key & KEY_FUNC_FLAG) &&
-                (key & 0x7F) == KEY_ANNULATION) {
+            if (key == KEY_LOCAL_ESCAPE ||
+                ((key & KEY_FUNC_FLAG) &&
+                 (key & 0x7F) == KEY_ANNULATION)) {
                 return;                         /* annuler */
             }
         }
@@ -717,7 +719,8 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
  * decide.
  *
  * Retour : 1 = reessayer, 0 = entrer en session malgre tout (ancien
- * comportement, desormais un choix explicite). Peut modifier *srv_idx.
+ * comportement, desormais un choix explicite), 2 = ESC, abandonner et
+ * revenir au menu principal. Peut modifier *srv_idx.
  */
 static unsigned char connect_failed_page(vtx_context_t* ctx,
                                          unsigned char* srv_idx)
@@ -734,12 +737,16 @@ static unsigned char connect_failed_page(vtx_context_t* ctx,
      * ui_print clippe a 40 colonnes. "3 Entrer en session quand meme" (30 car.)
      * s'affichait tronque en "...quand me". */
     ui_menu_item(ctx, 16, "3 Entrer quand meme");
+    ui_print(ctx, 20, 12, "ESC Retour au menu", VTX_WHITE);
     display_render_all(ctx);
 
     for (;;) {
         key = keyboard_scan();
         if (key == '1') {
             return 1;
+        }
+        if (key == KEY_LOCAL_ESCAPE) {
+            return 2;
         }
         if (key == '2') {
             vtx_clear_page(ctx);
@@ -753,7 +760,8 @@ static unsigned char connect_failed_page(vtx_context_t* ctx,
     }
 }
 
-/* Ecran de perte de porteuse. Retour : 1 = recomposer, 0 = rester en local.
+/* Ecran de perte de porteuse. Retour : 1 = recomposer, 0 = rester en local,
+ * 2 = ESC, revenir au menu principal.
  *
  * NB: cet ecran efface la page (vtx_clear_page) pour s'afficher ; le choix
  * "rester" ne la restaure donc PAS - la communication etant terminee, plus
@@ -768,13 +776,61 @@ static unsigned char carrier_lost_page(vtx_context_t* ctx)
     ui_print(ctx, 9,  3, "la communication est terminee.", VTX_WHITE);
     ui_menu_item(ctx, 12, "1 Reconnecter");
     ui_menu_item(ctx, 14, "2 Rester en local");
+    ui_print(ctx, 18, 12, "ESC Retour au menu", VTX_WHITE);
     display_render_all(ctx);
 
     for (;;) {
         key = keyboard_scan();
         if (key == '1') return 1;
         if (key == '2') return 0;
+        if (key == KEY_LOCAL_ESCAPE) return 2;
     }
+}
+
+/* Ligne 0 sauvegardee le temps de la question ESC (240 octets en BSS, la
+ * page de 25 lignes ne tient pas deux fois en RAM). */
+static vtx_cell_t row0_save[VTX_COLS];
+
+/* ESC en session : question posee sur la LIGNE 0 seulement, la page reste
+ * intacte pour que "reprendre" ne coute rien (les autres ecrans effacent la
+ * page, ce qui serait ici une perte : le serveur ne la renverra pas).
+ *
+ * Retour : 1 = quitter (raccrocher, retour au menu), 0 = reprendre.
+ *
+ * Pendant l'attente, le flux serie continue d'etre draine vers le decodeur
+ * pour ne pas perdre d'octets (RX de 1 octet sur le 6551 reel) ; il n'est
+ * pas rendu, la page se repeint au retour. */
+static unsigned char session_escape_page(vtx_context_t* ctx)
+{
+    unsigned char key, c;
+
+    memcpy(row0_save, ctx->screen[0], sizeof(row0_save));
+    for (c = 0; c < VTX_COLS; ++c) {
+        ctx->screen[0][c].ch = ' ';
+        ctx->screen[0][c].charset = CHARSET_G0;
+        ctx->screen[0][c].fg = VTX_YELLOW;
+        ctx->screen[0][c].bg = VTX_BLACK;
+        ctx->screen[0][c].flags = 0;
+        ctx->screen[0][c].size = SIZE_NORMAL;
+    }
+    /* 38 caracteres : tient sur 40 colonnes sans clip (voir ui_print). */
+    ui_print(ctx, 0, 0, "ESC: quitter? ESC=menu autre=reprendre", VTX_YELLOW);
+    vtx_touch(ctx, 0, 0, VTX_COLS - 1);
+    display_render_all(ctx);
+
+    keyboard_flush();       /* anti-rebond : l'ESC initial ne compte pas deux fois */
+    for (;;) {
+        while (serial_poll()) {
+            vtx_process(ctx, serial_recv());
+        }
+        key = keyboard_scan();
+        if (key == KEY_LOCAL_ESCAPE) return 1;
+        if (key != KEY_NONE) break;
+    }
+    memcpy(ctx->screen[0], row0_save, sizeof(row0_save));
+    vtx_touch(ctx, 0, 0, VTX_COLS - 1);
+    ctx->full_refresh = 1;
+    return 0;
 }
 
 /* Indicateur connexion sur ligne 0, col 38:
@@ -803,6 +859,7 @@ int main(void)
     unsigned char srv_idx;          /* Serveur retenu (recompose sur perte de porteuse) */
     unsigned char carrier_pending;  /* "NO CARRIER" vu, en attente de confirmation */
     unsigned int  carrier_idle;     /* Silence accumule depuis cette presomption */
+    unsigned char r;                /* retour des ecrans de choix */
 
     vtx_init(&vtx);
     display_init();
@@ -816,12 +873,18 @@ int main(void)
      * reset ulterieur (KEY_LOCAL_RESET). */
     acia_base = select_interface(&vtx);
 
+    /* ACIA montee avant les menus: la page Config WiFi (AT$SCAN...)
+     * dialogue avec le PicoWiFiModemUSB des le menu. */
+    serial_init(acia_base);
+
+  /* Cycle complet : menus -> connexion -> session. ESC (confirme) quitte la
+   * session, raccroche, et revient ICI, au menu Mode de connexion, avec un
+   * decodeur remis a neuf : c'est la "reinitialisation" d'OricTel, sans
+   * repasser par le splash ni recharger la cassette. */
+  for (;;) {
+    vtx_init(&vtx);
     {
         unsigned char mode;
-
-        /* ACIA montee avant les menus: la page Config WiFi (AT$SCAN...)
-         * dialogue avec le PicoWiFiModemUSB des le menu. */
-        serial_init(acia_base);
 
         /* La page Config WiFi (mode 3) revient au menu une fois terminee. */
         for (;;) {
@@ -849,12 +912,18 @@ int main(void)
          * decodait alors un flux inexistant ou commence en cours de page,
          * d'ou la "premiere page illisible". On boucle tant que
          * l'utilisateur veut reessayer. */
+        r = 1;
         while (!modem_connect(&vtx, srv_idx)) {
-            if (!connect_failed_page(&vtx, &srv_idx)) {
-                break;      /* entree en session forcee, choix explicite */
+            r = connect_failed_page(&vtx, &srv_idx);
+            if (r != 1) {
+                break;      /* 0: session forcee, 2: ESC -> menu */
             }
         }
         vtx_clear_page(&vtx);
+        if (r == 2) {
+            at_hangup();    /* une tentative a pu laisser le modem en ligne */
+            continue;
+        }
     }
 
     /* Indicateur initial: F */
@@ -914,6 +983,10 @@ int main(void)
         } else if (key == KEY_LOCAL_RESET) {
             serial_init(acia_base);
             display_status("ACIA reset");
+        } else if (key == KEY_LOCAL_ESCAPE) {
+            if (session_escape_page(&vtx)) {
+                break;      /* quitter la session -> raccrocher, menu */
+            }
         } else if (key != KEY_NONE) {
             keyboard_process(&vtx, key);
             serial_tx_pump();   /* faire partir la frappe sans attendre */
@@ -935,13 +1008,23 @@ int main(void)
                 carrier_idle = 0;
                 connected = 0;
                 at_carrier_reset();
-                if (carrier_lost_page(&vtx)) {
+                r = carrier_lost_page(&vtx);
+                if (r == 2) {
+                    break;      /* ESC -> menu (la ligne est deja coupee) */
+                }
+                if (r == 1) {
                     vtx_clear_page(&vtx);
+                    r = 1;
                     while (!modem_connect(&vtx, srv_idx)) {
-                        if (!connect_failed_page(&vtx, &srv_idx)) break;
+                        r = connect_failed_page(&vtx, &srv_idx);
+                        if (r != 1) break;
                     }
                     vtx_clear_page(&vtx);
                     keyboard_flush();
+                    if (r == 2) {
+                        at_hangup();
+                        break;  /* ESC -> menu */
+                    }
                 }
                 set_connexion_indicator(&vtx, 'F');
                 vtx.full_refresh = 1;
@@ -986,6 +1069,13 @@ int main(void)
             g_blink_phase = vtx.blink_phase;
         }
     }
+
+    /* Sortie de session par ESC : raccrocher proprement (le modem serait
+     * sinon encore en ligne au prochain ATD, cause de la "premiere page
+     * illisible" corrigee par at_hangup), puis retour au menu. */
+    at_hangup();
+    keyboard_flush();
+  }
 
     return 0;
 }

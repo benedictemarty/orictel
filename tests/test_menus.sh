@@ -10,7 +10,10 @@
 #   1. traverser splash -> interface -> mode -> serveur,
 #   2. echouer sur ATZ, tenter le raccrochage (at_hangup), re-echouer,
 #   3. AFFICHER L'ECRAN D'ECHEC au lieu d'entrer en session a l'aveugle,
-#   4. reboucler sur une nouvelle tentative si on choisit "1 Reessayer".
+#   4. reboucler sur une nouvelle tentative si on choisit "1 Reessayer",
+#   5. revenir au menu sur ESC (ecran d'echec), et en session : ESC pose la
+#      question sur la ligne 0, une autre touche reprend, ESC ESC raccroche
+#      et revient au menu.
 #
 # Le point 3 est la non-regression du bug de "premiere page illisible" : le
 # retour de modem_connect etait ignore et la session demarrait sur un flux
@@ -39,13 +42,18 @@ skip() { echo "SKIP : $1"; exit 0; }
 [ -f "$TAP" ] || skip "orictel.tap absent (make)"
 
 # Le correctif --type-keys est necessaire : sans lui le test ne prouve rien.
-# "Phosphoric v1.118.0-alpha" -> 118 (le MINEUR porte la version reelle).
-VER="$($EMU --help 2>&1 | head -1 | sed -E 's/.*v[0-9]+\.([0-9]+)\..*/\1/')"
-case "$VER" in
+# Requis : >= v1.118. "Phosphoric v1.118.0-alpha" -> 1 et 118 ; depuis la
+# v2.0.0 le mineur repart a 0, d'ou la comparaison sur (majeur, mineur) : ne
+# lire que le mineur faisait SKIPper le test en silence a partir de la v2.
+VER="$($EMU --help 2>&1 | head -1 | sed -nE 's/.*v([0-9]+)\.([0-9]+)\..*/\1 \2/p')"
+MAJ="${VER%% *}"; MIN="${VER##* }"
+case "$MAJ$MIN" in
     ''|*[!0-9]*) skip "version de Phosphoric illisible" ;;
 esac
-[ "$VER" -ge 118 ] 2>/dev/null || \
+if [ "$MAJ" -lt 1 ] || { [ "$MAJ" -eq 1 ] && [ "$MIN" -lt 118 ]; }; then
     skip "Phosphoric trop ancien (--type-keys renvoie au BASIC avant v1.118)"
+fi
+VER="$MAJ.$MIN"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -93,8 +101,27 @@ find_text "$TMP/echec.bin" "3 Entrer quand meme"; check $? "option 3 entiere (no
 run_to 64000000 "$TMP/retry.bin" --type-keys "62000000:1"
 find_text "$TMP/retry.bin" "ATZ"; check $? "Reessayer relance une tentative (ATZ)"
 
+# ESC sur l'ecran d'echec : abandon et retour au menu Mode de connexion (la
+# touche de sortie universelle). L'ecran d'echec doit avoir disparu.
+find_text "$TMP/echec.bin" "ESC Retour au menu"; check $? "ecran d'echec : ESC propose"
+# 85 Mcycles : ESC declenche at_hangup (deux gardes de 1,1 s + attentes OK 2 s
+# et NO CARRIER 3 s, sans modem ici), soit ~7,5 s avant le menu.
+run_to 85000000 "$TMP/esc.bin" --type-keys '62000000:\e'
+find_text "$TMP/esc.bin" "Mode de connexion"; check $? "ESC sur l'echec -> retour au menu Mode de connexion"
+if find_text "$TMP/esc.bin" "ECHEC DE CONNEXION"; then check 1 "ecran d'echec efface apres ESC"; else check 0 "ecran d'echec efface apres ESC"; fi
+
+# ESC en SESSION : "3 Entrer quand meme" entre en session ; un premier ESC
+# pose la question sur la ligne 0 sans effacer la page, un second quitte
+# (raccroche) et revient au menu ; toute autre touche reprend.
+run_to 70000000 "$TMP/ask.bin" --type-keys "62000000:3" --type-keys '66000000:\e'
+find_text "$TMP/ask.bin" "ESC: quitter?"; check $? "ESC en session : question posee sur la ligne 0"
+run_to 74000000 "$TMP/resume.bin" --type-keys "62000000:3" --type-keys '66000000:\e' --type-keys "70000000:x"
+if find_text "$TMP/resume.bin" "ESC: quitter?"; then check 1 "autre touche : question retiree, session reprise"; else check 0 "autre touche : question retiree, session reprise"; fi
+run_to 95000000 "$TMP/quit.bin" --type-keys "62000000:3" --type-keys '66000000:\e' --type-keys '70000000:\e'
+find_text "$TMP/quit.bin" "Mode de connexion"; check $? "ESC ESC en session -> raccroche et retour au menu"
+
 if [ "$fails" -eq 0 ]; then
-    echo "=== Resultats: 5/5 passes ==="
+    echo "=== Resultats: 11/11 passes ==="
     exit 0
 fi
 echo "=== Resultats: ECHEC ($fails) ==="

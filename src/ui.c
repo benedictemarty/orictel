@@ -43,7 +43,8 @@ unsigned char ui_text_input(vtx_context_t* ctx, unsigned char row,
         if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ENVOI) {
             buf[pos] = 0;
             return pos;
-        } else if ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ANNULATION) {
+        } else if (key == KEY_LOCAL_ESCAPE ||
+                   ((key & KEY_FUNC_FLAG) && (key & 0x7F) == KEY_ANNULATION)) {
             buf[0] = 0;
             return 0xFF;                          /* annulation */
         } else if (key == 0x7F || key == 0x08 ||

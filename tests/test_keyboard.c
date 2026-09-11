@@ -64,7 +64,10 @@ int main(void)
 
     /* --- keyboard_scan: touches speciales --- */
     { unsigned char s[] = {0x0D}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_ENVOI),      "RETURN -> ENVOI"); }
-    { unsigned char s[] = {0x1B}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_ANNULATION), "ESC -> ANNULATION"); }
+    /* ESC est la touche de SORTIE locale (quitter la session / retour menu),
+     * pas l'ANNULATION Minitel, qui reste sur CTRL+A. */
+    { unsigned char s[] = {0x1B}; CHECK(scan1(s,1) == KEY_LOCAL_ESCAPE,               "ESC -> sortie locale (pas ANNULATION)"); }
+    { unsigned char s[] = {0x01}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_ANNULATION), "CTRL+A -> ANNULATION"); }
     { unsigned char s[] = {0x7F}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_CORRECTION), "DELETE -> CORRECTION"); }
     { unsigned char s[] = {0x0B}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_RETOUR),     "Fleche HAUT -> RETOUR"); }
     { unsigned char s[] = {0x08}; CHECK(scan1(s,1) == KEY_ARROW_LEFT,                 "BS -> fleche gauche"); }

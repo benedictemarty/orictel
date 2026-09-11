@@ -165,7 +165,7 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 | Retour            | CTRL+R ou Fl.HAUT | FUNCT+R     | SEP $42        |
 | Repetition        | CTRL+E            | FUNCT+E     | SEP $43        |
 | Guide             | CTRL+G            | FUNCT+G     | SEP $44        |
-| Annulation        | CTRL+A ou ESC     | FUNCT+A     | SEP $45        |
+| Annulation        | CTRL+A            | FUNCT+A     | SEP $45        |
 | Sommaire          | CTRL+S            | FUNCT+S     | SEP $46        |
 | Correction        | DELETE            |             | SEP $47        |
 | Suite (page suiv) | CTRL+N            | FUNCT+N     | SEP $48        |
@@ -174,6 +174,7 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 | Mode rendu        | CTRL+D            |             | (local)        |
 | Effacer ecran     | CTRL+L            |             | (local)        |
 | Reset ACIA        | CTRL+F            |             | (local)        |
+| Quitter / retour  | ESC               |             | (local) ESC ESC en session = raccrocher + menu ; ESC dans un menu = retour |
 
 ## Specifications techniques
 

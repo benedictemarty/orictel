@@ -50,6 +50,12 @@ Serveur Minitel (ws://3617.fr/ws)
 +-------------------+
 ```
 
+`main.c` est un cycle *menus -> connexion -> session* : la session ne se quitte
+que par ESC (confirme sur la ligne 0, sans effacer la page), qui raccroche
+(`at_hangup`) et repart au menu Mode de connexion avec `vtx_init`. Les ecrans
+d'echec de connexion et de perte de porteuse rendent 2 sur ESC pour le meme
+retour. Il n'y a pas de sortie vers le BASIC (zone programme ecrasee).
+
 ### Montage de reference (materiel)
 
 ```

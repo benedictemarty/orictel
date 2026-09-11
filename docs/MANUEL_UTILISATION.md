@@ -146,7 +146,7 @@ Minitel passent par **CTRL+lettre** (les deux machines) ou
 | **SUITE** | page suivante | CTRL+N |
 | **REPETITION** | reafficher la page | CTRL+E |
 | **GUIDE** | aide du service | CTRL+G |
-| **ANNULATION** | effacer la saisie en cours | CTRL+A ou ESC |
+| **ANNULATION** | effacer la saisie en cours | CTRL+A |
 | **CORRECTION** | effacer le dernier caractere | DELETE |
 | **CONNEXION/FIN** | se deconnecter du service | CTRL+C |
 
@@ -166,6 +166,25 @@ Les **fleches gauche/droite** envoient les sequences curseur
 | **CTRL+D** | change le mode de rendu (voir section 5) |
 | **CTRL+L** | efface l'ecran localement |
 | **CTRL+F** | reinitialise la liaison serie (ACIA) |
+| **ESC** | la touche de secours : quitter la session et revenir au menu |
+
+### ESC : quitter, toujours de la meme facon
+
+Quel que soit l'ecran, **ESC** ramene en arriere :
+
+- **en session** : un premier ESC pose la question sur la ligne 0 de la
+  page (`ESC: quitter? ESC=menu autre=reprendre`) sans effacer la page.
+  Un second ESC raccroche (`+++`, `ATH`, environ 3 a 8 s) et revient au
+  menu *Mode de connexion*, decodeur remis a neuf. Toute autre touche
+  retire la question et reprend la session la ou elle en etait ;
+- **sur l'ecran d'echec de connexion** ou **de perte de porteuse** : ESC
+  abandonne et revient au menu ;
+- **dans un menu ou une saisie** (serveur `host:port`, WiFi) : ESC annule
+  et revient a l'ecran precedent.
+
+Il n'y a pas de sortie vers le BASIC : OricTel a ecrase la zone programme
+BASIC en se chargeant, un `RTS` vers la ROM ne donnerait rien d'utile. Pour
+quitter reellement : reset de l'Oric.
 
 ## 5. Les modes de rendu (CTRL+D)
 

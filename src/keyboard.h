@@ -53,6 +53,7 @@
 #define KEY_LOCAL_RESET   0xFC  /* CTRL+F = reset ACIA local */
 #define KEY_ARROW_LEFT    0xFB  /* Fleche gauche (mode curseur PRO3) */
 #define KEY_ARROW_RIGHT   0xFA  /* Fleche droite (mode curseur PRO3) */
+#define KEY_LOCAL_ESCAPE  0xF9  /* ESC = sortie (quitter la session / retour menu) */
 
 /**
  * Initialise le module clavier.

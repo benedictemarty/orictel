@@ -1,5 +1,49 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — v0.3.17 : ESC, la touche de secours (quitter la session, retour au menu)
+
+Jusqu'ici, une session n'avait **aucune sortie** : la boucle principale était un
+`for (;;)` sans `break`, et le seul moyen de revenir au menu était de resetter l'Oric
+(en laissant le modem en ligne, d'où la « première page illisible » du lancement
+suivant). ESC devient la touche de secours, **la même sur tous les écrans**.
+
+### Comportement
+- **En session** : un premier ESC pose la question sur la **ligne 0** seulement
+  (`ESC: quitter? ESC=menu autre=reprendre`), sans effacer la page — un écran plein
+  aurait perdu la page, que le serveur ne renverra pas. Un second ESC raccroche
+  (`at_hangup`, `+++`/`ATH`) et revient au menu *Mode de connexion* avec un décodeur
+  remis à neuf (`vtx_init`) : c'est la réinitialisation d'OricTel, sans repasser par
+  le splash. Toute autre touche restaure la ligne 0 et reprend. Pendant la question,
+  le flux série continue d'être drainé vers le décodeur (RX de 1 octet sur le 6551).
+- **Écrans d'échec de connexion et de perte de porteuse** : ESC abandonne et revient
+  au menu (libellé `ESC Retour au menu` ajouté).
+- **Menus et saisies** (`host:port`, WiFi) : ESC annule, comme ANNULATION le faisait.
+- **ANNULATION Minitel** n'est plus sur ESC, seulement sur **CTRL+A** (FUNCT+A sur
+  Atmos) : une touche de secours doit toujours faire la même chose.
+- Pas de sortie vers le BASIC : la zone programme BASIC a été écrasée au chargement,
+  un retour à la ROM ne donnerait rien d'utile. Choix explicite, documenté dans le
+  manuel.
+
+### Code
+- `keyboard.h/.c` : `KEY_LOCAL_ESCAPE` (0xF9) rendu pour `$1B`.
+- `main.c` : boucle externe *menus → connexion → session*, `session_escape_page()`
+  (ligne 0 sauvegardée dans 240 octets de BSS), `connect_failed_page` et
+  `carrier_lost_page` rendent 2 sur ESC ; `at_hangup()` systématique à la sortie.
+- `ui.c` : `ui_text_input` traite ESC comme ANNULATION.
+
+### Tests
+- `tests/test_menus.sh` : **SKIPpait en silence** depuis Phosphoric v2.0.0 — le
+  garde-fou ne lisait que le mineur de version (`2.0.0` → 0 < 118). Comparaison sur
+  (majeur, mineur) ; le test tourne à nouveau. Encore un garde-fou muet, comme la
+  rétrospective du sprint précédent le redoutait.
+- `test_menus.sh` : 5 → **11 checks** — ESC sur l'écran d'échec, question ESC sur la
+  ligne 0, reprise par une autre touche, ESC ESC → menu (vérifié sur cible, RAM
+  vidée après `at_hangup`).
+- `test_keyboard.c` : ESC → `KEY_LOCAL_ESCAPE`, CTRL+A → ANNULATION (22 → 23).
+- `test_ui.c` : ESC annule la saisie (9 → 11).
+- Suite complète : **337/337** (Videotex 219, SMC 22, AT 28, clavier 23, UI 11,
+  menus 11, bridge 23).
+
 ## [Non publié] — mise à jour complète de la documentation (fin de session)
 
 Revue de toute la documentation, qui n'avait été maintenue en cours de session que sur
