@@ -27,7 +27,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.18"
+#define ORICTEL_VERSION "v0.3.19"
 
 /* Silence exige, en MILLISECONDES, pour CONFIRMER une presomption de perte de
  * porteuse (un vrai NO CARRIER n'est suivi de RIEN, une page qui citerait ces
@@ -864,11 +864,71 @@ static unsigned char carrier_lost_page(vtx_context_t* ctx)
     }
 }
 
-/* Ligne 0 sauvegardee le temps de la question ESC (240 octets en BSS, la
- * page de 25 lignes ne tient pas deux fois en RAM). */
-static vtx_cell_t row0_save[VTX_COLS];
+/* --- Barre de statut (3 lignes texte sous la page) ---------------------
+ * Ligne 0 : [C] serveur  mm:ss  MODE  ESC   (etat, redessine sur changement
+ *           et une fois par seconde)
+ * Ligne 1 : message transitoire (display_status)
+ * Ligne 2 : aide des touches Minitel
+ * L'indicateur de connexion vivait jusqu'ici en (0,38) de la page Videotex,
+ * ligne qui appartient au serveur : il a rejoint la barre. */
+static const char*  status_server = "";
+static unsigned char status_connected;
+static unsigned int  status_secs;       /* chrono de session (secondes) */
+static unsigned char status_sec_ticks;  /* tics de 10 ms vers la seconde */
 
-/* ESC en session : question posee sur la LIGNE 0 seulement, la page reste
+static const char* const render_mode_names[3] = { "AUTO", "TRAME", "BRUT" };
+
+static void status_bar_draw(void)
+{
+    extern unsigned char g_render_mode;
+    char clock[6];
+    unsigned char m = (unsigned char)(status_secs / 60u);
+    unsigned char sec = (unsigned char)(status_secs % 60u);
+
+    if (m > 99) m = 99;
+    clock[0] = '0' + m / 10;  clock[1] = '0' + m % 10;  clock[2] = ':';
+    clock[3] = '0' + sec / 10; clock[4] = '0' + sec % 10; clock[5] = 0;
+
+    display_status_clear(0);
+    display_status_text(0, 1, status_connected ? " C " : " F ", 1);
+    display_status_text(0, 5, status_server, 0);
+    display_status_text(0, 22, " ", 0);         /* borne un nom trop long */
+    display_status_text(0, 23, clock, 0);
+    display_status_text(0, 30, render_mode_names[g_render_mode], 0);
+    display_status_text(0, 36, "ESC", 0);
+}
+
+static void status_bar_init(void)
+{
+    status_server = "OricTel " ORICTEL_VERSION;
+    status_connected = 0;
+    status_secs = 0;
+    status_sec_ticks = 0;
+    status_bar_draw();
+    display_status_clear(1);
+    display_status_text(2, 1, "^A Annul ^R Retour ^S Somm ^N Suite", 0);
+}
+
+static void status_set_connected(unsigned char on)
+{
+    if (status_connected != on) {
+        status_connected = on;
+        status_bar_draw();
+    }
+}
+
+/* Avance le chrono de ticks x 10 ms ; redessine a chaque seconde. */
+static void status_tick(unsigned char ticks)
+{
+    status_sec_ticks += ticks;
+    if (status_sec_ticks >= 100) {
+        status_sec_ticks -= 100;
+        ++status_secs;
+        status_bar_draw();
+    }
+}
+
+/* ESC en session : question posee sur la barre de statut, la page reste
  * intacte pour que "reprendre" ne coute rien (les autres ecrans effacent la
  * page, ce qui serait ici une perte : le serveur ne la renverra pas).
  *
@@ -879,21 +939,9 @@ static vtx_cell_t row0_save[VTX_COLS];
  * pas rendu, la page se repeint au retour. */
 static unsigned char session_escape_page(vtx_context_t* ctx)
 {
-    unsigned char key, c;
+    unsigned char key;
 
-    memcpy(row0_save, ctx->screen[0], sizeof(row0_save));
-    for (c = 0; c < VTX_COLS; ++c) {
-        ctx->screen[0][c].ch = ' ';
-        ctx->screen[0][c].charset = CHARSET_G0;
-        ctx->screen[0][c].fg = VTX_YELLOW;
-        ctx->screen[0][c].bg = VTX_BLACK;
-        ctx->screen[0][c].flags = 0;
-        ctx->screen[0][c].size = SIZE_NORMAL;
-    }
-    /* 38 caracteres : tient sur 40 colonnes sans clip (voir ui_print). */
-    ui_print(ctx, 0, 0, "ESC: quitter? ESC=menu autre=reprendre", VTX_YELLOW);
-    vtx_touch(ctx, 0, 0, VTX_COLS - 1);
-    display_render_all(ctx);
+    display_status("ESC: quitter? ESC=menu autre=reprendre");
 
     keyboard_flush();       /* anti-rebond : l'ESC initial ne compte pas deux fois */
     for (;;) {
@@ -904,25 +952,9 @@ static unsigned char session_escape_page(vtx_context_t* ctx)
         if (key == KEY_LOCAL_ESCAPE) return 1;
         if (key != KEY_NONE) break;
     }
-    memcpy(ctx->screen[0], row0_save, sizeof(row0_save));
-    vtx_touch(ctx, 0, 0, VTX_COLS - 1);
+    display_status_clear(1);
     ctx->full_refresh = 1;
     return 0;
-}
-
-/* Indicateur connexion sur ligne 0, col 38:
- * 'C' inverse = connecte, 'F' inverse = deconnecte */
-static void set_connexion_indicator(vtx_context_t* ctx, unsigned char ch)
-{
-    ctx->screen[0][38].ch = ch;
-    ctx->screen[0][38].charset = CHARSET_G0;
-    ctx->screen[0][38].fg = VTX_WHITE;
-    ctx->screen[0][38].bg = VTX_BLACK;
-    ctx->screen[0][38].flags = ATTR_INVERT;
-    ctx->screen[0][38].size = SIZE_NORMAL;
-    /* vtx_touch (pas dirty[0]=1): la ligne 0 peut deja porter un span
-     * retreci par le decodeur, il faut l'etendre jusqu'a la col 38 */
-    vtx_touch(ctx, 0, 38, 38);
 }
 
 int main(void)
@@ -961,6 +993,7 @@ int main(void)
    * repasser par le splash ni recharger la cassette. */
   for (;;) {
     vtx_init(&vtx);
+    status_bar_init();
     {
         unsigned char mode;
 
@@ -982,6 +1015,8 @@ int main(void)
         vtx_clear_page(&vtx);
         srv_idx = select_server(&vtx);
         vtx_clear_page(&vtx);
+        status_server = (srv_idx == 255) ? custom_server : server_names[srv_idx];
+        status_bar_draw();
 
         /* Mode modem AT uniquement (PicoWiFiModemUSB = modem Hayes) : a la
          * sortie de la boucle ci-dessus, mode vaut toujours MODE_MODEM (la
@@ -1016,7 +1051,10 @@ int main(void)
     carrier_idle = 0;
     at_carrier_reset();
     via_tick_reset();
-    set_connexion_indicator(&vtx, 'F');
+    status_secs = 0;
+    status_sec_ticks = 0;
+    status_set_connected(0);
+    status_bar_draw();
     display_render_all(&vtx);
 
     /* Purger le burst clavier accumule pendant la connexion (timeouts AT
@@ -1061,6 +1099,7 @@ int main(void)
             g_render_mode++;
             if (g_render_mode > 2) g_render_mode = 0;
             vtx.full_refresh = 1;
+            status_bar_draw();
         } else if (key == KEY_LOCAL_CLEAR) {
             vtx_clear_page(&vtx);
             vtx.full_refresh = 1;
@@ -1081,11 +1120,12 @@ int main(void)
          * pas la lire pendant une rafale les ferait tous tomber dans la
          * premiere iteration silencieuse). */
         ticks = via_tick_10ms();
+        status_tick(ticks);
         if (got_data) {
             idle_counter = 0;
             if (!connected) {
                 connected = 1;
-                set_connexion_indicator(&vtx, 'C');
+                status_set_connected(1);
             }
         } else {
             /* Confirmation de la perte de porteuse par le SILENCE : apres un
@@ -1115,7 +1155,7 @@ int main(void)
                         break;  /* ESC -> menu */
                     }
                 }
-                set_connexion_indicator(&vtx, 'F');
+                status_set_connected(0);
                 vtx.full_refresh = 1;
                 idle_counter = 0;
                 continue;
@@ -1125,7 +1165,7 @@ int main(void)
             }
             if (connected && idle_counter >= LINK_IDLE_TICKS) {
                 connected = 0;
-                set_connexion_indicator(&vtx, 'F');
+                status_set_connected(0);
             }
         }
 

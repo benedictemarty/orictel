@@ -6,8 +6,10 @@
  * Chaque octet HIRES: bit 6 = mode pixel (1) ou attribut serial (0).
  * Bits 5-0 = 6 pixels (encre/fond) ou code attribut.
  *
- * Les 3 lignes texte en bas (rows 25-27 a $BF68+) restent en mode texte
- * pour la barre de statut.
+ * Les 3 lignes texte en bas (rows 25-27 a $BF68+) restent en mode texte :
+ * c'est la barre de statut (display_status_*). Leur jeu de caracteres est
+ * en RAM a $9800 (copie de font_g0 par display_init) - la pile C, qui
+ * l'ecrasait, a ete reduite a $9C00-$9FFF (cfg/orictel.cfg).
  */
 
 #ifndef DISPLAY_H
@@ -59,8 +61,29 @@ void display_render_cell_row(vtx_context_t* ctx, unsigned char row);
  */
 void display_clear(void);
 
+/* --- Barre de statut : 3 lignes texte sous la page HIRES -----------------
+ * Ligne 0 ($BF68) = etat (indicateur, serveur, chrono, mode de rendu),
+ * ligne 1 ($BF90) = message transitoire, ligne 2 ($BFB8) = aide touches.
+ * Colonne 0 de chaque ligne = attribut d'encre ; 39 colonnes de texte.
+ * ATTENTION : $BFDF (ligne 2, col 39) est l'octet de bascule HIRES ($1E)
+ * pose par la ROM, il n'est JAMAIS ecrit. */
+#define STATUS_LINES 3
+#define STATUS_COLS  39
+
 /**
- * Affiche un message sur la barre de statut.
+ * Ecrit s sur la ligne line (0-2) a partir de col (1-39), clippe a 39
+ * colonnes. inverse != 0 : video inverse (bit 7).
+ */
+void display_status_text(unsigned char line, unsigned char col,
+                         const char* s, unsigned char inverse);
+
+/**
+ * Efface la ligne line (0-2) de la barre de statut.
+ */
+void display_status_clear(unsigned char line);
+
+/**
+ * Message transitoire sur la ligne 1 de la barre (efface le reste de la ligne).
  */
 void display_status(const char* msg);
 

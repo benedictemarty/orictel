@@ -1,0 +1,38 @@
+[2026-09-11 23:21:44] INFO: Initializing Phosphoric v2.0.1
+[2026-09-11 23:21:44] WARNING: ACIA: baud rate 0 (external clock) — using instant transfer (set --serial-baud N for realistic timing)
+[2026-09-11 23:21:44] INFO: ACIA 6551 initialized (xtal 1843200 Hz / 16 = 115200 Hz)
+[2026-09-11 23:21:44] INFO: Emulator initialized successfully
+[2026-09-11 23:21:44] INFO: Keyboard layout: QWERTY
+[2026-09-11 23:21:44] INFO: ACIA base address: $0380 (LOCI default — override with --acia-addr)
+[2026-09-11 23:21:44] INFO: Serial TCP: connected to 127.0.0.1:4731 (fd=3)
+[2026-09-11 23:21:44] INFO: ACIA RX FIFO enabled: 4096 bytes
+[2026-09-11 23:21:44] INFO: Serial interface enabled: tcp:127.0.0.1:4731
+[2026-09-11 23:21:44] INFO: LOCI: USB storage 1: (SP-PHD-U3) -> /media/bmarty/SP-PHD-U3
+[2026-09-11 23:21:44] INFO: LOCI: pre-seeded PSG R7=$7F (firmware AY init for keyboard)
+[2026-09-11 23:21:44] INFO: LOCI MIA enabled at $03A0-$03BF (flash root: CWD)
+[2026-09-11 23:21:44] INFO: Capture screenshot-at armée à 31000000 cycles -> shot_mode.bmp
+[2026-09-11 23:21:44] INFO: Capture screenshot-at armée à 33000000 cycles -> shot_esc.bmp
+[2026-09-11 23:21:44] INFO: Auto-type[0] at 14000000 cycles (ORIC matrix): "A"
+[2026-09-11 23:21:44] INFO: Auto-type[1] at 16000000 cycles (ORIC matrix): "A"
+[2026-09-11 23:21:44] INFO: Auto-type[2] at 19000000 cycles (ORIC matrix): "1"
+[2026-09-11 23:21:44] INFO: Auto-type[3] at 22000000 cycles (ORIC matrix): "1"
+[2026-09-11 23:21:44] INFO: Auto-type[4] at 30000000 cycles (ORIC matrix): "\Cd"
+[2026-09-11 23:21:44] INFO: Auto-type[5] at 31500000 cycles (ORIC matrix): "\e"
+[2026-09-11 23:21:44] INFO: Loading ROM: /home/bmarty/Oric1/roms/basic11b.rom
+[2026-09-11 23:21:44] INFO: Machine model: ORIC Atmos (auto-detected from ROM)
+[2026-09-11 23:21:44] INFO: ROM patches: BASIC 1.1 (ORIC Atmos)
+[2026-09-11 23:21:44] INFO: Loading tape: /home/bmarty/orictel/orictel.tap
+[2026-09-11 23:21:44] INFO: Fast load (deferred): 'ORICTEL' type=00 start=$0501 end=$72A2
+[2026-09-11 23:21:44] INFO: Buffered 28066 bytes for deferred injection to $0501-$72A2
+[2026-09-11 23:21:44] INFO: Starting emulation at PC=$F88F
+[2026-09-11 23:21:47] INFO: Deferred fast-load: injected 28066 bytes at $0501-$72A2 (after 3015456 cycles)
+[2026-09-11 23:21:47] INFO: BASIC: VARTAB=$72A3
+[2026-09-11 23:21:49] INFO: Auto-typing RUN after fast-load (phase 2) — 6 frappe(s) utilisateur rejouée(s) ensuite
+[2026-09-11 23:22:15] INFO: Taking screenshot at 31012693 cycles -> shot_mode.bmp
+[2026-09-11 23:22:17] INFO: Taking screenshot at 33009664 cycles -> shot_esc.bmp
+[2026-09-11 23:22:17] INFO: Cycle limit reached (33500000 cycles)
+[2026-09-11 23:22:17] INFO: Emulation stopped. Total cycles: 33508919, frames: 1678
+[2026-09-11 23:22:17] INFO: Final CPU state: A:00 X:00 Y:00 SP:F8 P:..-...Z. PC:1D46 CYC:33508919
+[2026-09-11 23:22:17] INFO: Shutting down emulator
+[2026-09-11 23:22:17] INFO: Serial TCP: disconnected
+[2026-09-11 23:22:17] INFO: Emulator cleanup complete

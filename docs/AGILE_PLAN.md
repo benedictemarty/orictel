@@ -40,14 +40,17 @@ Scrum adapte avec sprints courts. Chaque sprint produit un increment fonctionnel
 - [x] US-030: Scan clavier Oric
 - [x] US-031: Mapping touches fonction Minitel
 - [x] US-032: Envoi caracteres via ACIA
-- [ ] US-033: Barre de statut interactive — les 3 lignes texte sont actuellement
-      CACHEES (`display_status` neutralise, display.c).
+- [x] US-033: Barre de statut (v0.3.19) — 3 lignes texte sous le HIRES : etat
+      C/F, serveur, chrono, mode de rendu (suit CTRL+D), messages (ESC, ACIA
+      reset), aide touches. Jeu de caracteres restaure en `$9800` (pile C
+      ramenee a 1 Ko en `$9C00`, releve < 32 octets verifie par `test_menus`).
+      L'indicateur quitte la ligne 0 de la page, qui appartient au serveur.
 
 ### Epic 5: Qualite
 - [x] US-040: Tests unitaires decodeur Videotex
 - [x] US-041: Tests bridge
 - [x] US-042: Tests d'integration end-to-end — `make test-menus` (parcours de
-      menus jusqu'a l'ecran d'echec puis ESC, 12 checks) et `make test-servers` (connexion
+      menus jusqu'a l'ecran d'echec puis ESC, barre de statut, 17 checks) et `make test-servers` (connexion
       reelle a PAVI 3617 / MiniPavi, page decodee extraite de la RAM et verifiee
       par ancres stables). Le second exige le dongle : SKIP propre sinon.
 - [x] US-043: Compatibilite Oric-1 (BASIC 1.0) — passage HIRES corrige (detection
@@ -94,7 +97,7 @@ fuzzing mort en silence depuis des mois. D'ou l'ajout de garde-fous qui echouent
 bruyamment plutot que de dependre d'un oeil humain.
 
 ## Prochaines pistes (non planifiees)
-- US-025 DRCS, US-033 barre de statut interactive.
+- US-025 DRCS.
 - (fait en v0.3.18 : base de temps Timer 2 du VIA, `make test-carrier`)
 - Fin de l'optimisation du rendu : pre-scans memorises dans le contexte
   (necessite un garde-fou que l'empreinte framebuffer ne couvre pas).

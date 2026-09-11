@@ -12,8 +12,11 @@
 #   3. AFFICHER L'ECRAN D'ECHEC au lieu d'entrer en session a l'aveugle,
 #   4. reboucler sur une nouvelle tentative si on choisit "1 Reessayer",
 #   5. revenir au menu sur ESC (ecran d'echec), et en session : ESC pose la
-#      question sur la ligne 0, une autre touche reprend, ESC ESC raccroche
-#      et revient au menu, ESC sur le menu principal sort vers le BASIC.
+#      question dans la barre de statut, une autre touche reprend, ESC ESC
+#      raccroche et revient au menu, ESC sur le menu principal sort vers le
+#      BASIC,
+#   6. afficher la barre de statut (3 lignes texte) avec son jeu de caracteres
+#      en $9800 intact, la pile C restant au-dessus de $9E00.
 #
 # Le point 3 est la non-regression du bug de "premiere page illisible" : le
 # retour de modem_connect etait ignore et la session demarrait sur un flux
@@ -85,6 +88,16 @@ sys.exit(1)
 PY
 }
 
+find_status() {  # $1 = dump, $2 = texte -> 0 si present dans la barre de statut
+    python3 - "$1" "$2" <<'PY'
+import sys
+ram = open(sys.argv[1], 'rb').read()
+# 3 lignes texte a $BF68-$BFDF (pas de 1) ; bit 7 = video inverse, ignore.
+bar = bytes(b & 0x7F for b in ram[0xBF68:0xBFE0])
+sys.exit(0 if sys.argv[2].encode() in bar else 1)
+PY
+}
+
 fails=0
 check() {
     if [ "$1" -eq 0 ]; then echo "ok   : $2"; else echo "FAIL : $2"; fails=$((fails + 1)); fi
@@ -92,6 +105,20 @@ check() {
 
 run_to 18000000 "$TMP/menu.bin"
 find_text "$TMP/menu.bin" "Mode de connexion"; check $? "menu Mode de connexion atteint"
+
+# Barre de statut (3 lignes texte sous la page HIRES) : version + aide touches,
+# et son jeu de caracteres en $9800, que la pile C (reduite a $9C00-$9FFF)
+# ne doit plus ecraser.
+find_status "$TMP/menu.bin" "OricTel v0."; check $? "barre de statut : version affichee (ligne 0)"
+find_status "$TMP/menu.bin" "^A Annul"; check $? "barre de statut : aide touches (ligne 2)"
+python3 - "$TMP/menu.bin" <<'PY'; check $? "jeu de caracteres de la barre intact en \$9800 (glyphe 'A' = font_g0)"
+import sys, re
+ram = open(sys.argv[1], 'rb').read()
+src = open("src/fonts.c").read()
+m = re.search(r"/\* \$41 A \*/\s*((?:0x[0-9A-Fa-f]{2},?\s*){8})", src)
+glyph = bytes(int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]{2})", m.group(1)))
+sys.exit(0 if ram[0x9800 + 0x41 * 8:0x9800 + 0x41 * 8 + 8] == glyph else 1)
+PY
 
 run_to 60000000 "$TMP/echec.bin"
 find_text "$TMP/echec.bin" "ECHEC DE CONNEXION"; check $? "ecran d'echec affiche (pas d'entree en session aveugle)"
@@ -111,12 +138,20 @@ find_text "$TMP/esc.bin" "Mode de connexion"; check $? "ESC sur l'echec -> retou
 if find_text "$TMP/esc.bin" "ECHEC DE CONNEXION"; then check 1 "ecran d'echec efface apres ESC"; else check 0 "ecran d'echec efface apres ESC"; fi
 
 # ESC en SESSION : "3 Entrer quand meme" entre en session ; un premier ESC
-# pose la question sur la ligne 0 sans effacer la page, un second quitte
+# pose la question dans la barre de statut sans effacer la page, un second quitte
 # (raccroche) et revient au menu ; toute autre touche reprend.
 run_to 70000000 "$TMP/ask.bin" --type-keys "62000000:3" --type-keys '66000000:\e'
-find_text "$TMP/ask.bin" "ESC: quitter?"; check $? "ESC en session : question posee sur la ligne 0"
+find_status "$TMP/ask.bin" "ESC: quitter?"; check $? "ESC en session : question posee dans la barre de statut"
+if find_text "$TMP/ask.bin" "ESC: quitter?"; then check 1 "la page Videotex n'est pas touchee par la question"; else check 0 "la page Videotex n'est pas touchee par la question"; fi
+python3 - "$TMP/ask.bin" <<'PY'; check $? "pile C : releve au-dessus de \$9E00 (512 octets de marge sur 1 Ko)"
+import sys
+ram = open(sys.argv[1], 'rb').read()
+# La bascule HIRES de la ROM a rempli $9800-$9FFF de $40 : tout octet
+# different sous $9E00 signifierait que la pile y est descendue.
+sys.exit(0 if all(b == 0x40 for b in ram[0x9C00:0x9E00]) else 1)
+PY
 run_to 74000000 "$TMP/resume.bin" --type-keys "62000000:3" --type-keys '66000000:\e' --type-keys "70000000:x"
-if find_text "$TMP/resume.bin" "ESC: quitter?"; then check 1 "autre touche : question retiree, session reprise"; else check 0 "autre touche : question retiree, session reprise"; fi
+if find_status "$TMP/resume.bin" "ESC: quitter?"; then check 1 "autre touche : question retiree, session reprise"; else check 0 "autre touche : question retiree, session reprise"; fi
 run_to 95000000 "$TMP/quit.bin" --type-keys "62000000:3" --type-keys '66000000:\e' --type-keys '70000000:\e'
 find_text "$TMP/quit.bin" "Mode de connexion"; check $? "ESC ESC en session -> raccroche et retour au menu"
 
@@ -136,7 +171,7 @@ sys.exit(0 if b"Ready" in ram[0xBB80:0xBFE0] else 1)
 PY
 
 if [ "$fails" -eq 0 ]; then
-    echo "=== Resultats: 12/12 passes ==="
+    echo "=== Resultats: 17/17 passes ==="
     exit 0
 fi
 echo "=== Resultats: ECHEC ($fails) ==="

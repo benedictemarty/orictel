@@ -20,6 +20,7 @@
  *   - Mosaiques G1: dithering par densite de luminance
  */
 
+#include <string.h>
 #include "display.h"
 #include "fonts.h"
 
@@ -111,16 +112,58 @@ void display_init(void)
     hires_on();
     g1_cache_init();
 
-    /* Cacher les 3 lignes texte en bas (remplir de noir) */
-    /* En HIRES, les lignes texte 25-27 sont a $BF68-$BFDF */
-    ptr = (unsigned char*)0xBF68;
-    for (i = 0; i < 120; ++i) {  /* 3 lignes x 40 octets */
-        ptr[i] = ' ';
+    /* Jeu de caracteres des 3 lignes texte : la bascule HIRES de la ROM
+     * ne le regenere pas ici (elle remplit $9800-$9FFF de $40), on copie
+     * font_g0 (meme format : 8 octets par caractere, 6 pixels utiles) pour
+     * les codes $20-$7F a $9900-$9BFF. Les codes < $20 sont des attributs
+     * en mode texte, sans glyphe. */
+    memcpy((unsigned char*)0x9900, font_g0, 96 * 8);
+
+    /* Barre de statut : 3 lignes texte a $BF68-$BFDF, encre en colonne 0 */
+    for (i = 0; i < STATUS_LINES; ++i) {
+        display_status_clear(i);
     }
-    /* Premiere colonne de chaque ligne texte: encre noire */
-    *(unsigned char*)0xBF68 = 0x00;  /* Ink black ligne 25 */
-    *(unsigned char*)0xBF90 = 0x00;  /* Ink black ligne 26 */
-    *(unsigned char*)0xBFB8 = 0x00;  /* Ink black ligne 27 */
+    (void)ptr;
+}
+
+/* ===================================================================
+ *  Barre de statut (3 lignes texte sous la page HIRES)
+ * =================================================================== */
+
+/* Encre de chaque ligne (attribut en colonne 0) : cyan, jaune, blanc */
+static const unsigned char status_ink[STATUS_LINES] = { 6, 3, 7 };
+
+static unsigned char* status_line_ptr(unsigned char line)
+{
+    return (unsigned char*)(TEXT_STATUS + 40u * line);
+}
+
+void display_status_clear(unsigned char line)
+{
+    unsigned char* p;
+    unsigned char c;
+
+    if (line >= STATUS_LINES) return;
+    p = status_line_ptr(line);
+    p[0] = status_ink[line];
+    /* La ligne 2 s'arrete a la col 38 : $BFDF est l'octet de bascule HIRES */
+    for (c = 1; c <= STATUS_COLS - (line == 2); ++c) {
+        p[c] = ' ';
+    }
+}
+
+void display_status_text(unsigned char line, unsigned char col,
+                         const char* s, unsigned char inverse)
+{
+    unsigned char* p;
+    unsigned char last;
+
+    if (line >= STATUS_LINES || col == 0) return;
+    p = status_line_ptr(line);
+    last = STATUS_COLS - (line == 2);
+    for (; *s && col <= last; ++s, ++col) {
+        p[col] = inverse ? (unsigned char)(*s | 0x80) : (unsigned char)*s;
+    }
 }
 
 /* display_clear: implemente en assembleur (display_asm.s).
@@ -920,10 +963,10 @@ void display_render_cell(const vtx_cell_t* cell, unsigned char col, unsigned cha
     render_cell_hires(cell, col, row);
 }
 
-/* Barre de statut desactivee (les 3 lignes texte sont cachees) */
 void display_status(const char* msg)
 {
-    (void)msg;  /* Plus de barre de statut visible */
+    display_status_clear(1);
+    display_status_text(1, 1, msg, 0);
 }
 
 /* Beep via ROM Atmos - utilise la routine PING ($FA9F)

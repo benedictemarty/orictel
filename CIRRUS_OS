@@ -14,10 +14,10 @@
 
 | Cible           | Plateforme | Status     | Date       |
 |-----------------|------------|------------|------------|
-| orictel.tap     | atmos+oric1| BUILD OK v0.3.18 (base de temps T2, ESC quitter/retour menu/sortie BASIC, perte de porteuse, rendu 4,0x) | 2026-09-11 |
+| orictel.tap     | atmos+oric1| BUILD OK v0.3.19 (barre de statut, base de temps T2, ESC quitter/retour menu/sortie BASIC, perte de porteuse, rendu 4,0x) | 2026-09-11 |
 | chaine co-simulee| oric1     | VALIDE : firmware LOCI reel + PicoWiFiModemUSB physique, page PAVI complete | 2026-09-10 |
 | montage reel    | oric1      | VALIDE : ATZ/ATH/ATDT, raccrochage, NO CARRIER, reconnexion | 2026-09-10 |
-| suite complete  | host+emu   | 339/339 (Videotex 219, SMC 22, AT 28, clavier 23, UI 11, menus 12, porteuse 1, bridge 23) | 2026-09-11 |
+| suite complete  | host+emu   | 344/344 (Videotex 219, SMC 22, AT 28, clavier 23, UI 11, menus 17, porteuse 1, bridge 23) | 2026-09-11 |
 | fuzzing Videotex| host       | 1,6 M executions ASAN/UBSAN, debit minimal exige (FUZZ_MIN_RATE) | 2026-09-10 |
 | test-servers    | oric1+dongle| PAVI 3617 + MiniPavi : ancres stables trouvees | 2026-09-10 |
 | orictel.tap     | atmos+oric1| BUILD OK v0.3.7 (HIRES Oric-1 jsr $F8E3 + detection ROM $C002) | 2026-08-25 |

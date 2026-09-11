@@ -1,5 +1,39 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — v0.3.19 : barre de statut sur les 3 lignes texte (US-033)
+
+En HIRES l'Oric affiche encore **3 lignes de texte** sous les 200 lignes graphiques
+(`$BF68-$BFDF`). Elles étaient cachées (encre noire) parce que leur jeu de caractères,
+que la ROM loge en `$9800-$9FFF`, était **écrasé par la pile C** (2 Ko au même
+endroit). `display_status` était un no-op depuis la v0.1.
+
+### Comment
+- **Pile C ramenée à 1 Ko** en `$9C00-$9FFF` (zone du jeu *alternatif*, jamais
+  sélectionné) ; relevé mesuré en session : **moins de 32 octets utilisés**. `BSS` est
+  borné à `$9800` par le linker, la place du jeu standard est garantie.
+- `display_init` copie `font_g0` (même format que le jeu Oric : 8 octets, 6 pixels)
+  en `$9900-$9BFF` — la bascule HIRES de la ROM ne régénère pas les glyphes, elle
+  remplit la zone de `$40`.
+- Primitives `display_status_text/clear` ; `$BFDF` (ligne 2, col 39) est l'octet de
+  bascule HIRES posé par la ROM, jamais écrit.
+
+### Contenu
+- **Ligne 0** (cyan) : indicateur `C`/`F` inverse, serveur, **chrono** `mm:ss` de la
+  session (tics du Timer 2), **mode de rendu** `AUTO`/`TRAME`/`BRUT` (suit CTRL+D),
+  rappel `ESC`.
+- **Ligne 1** (jaune) : messages — la **question ESC** y est posée (plus besoin de
+  sauver/restaurer la ligne 0 de la page : −240 octets de BSS), `ACIA reset` redevient
+  visible.
+- **Ligne 2** (blanc) : aide des touches Minitel.
+- **L'indicateur quitte la ligne 0 de la page Videotex**, qui appartient au serveur :
+  OricTel n'y écrit plus rien (fidélité Minitel).
+
+### Tests
+- `test_menus.sh` : 12 → **17 checks** — version et aide dans la barre, glyphe `A` en
+  `$9800` identique à `font_g0`, question ESC dans la barre *et* absente de la page,
+  **relevé de pile au-dessus de `$9E00`** (les `$40` posés par la ROM y sont intacts).
+- Suite complète : **344/344**. `make bench-render` : rendu HIRES non concerné.
+
 ## [Non publié] — v0.3.18 : base de temps réelle (Timer 2 du VIA), délais en secondes
 
 `CARRIER_CONFIRM_IDLE = 500` était un **nombre d'itérations** de la boucle de session,

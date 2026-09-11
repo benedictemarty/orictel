@@ -84,10 +84,14 @@ $0200-$02FF  Variables systeme
 $0300-$030F  VIA 6522 (miroir $0300-$03FF)
 $0380-$0383  ACIA 6551 (serie, base LOCI)
 $0400-$0500  Zone systeme Oric
-$0501-$97FF  CODE + DATA OricTel (~37 Ko)
-$9800-$9FFF  BSS / Pile cc65 (2 Ko)
+$0501-$97FF  CODE + DATA + BSS OricTel (~37 Ko ; BSS borne a $9800 par le cfg)
+$9800-$9BFF  Jeu de caracteres standard des lignes texte (copie de font_g0)
+$9C00-$9FFF  Pile cc65 (1 Ko ; releve < 32 octets en session, test_menus
+             verifie qu'elle reste au-dessus de $9E00). C'est la place du jeu
+             de caracteres ALTERNATIF, jamais selectionne.
 $A000-$BF3F  Framebuffer HIRES (8000 octets)
-$BB80-$BFDF  Ecran texte (lignes 25-27 = barre statut)
+$BF68-$BFDF  3 lignes texte sous le HIRES = barre de statut ($BFDF = octet
+             de bascule HIRES pose par la ROM, jamais ecrit)
 $C000-$FFFF  ROM (16 Ko)
 ```
 
@@ -119,6 +123,28 @@ supporte : le PicoWiFiModemUSB dialogue en 8N1.
   donc inutilisable pour detecter une perte de porteuse (voir `serial.h`). La
   detection passe par la reponse `NO CARRIER` du modem (`at_carrier_watch`),
   confirmee par 4 s de silence (`CARRIER_CONFIRM_MS`).
+
+### Barre de statut (3 lignes texte)
+
+En HIRES, l'Oric affiche encore 3 lignes texte sous les 200 lignes graphiques
+(`$BF68-$BFDF`). Elles etaient cachees (encre noire) parce que leur jeu de
+caracteres, que la ROM place en `$9800-$9FFF`, etait ecrase par la pile C.
+La pile est ramenee a 1 Ko en `$9C00-$9FFF` (zone du jeu alternatif, jamais
+selectionne) et `display_init` copie `font_g0` en `$9900-$9BFF` : la bascule
+HIRES de la ROM (`$EC33` / `$F8E3`) ne regenere pas les glyphes, elle
+remplit la zone de `$40`. Contenu (`main.c`, `status_bar_*`) :
+
+- ligne 0 (cyan) : indicateur `C`/`F` en inverse, serveur, chrono `mm:ss`
+  de session (tics de 10 ms du Timer 2), mode de rendu (`AUTO`/`TRAME`/
+  `BRUT`, suit CTRL+D), rappel `ESC` ;
+- ligne 1 (jaune) : message transitoire (`display_status` : question ESC,
+  `ACIA reset`) ;
+- ligne 2 (blanc) : aide des touches Minitel.
+
+La colonne 0 de chaque ligne porte l'attribut d'encre ; 39 colonnes de texte,
+38 pour la ligne 2. L'indicateur de liaison quitte ainsi la ligne 0 de la
+page Videotex, qui appartient au serveur. Cout : 40 octets reecrits par
+seconde, aucun impact sur le rendu HIRES (`make bench-render` inchange).
 
 ### Base de temps : Timer 2 du VIA 6522
 

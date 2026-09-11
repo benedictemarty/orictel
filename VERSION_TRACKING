@@ -1,9 +1,10 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.18 (base de temps Timer 2 VIA : delais en secondes, plus en iterations)
+## Version actuelle: 0.3.19 (barre de statut sur les 3 lignes texte, ligne 0 rendue au serveur)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
+| orictel.tap        | 0.3.19     | 2026-09-11 | barre de statut (C/F, serveur, chrono, mode, messages, aide) ; charset $9800 restaure, pile C 1 Ko en $9C00 ; test_menus 17 checks |
 | orictel.tap        | 0.3.18     | 2026-09-11 | CARRIER_CONFIRM_MS=4000 et LINK_IDLE_MS=30000 sur Timer 2 VIA ; mesure 4,0 s emulateur (ROM 1.0/1.1), a confirmer materiel |
 | test_carrier.sh + fake_modem.py| 0.1.0 | 2026-09-11 | delai NO CARRIER -> ecran mesure en cycles (trace serie + vidages RAM 0,2 s), 4,0 +/- 0,4 s exige |
 | orictel.tap        | 0.3.17     | 2026-09-11 | ESC : question ligne 0, ESC ESC raccroche + menu ; ESC = retour sur echec/porteuse/menus ; ESC au menu = sortie BASIC (jmp ($FFFC), ROM 1.0 et 1.1) ; ANNULATION = CTRL+A seul |

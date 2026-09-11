@@ -72,6 +72,9 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
    - Modes PRO2/PRO3 : rouleau, minuscules, aiguillages appliques au clavier,
      clavier etendu/curseur
    - 3 modes de rendu commutables (CTRL+D) : auto, dithering, brut
+   - Barre de statut sur les 3 lignes texte sous le HIRES : indicateur C/F,
+     serveur, chrono de session, mode de rendu, messages (ESC, ACIA reset),
+     aide des touches - la ligne 0 de la page reste entierement au serveur
    - Splash screen avec jingle AY-3-8912 (version affichee via ORICTEL_VERSION)
    - Ecran interface (rappel du montage LOCI + PicoWiFi), menu de mode (modem
      AT / config WiFi) et de serveur (predefinis + saisie libre)

@@ -30,7 +30,10 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [ ] Jeu de caracteres G2 (supplementaire/accents)
 - [ ] Clignotement (flash) anime
 - [ ] Texte masque (concealed) avec revele au clic
-- [ ] Barre de statut interactive
+- [x] Barre de statut (v0.3.19) : les 3 lignes texte sous le HIRES, jeu de
+      caracteres restaure en $9800 (pile C reduite a 1 Ko, releve verifie) ;
+      indicateur C/F, serveur, chrono mm:ss, mode de rendu, messages ESC /
+      ACIA reset, aide touches. La ligne 0 de la page est rendue au serveur.
 - [x] ESC = touche de secours (v0.3.17) : en session, question sur la ligne 0
       puis ESC ESC raccroche et revient au menu (decodeur reinitialise) ;
       ESC = retour sur les ecrans d'echec / perte de porteuse / menus ;

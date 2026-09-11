@@ -125,12 +125,23 @@ desormais jusqu'a l'obtention de l'IP avant de composer, ce qui evite le
 
 ## 3. L'ecran
 
-- **Lignes 1-24** : la page Videotex du serveur (40 colonnes).
-- **Ligne 0** (statut) : en haut a droite, l'indicateur de liaison -
-  `C` inverse = donnees recues recemment (connecte), `F` = pas de
-  donnees depuis ~30 s (liaison probablement coupee).
+- **Lignes 0-24** : la page Videotex du serveur (40 colonnes), ligne 0
+  comprise - elle lui appartient entierement, OricTel n'y ecrit plus rien.
 - **Curseur** : barre clignotante sous la cellule courante, lorsque le
   serveur l'active (zones de saisie).
+- **Barre de statut** : 3 lignes de texte sous la page.
+
+```
+ C  PAVI 3617         00:12  AUTO  ESC      <- etat (cyan)
+ESC: quitter? ESC=menu autre=reprendre      <- messages (jaune)
+^A Annul ^R Retour ^S Somm ^N Suite         <- aide (blanc)
+```
+
+  - `C` inverse = donnees recues recemment (connecte), `F` = pas de
+    donnees depuis 30 s (liaison probablement coupee) ;
+  - le serveur choisi, puis le **chrono** de la session (`mm:ss`) ;
+  - le **mode de rendu** courant (`AUTO`, `TRAME`, `BRUT`, voir CTRL+D) ;
+  - la ligne du milieu accueille les messages (question ESC, `ACIA reset`).
 
 ## 4. Le clavier
 
