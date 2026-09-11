@@ -52,9 +52,10 @@ utilisable avec les serveurs Minitel modernes via Internet.
       "1 Reconnecter" VALIDE de bout en bout sur materiel (CTRL+C -> serveur
       raccroche -> NO CARRIER 00:00:16 -> appui sur 1 -> ATZ/ATI/ATDT -> page).
       Delai CARRIER_CONFIRM_IDLE=500 MESURE sur materiel : NO CARRIER a
-      60,36 s, ecran absent a 64 s et present a 66 s -> 3,6 a 5,6 s. Attention,
-      c'est un NOMBRE D'ITERATIONS et non une duree : toute optimisation du
-      rendu ou du decodeur le raccourcit mecaniquement, a re-mesurer alors.
+      60,36 s, ecran absent a 64 s et present a 66 s -> 3,6 a 5,6 s. C'etait
+      un NOMBRE D'ITERATIONS ; depuis la v0.3.18 le delai est CARRIER_CONFIRM_MS
+      = 4000 ms sur le Timer 2 du VIA (base de temps reelle), mesure 4,0 s
+      +/- 0,1 par make test-carrier (ROM 1.0 et 1.1). A confirmer sur materiel.
 
 ## Sprint 4 - Compatibilite et polish (v0.4.0) [PLANIFIE]
 - [x] Protection SEI/PLP des acces octet ACIA (v0.3.6) : `send_raw` (ecriture

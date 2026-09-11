@@ -60,6 +60,10 @@ Scrum adapte avec sprints courts. Chaque sprint produit un increment fonctionnel
       (rendu 4,0x, decodeur 1,50x), pas de sondage AT ramene sous le temps-octet.
 - [x] US-046: Reprise sur modem reste en ligne (`at_hangup`) et perte de porteuse
       (`at_carrier_watch`), validees sur materiel.
+- [x] US-048: Base de temps reelle (v0.3.18) — delais de session comptes sur le
+      Timer 2 du VIA (4 s de confirmation de perte de porteuse, 30 s avant
+      indicateur `F`), plus un nombre d'iterations. Mesure sur cible par
+      `make test-carrier` (faux modem TCP, 4,0 s +/- 0,1, ROM 1.0 et 1.1).
 - [x] US-047: ESC, touche de secours universelle (v0.3.17) — quitter la session
       (question ligne 0, ESC ESC raccroche et revient au menu, decodeur remis a
       neuf), retour sur echec / perte de porteuse / menus, sortie vers le BASIC
@@ -91,8 +95,7 @@ bruyamment plutot que de dependre d'un oeil humain.
 
 ## Prochaines pistes (non planifiees)
 - US-025 DRCS, US-033 barre de statut interactive.
-- Base de temps reelle pour `CARRIER_CONFIRM_IDLE`, aujourd'hui un nombre
-  d'iterations que toute optimisation raccourcit mecaniquement.
+- (fait en v0.3.18 : base de temps Timer 2 du VIA, `make test-carrier`)
 - Fin de l'optimisation du rendu : pre-scans memorises dans le contexte
   (necessite un garde-fou que l'empreinte framebuffer ne couvre pas).
 

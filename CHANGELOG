@@ -1,5 +1,40 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — v0.3.18 : base de temps réelle (Timer 2 du VIA), délais en secondes
+
+`CARRIER_CONFIRM_IDLE = 500` était un **nombre d'itérations** de la boucle de session,
+mesuré à 3,6-5,6 s sur matériel — et que toute optimisation du rendu ou du décodeur
+raccourcissait mécaniquement (dernière piste ouverte du sprint précédent). Même défaut,
+plus grave, pour le retour de l'indicateur à `F` : « 30000 itérations (~30 s) » valait en
+réalité plus de 4 minutes à 8,5 ms l'itération.
+
+### Comment
+- **Timer 2 du VIA 6522** (`$0308/$0309`) lu à chaque itération ; la ROM ne s'en sert
+  que pour la cassette, il décompte en continu à 1 MHz : on accumule les cycles écoulés
+  (soustraction modulo 65536) en tics de 10 ms. `CARRIER_CONFIRM_MS = 4000`,
+  `LINK_IDLE_MS = 30000`.
+- OricTel **arme T2 lui-même** (`via_tick_reset`) — un 6522 émulé le laisse figé tant
+  que T2C-H n'a jamais été écrit — et **interdit son IRQ** (`IER = $20`) : le handler
+  ROM n'acquitte que T1, un drapeau T2 actif serait une tempête d'IRQ.
+- **Piste écartée** : observer l'octet haut de T1 (rechargé toutes les 10 ms par la
+  ROM). Mesuré à **6,1 s pour 4 s demandées** : dès qu'une itération dépasse 10 ms la
+  remontée est masquée, et la boucle au repos en est proche. Lire l'octet bas de T1
+  aurait acquitté l'IRQ 100 Hz à la place de la ROM.
+- Le sens d'erreur reste sûr : une itération de plus de 65 ms perd des cycles et
+  **allonge** le délai, jamais ne le raccourcit.
+
+### Tests
+- **`make test-carrier`** (nouveau, dans `make test`, ~40 s temps réel) :
+  `tests/fake_modem.py` joue un PicoWiFiModemUSB sur TCP (ATZ/ATI/ATDT, page, puis
+  `NO CARRIER` et silence) ; le délai est mesuré **en cycles** entre le dernier octet RX
+  (trace série) et le premier vidage RAM où la page a disparu (pas de 0,2 s). Exigé :
+  4,0 s ± 0,4. Mesuré : **3,9-4,1 s** sur ROM 1.1 et 1.0.
+- Suite complète : **339/339**.
+
+### À confirmer sur matériel
+La mesure est faite sur Phosphoric ; la valeur matérielle (3,6-5,6 s à l'ancienne
+méthode) reste à refaire avec le montage réel.
+
 ## [Non publié] — v0.3.17 : ESC, la touche de secours (quitter la session, retour au menu)
 
 Jusqu'ici, une session n'avait **aucune sortie** : la boucle principale était un

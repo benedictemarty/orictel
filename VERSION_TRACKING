@@ -1,9 +1,11 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.17 (ESC = quitter la session / retour menu)
+## Version actuelle: 0.3.18 (base de temps Timer 2 VIA : delais en secondes, plus en iterations)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
+| orictel.tap        | 0.3.18     | 2026-09-11 | CARRIER_CONFIRM_MS=4000 et LINK_IDLE_MS=30000 sur Timer 2 VIA ; mesure 4,0 s emulateur (ROM 1.0/1.1), a confirmer materiel |
+| test_carrier.sh + fake_modem.py| 0.1.0 | 2026-09-11 | delai NO CARRIER -> ecran mesure en cycles (trace serie + vidages RAM 0,2 s), 4,0 +/- 0,4 s exige |
 | orictel.tap        | 0.3.17     | 2026-09-11 | ESC : question ligne 0, ESC ESC raccroche + menu ; ESC = retour sur echec/porteuse/menus ; ESC au menu = sortie BASIC (jmp ($FFFC), ROM 1.0 et 1.1) ; ANNULATION = CTRL+A seul |
 | test_menus.sh (parcours menus)| 0.2.0 | 2026-09-11 | 12 checks (+ESC, sortie BASIC) ; garde-fou version repare (SKIPpait en silence depuis Phosphoric v2.0) |
 | orictel.tap        | 0.3.7      | 2026-08-25 | HIRES OK Oric-1 (jsr $F8E3) + Atmos ($EC33), detection ROM en $C002 |

@@ -76,7 +76,7 @@ L'option 3 reproduit l'ancien comportement, mais comme un choix explicite.
 
 **Perte de porteuse en cours de session.** Quand le serveur raccroche (ou que la
 liaison tombe), le modem repasse en mode commande et emet `NO CARRIER`. OricTel
-le reconnait, attend quelques secondes de silence pour confirmer — une page qui
+le reconnait, attend **4 secondes** de silence pour confirmer — une page qui
 citerait ces mots continuerait de defiler — puis propose :
 
 ```
@@ -247,6 +247,6 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 - Le bit /DCD du 6551 ne peut pas servir a detecter une perte de porteuse sur
   LOCI : le firmware ne le pilote que depuis le montage USB et DTR, jamais
   depuis l'etat de l'appel. D'ou la detection par `NO CARRIER`.
-- Le delai de confirmation de perte de porteuse est compte en ITERATIONS de
-  boucle (~4 s mesurees), pas en secondes : une optimisation du rendu ou du
-  decodeur le raccourcit mecaniquement.
+- Le delai de confirmation de perte de porteuse (4 s) et le retour de
+  l'indicateur a `F` (30 s de silence) sont comptes sur le Timer 2 du VIA,
+  une vraie base de temps : ils ne dependent plus du cout de la boucle.

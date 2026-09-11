@@ -154,7 +154,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-menus test-servers test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-menus test-carrier test-servers test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -318,7 +318,7 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-serial test-atmodem test-keyboard test-ui test-serial-noraw test-menus test-bridge
+test: test-videotex test-serial test-atmodem test-keyboard test-ui test-serial-noraw test-menus test-carrier test-bridge
 
 # Garde-fou reception FIDELE au 6551 reel : rejoue une rafale sur $0380 via le
 # backend `file:` de Phosphoric SANS --serial-buffer (RX 1 octet), verifie via
@@ -333,6 +333,13 @@ test-serial-noraw: diag.tap
 # >= v1.118 (avant, --type-keys renvoyait la machine au BASIC) ; sinon SKIP.
 test-menus: $(OUTPUT)
 	@$(TESTDIR)/test_menus.sh
+
+# Delai de confirmation de perte de porteuse MESURE sur cible (Timer 2 du VIA) :
+# faux modem TCP (tests/fake_modem.py), NO CARRIER puis silence, l'ecran doit
+# tomber 4,0 s +/- 0,4 apres le dernier octet. ~40 s (--realtime). SKIP sans
+# emulateur/ROM.
+test-carrier: $(OUTPUT)
+	@$(TESTDIR)/test_carrier.sh
 
 # Fidelite du decodage contre de VRAIS serveurs Minitel, via la chaine
 # co-simulee (firmware LOCI reel + PicoWiFiModemUSB physique). Lent (~2 min par
@@ -482,6 +489,7 @@ help:
 	@echo "  test-atmodem  Tests machine d'etats modem AT (faux modem)"
 	@echo "  test-keyboard Tests mapping clavier Oric -> Minitel (clavier scripte)"
 	@echo "  test-ui       Tests helpers UI (clip ui_print + bornes saisie)"
+	@echo "  test-carrier  Delai de perte de porteuse mesure sur cible (~40 s, Timer 2)"
 	@echo "  test-bridge   Tests du bridge"
 	@echo "  test-server   Serveur Videotex local de demo (test manuel)"
 	@echo "  fuzz          Fuzzing du decodeur Videotex (ASAN/UBSAN, FUZZ_TIME=30)"

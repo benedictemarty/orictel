@@ -117,7 +117,24 @@ supporte : le PicoWiFiModemUSB dialogue en 8N1.
 - Bit 5 (=$20): **/DCD, logique INVERSEE** — non nul = PAS de porteuse. Sur LOCI
   ce bit ne suit que le montage USB et DTR, jamais l'etat de l'appel : il est
   donc inutilisable pour detecter une perte de porteuse (voir `serial.h`). La
-  detection passe par la reponse `NO CARRIER` du modem (`at_carrier_watch`).
+  detection passe par la reponse `NO CARRIER` du modem (`at_carrier_watch`),
+  confirmee par 4 s de silence (`CARRIER_CONFIRM_MS`).
+
+### Base de temps : Timer 2 du VIA 6522
+
+La boucle de session n'a pas d'ISR et son iteration n'a pas de duree fixe
+(~8,5 ms a vide, bien plus pendant un rendu). Les delais (confirmation de
+perte de porteuse, retour de l'indicateur a `F`) sont donc comptes sur **T2**
+(`$0308/$0309`), lu a chaque iteration : la ROM ne s'en sert que pour la
+cassette, il decompte en continu a 1 MHz une fois arme, et on accumule les
+cycles ecoules (soustraction modulo 65536) en tics de 10 ms. OricTel l'arme
+lui-meme (`via_tick_reset`) car un 6522 emule le laisse fige tant que T2C-H
+n'a pas ete ecrit, et interdit son IRQ (`IER = $20`) : le handler ROM
+n'acquitte que T1, un drapeau T2 actif serait une tempete d'IRQ. T1 n'est
+pas utilisable : lire son octet bas acquitterait l'IRQ 100 Hz a la place
+de la ROM, et n'observer que l'octet haut rate les rechargements des qu'une
+iteration depasse 10 ms (mesure : 6,1 s pour 4 s demandees). Verifie par
+`make test-carrier` : 4,0 s +/- 0,1 sur ROM 1.0 et 1.1.
 
 ## Protocole Videotex - Machine a etats
 

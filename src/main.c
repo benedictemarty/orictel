@@ -27,31 +27,94 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.17"
+#define ORICTEL_VERSION "v0.3.18"
 
-/* Iterations de boucle sans le moindre octet exigees pour CONFIRMER une
- * presomption de perte de porteuse (un vrai NO CARRIER n'est suivi de RIEN,
- * une page qui citerait ces mots continuerait de defiler).
+/* Silence exige, en MILLISECONDES, pour CONFIRMER une presomption de perte de
+ * porteuse (un vrai NO CARRIER n'est suivi de RIEN, une page qui citerait ces
+ * mots continuerait de defiler).
  *
- * L'unite est l'ITERATION, pas la milliseconde : il n'y a pas de base de temps
- * dans la boucle de session. MESURE sur materiel (session PAVI reelle,
- * NO CARRIER a ~59 s, ecran affiche entre 72 s et 80 s) : 2000 iterations
- * valaient 13 a 21 s, soit environ 8,5 ms par iteration a vide - et NON les
- * "~2 s" qu'annoncait le commentaire d'origine, qui extrapolait a tort depuis
- * le compteur d'inactivite (celui-ci tourne dans une boucle differemment
- * chargee). 15 a 20 s avant de prevenir l'utilisateur, c'est trop long.
+ * Historique : la constante etait un NOMBRE D'ITERATIONS de la boucle de
+ * session (CARRIER_CONFIRM_IDLE = 500), mesure sur materiel a 3,6-5,6 s ; a
+ * 2000 elle valait 13 a 21 s. Toute optimisation du rendu ou du decodeur la
+ * raccourcissait mecaniquement. Elle est desormais comptee sur une base de
+ * temps reelle (via_tick_10ms, Timer 2 du VIA), independante du cout de la
+ * boucle : 4000 ms, au milieu de la plage mesuree.
  *
- * 500 iterations : MESURE SUR MATERIEL a son tour (session PAVI, NO CARRIER
- * recu a 60,36 s, ecran absent a 64 s et present a 66 s) -> 3,6 a 5,6 s. La
- * regle de trois depuis la mesure a 2000 tenait donc.
+ * La marge anti-faux-positif reste large : 4 s de silence, c'est ~480 octets
+ * a 1200 bauds, une pause qu'un serveur en pleine emission de page ne fait
+ * pas. */
+#define CARRIER_CONFIRM_MS   4000u
+#define CARRIER_CONFIRM_TICKS (CARRIER_CONFIRM_MS / 10u)
+
+/* Silence apres lequel l'indicateur de connexion repasse a 'F' (meme base de
+ * temps). Etait "30000 iterations (~30 s)" : a ~8,5 ms l'iteration a vide,
+ * c'etait en realite plus de 4 minutes. */
+#define LINK_IDLE_MS         30000u
+#define LINK_IDLE_TICKS      (LINK_IDLE_MS / 10u)
+
+/* --- Base de temps : Timer 2 du VIA 6522 ----------------------------------
+ * T2 n'est utilise par la ROM (1.0 comme 1.1) que pendant la lecture
+ * cassette ; hors de la, en mode "one-shot" (ACR bit 5 = 0), il DECOMPTE en
+ * continu a 1 MHz et boucle a $FFFF une fois arme : un chronometre 16 bits
+ * gratuit, sans ISR. Son drapeau IFR (bit 5) n'est pas source d'IRQ (IER ROM = T1 seul), le
+ * lire ne vole donc rien a la ROM - contrairement a T1, dont la lecture de
+ * l'octet bas ACQUITTE l'interruption 100 Hz a la place de la ROM.
  *
- * La marge anti-faux-positif reste large : ~4 s de silence, c'est ~480 octets
- * a 1200 bauds, une pause qu'un serveur en pleine emission de page ne fait pas.
+ * On accumule les cycles ecoules entre deux appels (soustraction modulo
+ * 65536) et on en tire des tics de 10 ms. Deux lectures non atomiques : une
+ * retenue entre l'octet bas et l'octet haut fausse UN echantillon de 256
+ * cycles, que le suivant corrige (somme telescopique : seule la valeur
+ * absolue compte). Un appel doit revenir en moins de 65 ms, sinon des cycles
+ * sont perdus, ce qui ALLONGE le delai (jamais ne le raccourcit : sens sur
+ * pour une confirmation).
  *
- * A RE-MESURER si la boucle de session change de cout : la valeur est un
- * NOMBRE D'ITERATIONS, pas une duree, et toute optimisation du rendu ou du
- * decodeur la raccourcit mecaniquement (cf. make bench-render). */
-#define CARRIER_CONFIRM_IDLE 500u
+ * Premiere version (v0.3.18, abandonnee) : detection de la remontee de
+ * l'octet haut de T1, recharge toutes les 10 ms par la ROM. Mesure sur
+ * emulateur a 6,1 s pour 4 s demandees : une iteration de plus de 10 ms
+ * masque la remontee, et la boucle de session au repos en est proche. */
+#define VIA_T2_LO  (*(volatile unsigned char*)0x0308)
+#define VIA_T2_HI  (*(volatile unsigned char*)0x0309)
+#define VIA_IER    (*(volatile unsigned char*)0x030E)
+#define CYCLES_PER_TICK 10000u
+
+static unsigned int s_t2_prev;   /* T2 au dernier echantillon */
+static unsigned int s_t2_acc;    /* cycles accumules, < CYCLES_PER_TICK */
+
+static unsigned int via_t2_read(void)
+{
+    unsigned char lo = VIA_T2_LO;
+    unsigned char hi = VIA_T2_HI;
+    return ((unsigned int)hi << 8) | lo;
+}
+
+static void via_tick_reset(void)
+{
+    /* Armer T2 nous-memes : un 6522 emule (Phosphoric) laisse le compteur
+     * FIGE tant que T2C-H n'a jamais ete ecrit, la ou la puce reelle
+     * decompte des la mise sous tension. Et interdire son IRQ (IER bit 7 = 0
+     * : les bits a 1 sont EFFACES) : le handler ROM n'acquitte que T1, un
+     * drapeau T2 laisse actif serait une tempete d'IRQ (cf. serial_asm.s). */
+    VIA_IER   = 0x20;
+    VIA_T2_LO = 0xFF;
+    VIA_T2_HI = 0xFF;
+    s_t2_prev = via_t2_read();
+    s_t2_acc = 0;
+}
+
+/* Nombre de tics de 10 ms ecoules depuis l'appel precedent. */
+static unsigned char via_tick_10ms(void)
+{
+    unsigned int now = via_t2_read();
+    unsigned char ticks = 0;
+
+    s_t2_acc += (unsigned int)(s_t2_prev - now);    /* T2 decompte */
+    s_t2_prev = now;
+    while (s_t2_acc >= CYCLES_PER_TICK) {
+        s_t2_acc -= CYCLES_PER_TICK;
+        ++ticks;
+    }
+    return ticks;
+}
 
 /* Contexte Videotex global */
 static vtx_context_t vtx;
@@ -867,12 +930,13 @@ int main(void)
     unsigned char byte;
     unsigned char key;
     unsigned char got_data;         /* 1 si donnees recues cette iteration */
-    unsigned int  idle_counter;     /* Compteur sans donnees */
+    unsigned int  idle_counter;     /* Silence depuis le dernier octet (tics de 10 ms) */
+    unsigned char ticks;            /* Tics de 10 ms ecoules cette iteration */
     unsigned char connected;        /* 0=deconnecte, 1=connecte */
     unsigned      acia_base;        /* Base ACIA choisie (LOCI $0380) */
     unsigned char srv_idx;          /* Serveur retenu (recompose sur perte de porteuse) */
     unsigned char carrier_pending;  /* "NO CARRIER" vu, en attente de confirmation */
-    unsigned int  carrier_idle;     /* Silence accumule depuis cette presomption */
+    unsigned int  carrier_idle;     /* Silence accumule depuis cette presomption (tics de 10 ms) */
     unsigned char r;                /* retour des ecrans de choix */
 
     vtx_init(&vtx);
@@ -951,6 +1015,7 @@ int main(void)
     carrier_pending = 0;
     carrier_idle = 0;
     at_carrier_reset();
+    via_tick_reset();
     set_connexion_indicator(&vtx, 'F');
     display_render_all(&vtx);
 
@@ -1011,7 +1076,11 @@ int main(void)
             serial_tx_pump();   /* faire partir la frappe sans attendre */
         }
 
-        /* 3. Gestion indicateur connexion */
+        /* 3. Gestion indicateur connexion. La base de temps est lue a
+         * CHAQUE iteration (les cycles s'accumulent dans le chronometre, ne
+         * pas la lire pendant une rafale les ferait tous tomber dans la
+         * premiere iteration silencieuse). */
+        ticks = via_tick_10ms();
         if (got_data) {
             idle_counter = 0;
             if (!connected) {
@@ -1022,7 +1091,8 @@ int main(void)
             /* Confirmation de la perte de porteuse par le SILENCE : apres un
              * vrai NO CARRIER le modem est repasse en mode commande et plus
              * rien n'arrive. */
-            if (carrier_pending && ++carrier_idle >= CARRIER_CONFIRM_IDLE) {
+            if (carrier_pending &&
+                (carrier_idle += ticks) >= CARRIER_CONFIRM_TICKS) {
                 carrier_pending = 0;
                 carrier_idle = 0;
                 connected = 0;
@@ -1051,10 +1121,9 @@ int main(void)
                 continue;
             }
             if (idle_counter < 60000u) {
-                ++idle_counter;
+                idle_counter += ticks;
             }
-            /* ~30000 iterations sans donnees = timeout (~30s) */
-            if (connected && idle_counter >= 30000u) {
+            if (connected && idle_counter >= LINK_IDLE_TICKS) {
                 connected = 0;
                 set_connexion_indicator(&vtx, 'F');
             }
