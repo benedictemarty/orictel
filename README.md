@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml/badge.svg)](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml)
 
-**Version:** 0.3.7
-**Date:** 2026-08-25
+**Version:** 0.3.19
+**Date:** 2026-09-11
 **Auteur:** bmarty <bmarty@mailo.com>
 **Depot public:** https://github.com/benedictemarty/orictel
 
@@ -190,8 +190,9 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
   ecritures registres sont protegees SEI/PLP (contrainte MIA du vrai LOCI).
 - **Emission:** file TX logicielle non bloquante drainee par la boucle
   principale (prerequis vrai materiel V23)
-- **Memoire:** TAP ~23 Ko, code+donnees sous $9800 (stack cc65 $0800),
-  framebuffer HIRES $A000-$BF3F
+- **Memoire:** TAP ~28 Ko (CODE 25,5 Ko, RODATA 2,3 Ko, BSS 7,7 Ko), code+donnees
+  sous $9800 ; jeu de caracteres de la barre de statut $9800-$9BFF, pile cc65
+  $9C00-$9FFF (1 Ko), framebuffer HIRES $A000-$BF3F, 3 lignes texte $BF68-$BFDF
 - **Protocole:** Videotex Teletel/Antiope (STUM 1B); l'identification
   ENQ/ENQROM est volontairement muette (alignement miedit: les serveurs
   modernes echoient la reponse dans le champ de saisie)

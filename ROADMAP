@@ -14,7 +14,7 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [x] Clavier basique + touches fonction
 - [x] Programme principal et boucle
 
-## Sprint 2 - Mosaiques et couleurs (v0.2.x) [EN COURS]
+## Sprint 2 - Mosaiques et couleurs (v0.2.x) [TERMINE]
 - [x] Rendu complet des mosaiques G1 (semi-graphiques 2x3)
 - [x] Gestion complete des attributs de couleur (encre/fond)
 - [x] Double hauteur / double largeur / double taille
@@ -26,10 +26,12 @@ utilisable avec les serveurs Minitel modernes via Internet.
 - [x] Page Config WiFi PicoWiFiModemUSB (scan/selection/mot de passe/NVRAM)
 - [x] Attente IP DHCP avant ATD (fix NO CARRIER sur LOCI+Pico reel)
 
-## Sprint 3 - Experience utilisateur (v0.3.0) [PLANIFIE]
-- [ ] Jeu de caracteres G2 (supplementaire/accents)
-- [ ] Clignotement (flash) anime
-- [ ] Texte masque (concealed) avec revele au clic
+## Sprint 3 - Experience utilisateur (v0.3.x) [TERMINE]
+- [x] Jeu de caracteres G2 (supplementaire/accents) : `font_get_g2`, accents
+      via SS2 ; observe sur page reelle PAVI ("TELETEL" accentue)
+- [x] Clignotement (flash) anime : `ATTR_FLASH` + `g_blink_phase` en session
+- [x] Texte masque (concealed) : `ATTR_CONCEALED` + masque global
+      (ESC # $20 $58/$5F), revele par commande serveur (pas de "clic" sur Oric)
 - [x] Barre de statut (v0.3.19) : les 3 lignes texte sous le HIRES, jeu de
       caracteres restaure en $9800 (pile C reduite a 1 Ko, releve verifie) ;
       indicateur C/F, serveur, chrono mm:ss, mode de rendu, messages ESC /

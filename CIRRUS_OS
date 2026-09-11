@@ -44,14 +44,17 @@ reference. `LOCI_BUFFER` vaut 32 par defaut.
 
 ## Configuration memoire (cible Oric)
 - ZP:    $00E2-$00FB (26 octets)
-- Code:  $0501-$9FFF (~39 Ko)
+- Code:  $0501-$97FF (~37 Ko ; CODE+RODATA+DATA+BSS, borne a $9800 par le cfg)
+- Jeu de caracteres des 3 lignes texte (barre de statut) : $9800-$9BFF (depuis 0.3.19)
+- Stack cc65: $9C00-$9FFF (1 Ko depuis 0.3.19, releve < 32 octets en session)
 - HIRES: $A000-$BF3F (8000 octets)
+- 3 lignes texte sous le HIRES : $BF68-$BFDF ($BFDF = octet de bascule HIRES, jamais ecrit)
 - Stack CPU: $0100-$01FF (256 octets)
-- Stack cc65: $9800-$A000 (2 Ko, sous le framebuffer HIRES)
-- BSS:   apres CODE, jusqu'a $9800 (__RAMEND__=$A000 depuis 0.2.41)
 
-## Taille programme estimee
-- Code:   ~8 Ko
-- Fonts:  ~2 Ko (G0 + G1 + G2)
-- Data:   ~5 Ko (screen buffer, tables)
-- Total:  ~15 Ko sur 39 Ko disponibles
+## Taille programme mesuree (orictel.map, v0.3.19)
+- CODE:   25 506 octets ($0532-$68D3)
+- RODATA:  2 367 octets (fonts G0/G1/G2, tables)
+- DATA+INIT : 85 octets
+- BSS:     7 741 octets ($7268-$90A4 ; contexte Videotex, files, tampons)
+- Fin de BSS a $90A4 : ~1,8 Ko de marge avant le jeu de caracteres ($9800)
+- orictel.tap : 28 087 octets

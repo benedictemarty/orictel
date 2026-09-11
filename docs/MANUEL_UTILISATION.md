@@ -1,6 +1,6 @@
 # OricTel - Manuel d'utilisation
 
-**Version du logiciel :** 0.3.7 - **Licence :** EUPL 1.2
+**Version du logiciel :** 0.3.19 - **Licence :** EUPL 1.2
 
 Ce manuel decrit l'utilisation d'OricTel, le terminal Minitel 1B pour
 Oric 1/Atmos, du lancement jusqu'a la navigation sur les serveurs

@@ -1,5 +1,17 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — docs : revue de la documentation alignée sur la v0.3.19
+
+- README et MANUEL_UTILISATION : numéro de version 0.3.7 → 0.3.19, date 2026-09-11.
+- README (caractéristiques) et CIRRUS_OS (configuration mémoire) : carte mémoire
+  réelle depuis la v0.3.19 — jeu de caractères de la barre de statut `$9800-$9BFF`,
+  pile cc65 `$9C00-$9FFF` (1 Ko), 3 lignes texte `$BF68-$BFDF`. L'ancienne pile
+  2 Ko en `$9800` et le « stack $0800 » du README étaient obsolètes.
+- CIRRUS_OS : tailles **mesurées** dans `orictel.map` (CODE 25 506 o, RODATA 2 367 o,
+  BSS 7 741 o, TAP 28 087 o) à la place de l'estimation « ~15 Ko » de la v0.1.
+- ROADMAP : Sprint 2 et Sprint 3 passés à [TERMINE] ; G2, clignotement et texte
+  masqué cochés (livrés, cf. US-013/015/016 du plan agile).
+
 ## [Non publié] — v0.3.19 : barre de statut sur les 3 lignes texte (US-033)
 
 En HIRES l'Oric affiche encore **3 lignes de texte** sous les 200 lignes graphiques
