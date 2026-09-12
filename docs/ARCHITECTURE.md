@@ -123,6 +123,25 @@ supporte : le PicoWiFiModemUSB dialogue en 8N1.
   donc inutilisable pour detecter une perte de porteuse (voir `serial.h`). La
   detection passe par la reponse `NO CARRIER` du modem (`at_carrier_watch`),
   confirmee par 4 s de silence (`CARRIER_CONFIRM_MS`).
+- Bit 6 (=$40): **/DSR**. Le firmware LOCI (`acia_task`) le tient haut tant
+  qu'aucun peripherique USB-CDC modem n'est monte : `serial_modem_absent()`
+  -> ecran « MODEM USB NON DETECTE » (non bloquant).
+
+### Sonde de presence du 6551 (`serial_probe`, v0.3.20)
+
+`$0380-$0383` n'est jamais vide sur un Oric : le VIA 6522 (`$0300`) est decode
+sur toute la page `$03xx`, donc sans 6551 on lit/ecrit son **miroir** (ORB, ORA,
+DDRB, DDRA). `serial_init` y ecrivait `$18` (DDRA) et `$0B` (DDRB) : clavier
+mort, OricTel fige sur son menu (cas : Oric sans LOCI, LOCI hors contexte
+disque, Phosphoric `--loci-emu` sans `--loci-cdc`). Avant de programmer,
+`main.c` appelle `serial_probe(base)` : ecriture de `$55` puis `$AA` en `+1` et
+relecture. Le STATUS d'un 6551 est en lecture seule (ecriture = reset programme,
+valeur non retenue) ; l'ORA du VIA relit son latch. Les deux valeurs relues
+identiques => pas de 6551 => ecran « PAS D'INTERFACE SERIE » (`1` resonde, ESC ->
+BASIC). ORA est restaure, les DDR ne sont jamais ecrits, le tout sous `SEI`.
+Exiger les deux relectures neutralise une lecture perdue (open-bus) sur LOCI.
+Test : `make test-serial-probe` (faux bus hote) et `test_menus.sh` (`--loci`
+sans `--serial` : ecran, puis ESC -> `Ready`, preuve que le clavier survit).
 
 ### Barre de statut (3 lignes texte)
 

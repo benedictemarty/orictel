@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml/badge.svg)](https://github.com/benedictemarty/orictel/actions/workflows/ci.yml)
 
-**Version:** 0.3.19
+**Version:** 0.3.20
 **Date:** 2026-09-11
 **Auteur:** bmarty <bmarty@mailo.com>
 **Depot public:** https://github.com/benedictemarty/orictel
@@ -96,7 +96,8 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
 ```bash
 make                # Compile orictel.tap
 make dsk            # Construit la disquette Sedoric orictel.dsk
-make test           # Tests host (Videotex, ACIA/SMC, modem AT, clavier, bridge)
+make test           # Tests host (Videotex, ACIA/SMC, sonde 6551, modem AT, clavier, bridge)
+make test-serial-probe # Sonde 6551 vs miroir VIA en $0380 (faux bus hote)
 make fuzz           # Fuzzing du decodeur Videotex (ASAN/UBSAN, FUZZ_TIME=30)
 make coverage       # Couverture host gcov (Videotex + modem AT)
 make test-server    # Serveur Videotex local de demo (test manuel)

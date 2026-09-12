@@ -50,7 +50,7 @@ Scrum adapte avec sprints courts. Chaque sprint produit un increment fonctionnel
 - [x] US-040: Tests unitaires decodeur Videotex
 - [x] US-041: Tests bridge
 - [x] US-042: Tests d'integration end-to-end — `make test-menus` (parcours de
-      menus jusqu'a l'ecran d'echec puis ESC, barre de statut, 17 checks) et `make test-servers` (connexion
+      menus jusqu'a l'ecran d'echec puis ESC, barre de statut, sans ACIA, 21 checks) et `make test-servers` (connexion
       reelle a PAVI 3617 / MiniPavi, page decodee extraite de la RAM et verifiee
       par ancres stables). Le second exige le dongle : SKIP propre sinon.
 - [x] US-043: Compatibilite Oric-1 (BASIC 1.0) — passage HIRES corrige (detection
@@ -67,6 +67,13 @@ Scrum adapte avec sprints courts. Chaque sprint produit un increment fonctionnel
       Timer 2 du VIA (4 s de confirmation de perte de porteuse, 30 s avant
       indicateur `F`), plus un nombre d'iterations. Mesure sur cible par
       `make test-carrier` (faux modem TCP, 4,0 s +/- 0,1, ROM 1.0 et 1.1).
+- [x] US-049: Sonde de presence du 6551 (v0.3.20) — sans ACIA en `$0380`,
+      c'est le miroir du VIA que `serial_init` reprogrammait (clavier mort,
+      « gel » sur le menu, reproduit avec `--loci-emu` sans `--loci-cdc`).
+      `serial_probe` (STATUS lecture seule vs ORA memorisant, DDR intacts)
+      -> ecran « PAS D'INTERFACE SERIE » ; `/DSR` haut -> « MODEM USB NON
+      DETECTE » (non bloquant). `make test-serial-probe` (11 checks, faux
+      bus) + `test_menus` 21 checks (ESC -> BASIC prouve le clavier vivant).
 - [x] US-047: ESC, touche de secours universelle (v0.3.17) — quitter la session
       (question ligne 0, ESC ESC raccroche et revient au menu, decodeur remis a
       neuf), retour sur echec / perte de porteuse / menus, sortie vers le BASIC

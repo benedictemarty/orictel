@@ -16,7 +16,9 @@
 #      raccroche et revient au menu, ESC sur le menu principal sort vers le
 #      BASIC,
 #   6. afficher la barre de statut (3 lignes texte) avec son jeu de caracteres
-#      en $9800 intact, la pile C restant au-dessus de $9E00.
+#      en $9800 intact, la pile C restant au-dessus de $9E00,
+#   7. sans ACIA en $0380 (miroir VIA) : ecran explicite, clavier vivant, ESC
+#      ramene au BASIC (au lieu du gel d'avant la v0.3.20).
 #
 # Le point 3 est la non-regression du bug de "premiere page illisible" : le
 # retour de modem_connect etait ignore et la session demarrait sur un flux
@@ -170,8 +172,28 @@ ram = open(sys.argv[1], 'rb').read()
 sys.exit(0 if b"Ready" in ram[0xBB80:0xBFE0] else 1)
 PY
 
+# SANS ACIA en $0380 (aucun --serial : Phosphoric y sert le miroir du VIA,
+# comme un Oric nu, un LOCI hors contexte disque ou --loci-emu sans --loci-cdc).
+# Avant la v0.3.20, serial_init reprogrammait DDRA/DDRB du VIA : menu affiche,
+# clavier mort, OricTel "gele". Attendu : l'ecran "PAS D'INTERFACE SERIE",
+# "1" reessaie (l'ecran reste), et ESC ramene au BASIC - preuve que le clavier
+# est toujours vivant.
+"$EMU" --rom "$ROM" --tape "$TAP" -f --loci --headless \
+    --type-keys "14000000:A" --type-keys "16000000:A" --type-keys "20000000:1" \
+    --type-keys '24000000:\e' \
+    --dump-ram-at "19000000:$TMP/noacia.bin" --dump-ram-at "23000000:$TMP/noacia2.bin" \
+    --dump-ram-at "30000000:$TMP/noacia_basic.bin" -c 30500000 >/dev/null 2>&1
+find_text "$TMP/noacia.bin" "PAS D'INTERFACE SERIE"; check $? "sans ACIA en \$0380 : ecran 'PAS D'INTERFACE SERIE' (pas de gel)"
+if find_text "$TMP/noacia.bin" "Mode de connexion"; then check 1 "sans ACIA : le menu n'est pas atteint (ACIA non programmee)"; else check 0 "sans ACIA : le menu n'est pas atteint (ACIA non programmee)"; fi
+find_text "$TMP/noacia2.bin" "1 Reessayer"; check $? "sans ACIA : '1' resonde et l'ecran reste"
+python3 - "$TMP/noacia_basic.bin" <<'PY'; check $? "sans ACIA : ESC -> BASIC Ready (clavier vivant, VIA intact)"
+import sys
+ram = open(sys.argv[1], 'rb').read()
+sys.exit(0 if b"Ready" in ram[0xBB80:0xBFE0] else 1)
+PY
+
 if [ "$fails" -eq 0 ]; then
-    echo "=== Resultats: 17/17 passes ==="
+    echo "=== Resultats: 21/21 passes ==="
     exit 0
 fi
 echo "=== Resultats: ECHEC ($fails) ==="

@@ -1,6 +1,6 @@
 # OricTel - Manuel d'utilisation
 
-**Version du logiciel :** 0.3.19 - **Licence :** EUPL 1.2
+**Version du logiciel :** 0.3.20 - **Licence :** EUPL 1.2
 
 Ce manuel decrit l'utilisation d'OricTel, le terminal Minitel 1B pour
 Oric 1/Atmos, du lancement jusqu'a la navigation sur les serveurs
@@ -21,7 +21,12 @@ automatiquement (fast-load + RUN). Ensuite :
 1. **Ecran d'accueil** (jingle) - appuyez sur une touche (ou attendez 5 s).
 2. **Interface serie** - ecran de rappel du seul montage materiel possible
    (`LOCI + PicoWiFiModemUSB`, ACIA 6551 a `$0380`). Aucun choix : une touche
-   pour continuer.
+   pour continuer. OricTel **sonde** alors la presence du 6551 avant de le
+   programmer : sans ACIA en `$0380` (LOCI absent, ou emulateur sans backend
+   serie), l'ecran **« PAS D'INTERFACE SERIE »** s'affiche (`1` resonde, ESC
+   quitte vers le BASIC) au lieu de geler le clavier. Si l'ACIA repond mais
+   qu'aucun modem USB n'est monte sur le LOCI (`/DSR` haut), l'avertissement
+   **« MODEM USB NON DETECTE »** s'affiche ; une touche continue.
 3. **Mode de connexion** - tapez `1` (Modem AT, recommande) ou `2` (Config
    WiFi, voir section 2bis pour le materiel PicoWiFiModemUSB). Le PicoWiFi
    etant un modem Hayes, la connexion passe toujours par AT : il n'y a plus
@@ -231,6 +236,9 @@ Sur la page d'accueil PAVI : tapez un code de service puis **ENVOI**
 
 | Symptome | Cause probable | Remede |
 |---|---|---|
+| « PAS D'INTERFACE SERIE » | aucun 6551 en `$0380` : c'est le miroir du VIA qui repond. Oric sans LOCI, LOCI hors contexte disque, ou Phosphoric lance sans backend serie (`--loci-emu <elf>` **sans** `--loci-cdc`, `--loci` sans `--serial`) | brancher/booter le LOCI (depuis le `.dsk`) ; sur emulateur : `make run` (`--loci --serial picowifi:…`) ou `--loci-emu … --loci-cdc /dev/ttyACMx` (ou un PTY faux modem) |
+| Menu affiche mais **aucune touche ne repond** (versions < 0.3.20) | meme cause : `serial_init` reprogrammait DDRA/DDRB du VIA a travers le miroir `$0380`, clavier mort | mettre a jour (0.3.20 sonde avant de programmer) |
+| « MODEM USB NON DETECTE » | l'ACIA LOCI repond mais `/DSR` est haut : aucun PicoWiFiModemUSB monte sur l'USB du LOCI | brancher le Pico ; une touche continue quand meme (la connexion echouera proprement) |
 | « PAS DE MODEM » / retour apres ATZ | l'emulateur n'est pas en `--serial modem`/`picowifi` (aucun modem ne repond « OK ») | utiliser `make run` (ou `make run-loci`/`run-loci-emu`) |
 | `NO CARRIER (00:00:00)` (Pico reel) | format de numerotation (`ATD<hote>` : le 1er car. de l'hote pris pour un modificateur Hayes) ou WiFi non associe | corrige en 0.2.42 (OricTel compose `ATDT<hote>`) ; si ca persiste : menu `2 - Config WiFi` pour (re)configurer le reseau |
 | Premiere page illisible / ecran noir, les suivantes correctes | modem reste en communication d'une session precedente : `ATZ` perdu dans le flux, aucune numerotation, decodage demarre en cours de page | corrige : OricTel raccroche (`+++`/`ATH`) et rejoue `ATZ` automatiquement. Sur une version anterieure : raccrocher a la main avant de relancer |

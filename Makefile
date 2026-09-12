@@ -142,6 +142,9 @@ EMU_OPTS_LOCI_REAL = --loci --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) \
 # firmware reel co-simule. Necessite un Phosphoric bati AVEC --loci-cdc : par defaut
 # le build live ~/Oric1/oric1-emu (le tools/ bundle ne le supporte pas encore).
 # Sans dongle physique, remplacer $(PICO_DEV) par un PTY (faux modem AT).
+# ATTENTION : --loci-emu SANS --loci-cdc ne sert RIEN en $0380 : c'est le miroir
+# du VIA qu'OricTel lirait (ecran "PAS D'INTERFACE SERIE" depuis 0.3.20 ; avant,
+# clavier mort). Sans materiel, utiliser `make run` (Pico emule).
 EMU_COSIM ?= $(HOME)/Oric1/oric1-emu
 FW_ELF    ?= $(HOME)/loci/firmware/build-xip/src/loci-firmware.elf
 EMU_OPTS_LOCI_COSIM = --loci-emu $(FW_ELF) --loci-cdc $(PICO_DEV)
@@ -154,7 +157,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-noraw test-menus test-carrier test-servers test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-probe test-serial-noraw test-menus test-carrier test-servers test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -318,7 +321,7 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-serial test-atmodem test-keyboard test-ui test-serial-noraw test-menus test-carrier test-bridge
+test: test-videotex test-serial test-serial-probe test-atmodem test-keyboard test-ui test-serial-noraw test-menus test-carrier test-bridge
 
 # Garde-fou reception FIDELE au 6551 reel : rejoue une rafale sur $0380 via le
 # backend `file:` de Phosphoric SANS --serial-buffer (RX 1 octet), verifie via
@@ -359,6 +362,14 @@ test-serial: $(TESTDIR)/test_serial_smc.c $(SRCDIR)/serial.h
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_serial_smc \
 		$(TESTDIR)/test_serial_smc.c -DTEST_HOST
 	$(BLDDIR)/test_serial_smc
+
+# Sonde de presence du 6551 en $0380 (serial_probe) sur un faux bus : miroir
+# VIA (DDR jamais ecrits, ORA restaure), 6551 LOCI/Phosphoric, lecture perdue
+# (open-bus), et /DSR (serial_modem_absent). Compile serial.c en -DTEST_HOST.
+test-serial-probe: $(TESTDIR)/test_serial_probe.c $(SRCDIR)/serial.c $(SRCDIR)/serial.h | $(BLDDIR)
+	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_serial_probe \
+		$(TESTDIR)/test_serial_probe.c $(SRCDIR)/serial.c -DTEST_HOST
+	$(BLDDIR)/test_serial_probe
 
 # Machine d'etats modem AT (faux modem en memoire): OK/CONNECT/NO CARRIER,
 # timeout, matcher ancre (anti-faux-positif), regression overrun, ATI/IP.
@@ -486,6 +497,7 @@ help:
 	@echo "  test          Executer tous les tests"
 	@echo "  test-videotex Tests du decodeur Videotex"
 	@echo "  test-serial   Tests coherence bases ACIA (emu/LOCI, SMC)"
+	@echo "  test-serial-probe Sonde 6551 vs miroir VIA en \$$0380 + /DSR (faux bus hote)"
 	@echo "  test-atmodem  Tests machine d'etats modem AT (faux modem)"
 	@echo "  test-keyboard Tests mapping clavier Oric -> Minitel (clavier scripte)"
 	@echo "  test-ui       Tests helpers UI (clip ui_print + bornes saisie)"

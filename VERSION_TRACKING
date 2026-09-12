@@ -1,9 +1,12 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.19 (barre de statut sur les 3 lignes texte, ligne 0 rendue au serveur)
+## Version actuelle: 0.3.20 (sonde 6551/miroir VIA en $0380 : plus de gel clavier sans ACIA)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
+| orictel.tap        | 0.3.20     | 2026-09-13 | serial_probe avant serial_init : sans 6551 en $0380 (miroir VIA) ecran "PAS D'INTERFACE SERIE" au lieu du gel clavier ; /DSR -> "MODEM USB NON DETECTE" (non bloquant, non valide cible) |
+| test_serial_probe.c (faux bus)| 0.1.0 | 2026-09-13 | 11 checks : miroir VIA (DDR intacts, ORA restaure), 6551 $70/$10, lecture perdue, /DSR |
+| test_menus.sh (parcours menus)| 0.3.0 | 2026-09-13 | 21 checks (+4 : sans ACIA -> ecran, '1' resonde, ESC -> BASIC Ready) |
 | documentation      | 0.3.19     | 2026-09-12 | README/MANUEL/CIRRUS_OS/ROADMAP alignes : carte memoire 0.3.19, tailles mesurees (map), sprints 2-3 termines |
 | orictel.tap        | 0.3.19     | 2026-09-11 | barre de statut (C/F, serveur, chrono, mode, messages, aide) ; charset $9800 restaure, pile C 1 Ko en $9C00 ; test_menus 17 checks |
 | orictel.tap        | 0.3.18     | 2026-09-11 | CARRIER_CONFIRM_MS=4000 et LINK_IDLE_MS=30000 sur Timer 2 VIA ; mesure 4,0 s emulateur (ROM 1.0/1.1), a confirmer materiel |

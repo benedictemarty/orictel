@@ -36,6 +36,8 @@
 /* Bits du registre Status */
 #define ACIA_RDRF    0x08    /* Bit 3: Receiver Data Register Full */
 #define ACIA_TDRE    0x10    /* Bit 4: Transmitter Data Register Empty */
+#define ACIA_NOT_DCD 0x20    /* Bit 5: /DCD (1 = pas de porteuse) */
+#define ACIA_NOT_DSR 0x40    /* Bit 6: /DSR (1 = modem absent) */
 
 /* Config Control/Command appliquee par serial_init pour la base LOCI.
  * v0.3.5 : polling pur, aucune IRQ ACIA.
@@ -47,6 +49,42 @@
  *   (gel v0.3.3/v0.3.4). $0B (v0.3.2) etait correct depuis le debut. */
 #define ACIA_CTRL_LOCI 0x18
 #define ACIA_CMD_LOCI  0x0B
+
+/**
+ * Sonde la presence d'un 6551 a la base donnee, SANS le programmer.
+ *
+ * Pourquoi : sur un Oric sans LOCI (ou LOCI qui ne sert pas $0380 : hors
+ * contexte disque, firmware absent), $0380-$0383 n'est PAS vide. C'est le
+ * miroir du VIA 6522 ($0300 est decode sur toute la page $03xx) : ORB, ORA,
+ * DDRB, DDRA. serial_init y ecrirait alors $18 dans DDRA et $0B dans DDRB,
+ * et le clavier (PSG via le port A, rangees via le port B) est mort :
+ * OricTel affiche son menu et ne repond plus a aucune touche - "gele".
+ *
+ * Methode : le registre STATUS (+1) d'un 6551 est en lecture seule (une
+ * ecriture y declenche un reset programme, la valeur n'est pas retenue).
+ * Sur le miroir VIA, +1 est ORA, qui relit ce qu'on y ecrit (DDRA=$FF sur
+ * Oric). On ecrit $55 puis $AA en +1 et on relit : si les DEUX valeurs
+ * reviennent, ce n'est pas un 6551 (un status 6551 apres reset ne peut
+ * valoir ni $55 ni $AA : PE/OVRN effaces, TDRE leve). ORA est restaure.
+ * Exiger les deux relectures rend la sonde insensible a une lecture perdue
+ * sur LOCI (open-bus) qui renverrait par hasard l'une des deux valeurs.
+ *
+ * Effet de bord sur un vrai 6551 : deux resets programmes, inoffensifs
+ * (serial_init en refait un). Sous SEI : la ROM ecrit ORA a chaque IRQ.
+ *
+ * @return 1 si un 6551 repond a la base, 0 sinon (miroir VIA / rien)
+ */
+unsigned char __fastcall__ serial_probe(unsigned acia_base);
+
+/**
+ * /DSR du 6551 apres serial_init. Sur LOCI, le firmware
+ * (~/loci/firmware/src/mia/oric/acia.c, acia_task) leve ACIA_STAT_NOT_DSR
+ * tant qu'aucun peripherique USB-CDC modem n'est monte, et l'abaisse au
+ * montage du PicoWiFiModemUSB. Le 6551 de Phosphoric le tient bas (DSR
+ * actif) par defaut.
+ * @return Non-zero si le modem est ABSENT (/DSR haut) ; 0 si present.
+ */
+unsigned char __fastcall__ serial_modem_absent(void);
 
 /**
  * Initialise l'ACIA 6551 a la base donnee: 8N1, polling (pas d'IRQ).

@@ -1,5 +1,54 @@
 # CHANGELOG - OricTel
 
+## [Non publié] — v0.3.20 : sans ACIA en $0380, OricTel ne gèle plus (sonde du miroir VIA)
+
+### Symptôme
+Sans PicoWiFiModemUSB physique (par ex. `oric1-emu --loci-emu <firmware.elf>` **sans**
+`--loci-cdc`, ou un Oric dont le LOCI ne sert pas `$0380`), OricTel affichait le menu
+« Mode de connexion » puis **ne répondait plus à aucune touche**. Reproduit en headless :
+le 6502 tourne bien dans `keyboard_scan`, les IRQ ROM sont normales, mais les touches
+injectées ne sont jamais vues.
+
+### Cause
+`$0380-$0383` n'est jamais « vide » sur un Oric : le VIA 6522 (`$0300`) est décodé sur
+toute la page `$03xx`, donc sans 6551 on lit/écrit le **miroir du VIA** : ORB, ORA, DDRB,
+DDRA. `serial_init` y posait `$18` (DDRA) et `$0B` (DDRB) : port A (bus PSG) et port B
+(rangées) reconfigurés, clavier mort. Phosphoric reproduit fidèlement ce miroir dès qu'aucun
+backend ne réclame `$0380` (`--loci-emu` sans `--loci-cdc` : `has_serial` faux).
+
+### Correctif
+- `serial_probe(base)` (serial.c) : sonde **non destructive** avant `serial_init`. Écrit
+  `$55` puis `$AA` dans `+1` et relit : le STATUS d'un 6551 est en lecture seule (écriture
+  = reset programmé, valeur jamais retenue), l'ORA du VIA relit son latch. Les DEUX
+  relectures identiques ⇒ pas de 6551. ORA restauré, DDR jamais touchés, sous `SEI`.
+  Exiger les deux valeurs neutralise une lecture perdue (open-bus) sur LOCI.
+- Écran **« PAS D'INTERFACE SERIE »** (main.c, `no_acia_page`) : explique le miroir VIA,
+  rappelle les lancements Phosphoric valides (`--loci --serial …`, `--loci-emu … --loci-cdc
+  DEV`) et le contexte disque LOCI ; `1` resonde, `ESC` sort vers le BASIC. Le clavier
+  reste vivant puisque l'ACIA n'est pas programmée.
+- `serial_modem_absent()` : bit `/DSR` du status. Le firmware LOCI
+  (`src/mia/oric/acia.c`, `acia_task`) le tient haut tant qu'aucun CDC modem n'est monté.
+  Écran **« MODEM USB NON DETECTE »** (`no_modem_page`), **non bloquant** (une touche
+  continue). Non exercé sur cible ici (le co-sim Phosphoric « monte » tout CDC) — validé
+  sur le faux bus hôte seulement.
+
+### Tests
+- **Nouveau** `make test-serial-probe` (11 checks, `serial.c` compilé en `-DTEST_HOST`
+  sur un faux bus) : miroir VIA → « aucun 6551 », DDRA/DDRB jamais écrits, ORA/ORB
+  restaurés ; 6551 status `$70` (LOCI sans modem) et `$10` (Phosphoric) → « présent » ;
+  lecture perdue `$55` → « présent » ; `/DSR` haut/bas.
+- `test_menus.sh` : 17 → **21 checks** — lancement `--loci` sans `--serial` : écran
+  « PAS D'INTERFACE SERIE », menu non atteint, `1` resonde, **ESC → BASIC Ready** (preuve
+  que le clavier survit).
+- Suite complète : **359/359**. Vérifié aussi en headless : `--loci-emu` sans `--loci-cdc`
+  → écran + ESC → BASIC ; `--loci --serial picowifi:` → connexion PAVI inchangée ;
+  `--loci-emu … --loci-cdc <PTY>` → parcours AT inchangé.
+
+### Note (non corrigé)
+Le Pico émulé de Phosphoric répond à `ATI` par `WiFi: <ssid> UP` alors qu'`at_wait_ip`
+attend `TO WIFI` (vrai firmware) : « Attente IP WiFi... » dure une partie des 15 s avant
+de composer. Sans conséquence fonctionnelle.
+
 ## [Non publié] — docs : revue de la documentation alignée sur la v0.3.19
 
 - README et MANUEL_UTILISATION : numéro de version 0.3.7 → 0.3.19, date 2026-09-11.

@@ -27,7 +27,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.19"
+#define ORICTEL_VERSION "v0.3.20"
 
 /* Silence exige, en MILLISECONDES, pour CONFIRMER une presomption de perte de
  * porteuse (un vrai NO CARRIER n'est suivi de RIEN, une page qui citerait ces
@@ -384,6 +384,64 @@ static unsigned select_interface(vtx_context_t* ctx)
         /* attente d'un appui */
     }
     return ACIA_BASE_LOCI;
+}
+
+/* Ecran "aucune ACIA a $0380" : la sonde serial_probe n'a pas trouve de 6551.
+ * Sans elle, serial_init reprogrammait le miroir du VIA (DDRA/DDRB) et le
+ * clavier mourait : menu affiche, aucune touche prise en compte. Ici, on le
+ * dit et on laisse le choix : reessayer (LOCI/Pico branches entre-temps) ou
+ * ESC vers le BASIC. Retour : 1 = reessayer, 0 = ESC. */
+static unsigned char no_acia_page(vtx_context_t* ctx)
+{
+    unsigned char key;
+
+    vtx_clear_page(ctx);
+    ui_print(ctx, 5, 8,  "PAS D'INTERFACE SERIE", VTX_RED);
+    ui_print(ctx, 7, 3,  "Aucun 6551 ne repond en $0380 :", VTX_WHITE);
+    ui_print(ctx, 8, 3,  "c'est le miroir du VIA qui est lu.", VTX_WHITE);
+    ui_print(ctx, 10, 3, "- LOCI absent ou hors contexte", VTX_CYAN);
+    ui_print(ctx, 11, 3, "  disque (lancer depuis le .dsk),", VTX_CYAN);
+    ui_print(ctx, 12, 3, "- Phosphoric : --loci --serial ...", VTX_CYAN);
+    ui_print(ctx, 13, 3, "  ou --loci-emu ... --loci-cdc DEV", VTX_CYAN);
+    ui_print(ctx, 16, 3, "OricTel ne programme pas l'ACIA :", VTX_WHITE);
+    ui_print(ctx, 17, 3, "le clavier reste utilisable.", VTX_WHITE);
+    ui_menu_item(ctx, 20, "1 Reessayer");
+    ui_print(ctx, 22, 12, "ESC Quitter (BASIC)", VTX_WHITE);
+    display_render_all(ctx);
+
+    keyboard_flush();
+    for (;;) {
+        key = keyboard_scan();
+        if (key == '1') {
+            return 1;
+        }
+        if (key == KEY_LOCAL_ESCAPE) {
+            return 0;
+        }
+    }
+}
+
+/* Avertissement "LOCI present, modem USB absent" : /DSR haut apres
+ * serial_init. Le firmware LOCI ne l'abaisse qu'au montage d'un CDC modem
+ * (PicoWiFiModemUSB). Non bloquant : une touche continue (la page Config
+ * WiFi ou une tentative de connexion restent possibles, elles echoueront
+ * proprement sur l'ecran d'echec). */
+static void no_modem_page(vtx_context_t* ctx)
+{
+    vtx_clear_page(ctx);
+    ui_print(ctx, 6, 9,  "MODEM USB NON DETECTE", VTX_YELLOW);
+    ui_print(ctx, 8, 3,  "L'ACIA repond en $0380 mais /DSR", VTX_WHITE);
+    ui_print(ctx, 9, 3,  "est haut : aucun PicoWiFiModemUSB", VTX_WHITE);
+    ui_print(ctx, 10, 3, "n'est monte sur le port USB du LOCI.", VTX_WHITE);
+    ui_print(ctx, 13, 3, "Brancher le Pico puis revenir ici", VTX_CYAN);
+    ui_print(ctx, 14, 3, "(CTRL+F : reset ACIA en session).", VTX_CYAN);
+    ui_print(ctx, 18, 6, "[une touche] pour continuer", VTX_WHITE);
+    display_render_all(ctx);
+
+    keyboard_flush();
+    while (keyboard_scan() == KEY_NONE) {
+        /* attente d'un appui */
+    }
 }
 
 /* Serveurs disponibles */
@@ -983,9 +1041,23 @@ int main(void)
      * reset ulterieur (KEY_LOCAL_RESET). */
     acia_base = select_interface(&vtx);
 
+    /* Sonder AVANT de programmer : sans 6551 en $0380 (Oric nu, LOCI hors
+     * contexte disque, Phosphoric sans backend serie), la base est le
+     * miroir du VIA et serial_init tuerait le clavier. */
+    while (!serial_probe(acia_base)) {
+        if (!no_acia_page(&vtx)) {
+            oric_cold_reset();
+        }
+    }
+
     /* ACIA montee avant les menus: la page Config WiFi (AT$SCAN...)
      * dialogue avec le PicoWiFiModemUSB des le menu. */
     serial_init(acia_base);
+
+    /* LOCI sans Pico : le firmware tient /DSR haut. Prevenir, sans bloquer. */
+    if (serial_modem_absent()) {
+        no_modem_page(&vtx);
+    }
 
   /* Cycle complet : menus -> connexion -> session. ESC (confirme) quitte la
    * session, raccroche, et revient ICI, au menu Mode de connexion, avec un
