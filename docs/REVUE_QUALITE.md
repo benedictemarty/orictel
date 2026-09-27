@@ -89,7 +89,7 @@ automatisée** (CI, analyse statique, couverture, fuzzing).
   « une entrée CHANGELOG par modification » ; le découper irait à l'encontre de
   cette discipline de traçabilité. Acté tel quel.
 - **Binaires `.tap`/`.dsk` versionnés dans l'historique** : choix délibéré du
-  projet (livrables versionnés, cf. CLAUDE.md). On ne les bascule pas en
+  projet (livrables versionnés, cf. règles locales du projet). On ne les bascule pas en
   *releases* GitHub sans décision explicite.
 - **Version cc65** : `apt` ne fige pas une version exacte ; on **enregistre**
   les versions de toolchain en CI (étape dédiée) pour la reproductibilité, ce

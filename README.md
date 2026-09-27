@@ -237,3 +237,7 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 ## Licence
 
 EUPL 1.2 (European Union Public Licence) - Voir fichier LICENSE
+
+## Avertissement
+
+⚠️ Avertissement : ce programme est un programme généré par Claude Code sous la supervision d'un être humain : il a été utilisé pour améliorer, développer, rendre compatible ou traduire ce logiciel.
