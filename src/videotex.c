@@ -278,19 +278,32 @@ static void put_char(unsigned char ch, unsigned char cs)
     cell->flags = s_ctx->attr_flags;
     cell->size = s_ctx->attr_size;
 
-    /* Appliquer les attributs en attente sur un delimiteur (espace G0) */
-    if (ch == 0x20 && cs == CHARSET_G0 && s_ctx->has_pending) {
-        cell->bg = s_ctx->pending_bg;
-        if (s_ctx->pending_underline) {
-            cell->flags |= ATTR_UNDERLINE;
+    /* Attributs de zone en attente (STUM 1B, codage des attributs definis
+     * par zone) : un espace G0 est le delimiteur explicite, il valide tout
+     * (fond, soulignement) ; un caractere semi-graphique (G1) valide la
+     * couleur de fond seulement, les autres attributs latents attendent le
+     * premier espace (v0.3.22, repris de NeoTel 0.8.2 ; auparavant les
+     * mosaiques gardaient l'ancien fond : cartes du POKER de 3617.fr). */
+    if (s_ctx->has_pending) {
+        unsigned char delim = 0;
+        if (cs == CHARSET_G0) {
+            if (ch == 0x20) delim = 1;
+        } else if (cs == CHARSET_G1) {
+            delim = 2;                          /* semi-graphique : fond seul */
         }
-        s_ctx->bg_color = s_ctx->pending_bg;
-        if (s_ctx->pending_underline) {
-            s_ctx->attr_flags |= ATTR_UNDERLINE;
-        } else {
-            s_ctx->attr_flags &= ~ATTR_UNDERLINE;
+        if (delim) {
+            cell->bg = s_ctx->pending_bg;
+            s_ctx->bg_color = s_ctx->pending_bg;
         }
-        s_ctx->has_pending = 0;
+        if (delim == 1) {
+            if (s_ctx->pending_underline) {
+                cell->flags |= ATTR_UNDERLINE;
+                s_ctx->attr_flags |= ATTR_UNDERLINE;
+            } else {
+                s_ctx->attr_flags &= ~ATTR_UNDERLINE;
+            }
+            s_ctx->has_pending = 0;
+        }
     }
 
     /* Marquer la plage modifiee: la cellule, +1 colonne en double
@@ -338,7 +351,21 @@ static void put_char(unsigned char ch, unsigned char cs)
 
 /* ===================================================================
  *  Deplacement curseur
+ *
+ *  Zone d'accueil (STUM 1B) : « lors d'un changement de zone (LF, VT, BS,
+ *  HT, CSI, [US]), l'ecriture s'effectue avec les attributs serie de la
+ *  zone d'accueil tant qu'un delimiteur explicite ne permet pas la prise
+ *  en compte des attributs serie latents ». Le Minitel ne relit pas sa
+ *  memoire de page ; OricTel, lui, connait la cellule d'arrivee : la
+ *  couleur de fond courante devient celle de la zone ou arrive le curseur
+ *  (v0.3.22, repris de NeoTel 0.8.2 ; auparavant fond noir force apres US,
+ *  d'ou un caractere ecrit sur une zone blanche qui perdait son fond).
  * =================================================================== */
+
+static void adopt_zone_bg(vtx_context_t* ctx)
+{
+    ctx->bg_color = ctx->screen[ctx->cur_y][ctx->cur_x].bg;
+}
 
 static void cursor_left(vtx_context_t* ctx)
 {
@@ -348,6 +375,7 @@ static void cursor_left(vtx_context_t* ctx)
         ctx->cur_x = VTX_COLS - 1;
         ctx->cur_y--;
     }
+    adopt_zone_bg(ctx);
 }
 
 static void cursor_right(vtx_context_t* ctx)
@@ -360,6 +388,7 @@ static void cursor_right(vtx_context_t* ctx)
             ctx->cur_y = VTX_ROWS - 1;
         }
     }
+    adopt_zone_bg(ctx);
 }
 
 static void cursor_up(vtx_context_t* ctx)
@@ -367,6 +396,7 @@ static void cursor_up(vtx_context_t* ctx)
     if (ctx->cur_y > 1) {
         ctx->cur_y--;
     }
+    adopt_zone_bg(ctx);
 }
 
 static void cursor_down(vtx_context_t* ctx)
@@ -378,6 +408,7 @@ static void cursor_down(vtx_context_t* ctx)
         scroll_up(ctx);
     }
     /* Mode page: pas de scroll, curseur reste en ligne 24 */
+    adopt_zone_bg(ctx);
 }
 
 static void scroll_up(vtx_context_t* ctx)
@@ -590,6 +621,7 @@ static void process_csi(vtx_context_t* ctx, unsigned char byte)
                      * param=0 est force a 1 plus haut). col 1-based ->
                      * 0-based; vtx_set_cursor clampe row/col invalides. */
             vtx_set_cursor(ctx, param, (param2 > 0) ? param2 - 1 : 0);
+            adopt_zone_bg(ctx);
             break;
         case 'J':   /* ED - effacer ecran */
             if (param == 2 || ctx->csi_len == 0) {
@@ -826,10 +858,10 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
          * Ref: telenet emulateur.js lignes 785-795 */
         ctx->charset = CHARSET_G0;      /* modeG1 = false */
         ctx->fg_color = VTX_WHITE;      /* fgColor = 7 */
-        ctx->bg_color = VTX_BLACK;      /* bgColor = 0 */
         ctx->attr_flags = 0;            /* souligne, inversion, clignotement = false */
         ctx->attr_size = SIZE_NORMAL;   /* taille = 0 */
         ctx->has_pending = 0;
+        adopt_zone_bg(ctx);             /* fond : celui de la zone d'accueil */
         ctx->state = VTX_STATE_NORMAL;
         return;
 
@@ -1009,8 +1041,13 @@ void vtx_process(vtx_context_t* ctx, unsigned char byte)
             case 0x18:  /* CAN - effacer jusqu'a fin de ligne */
                 clear_eol(ctx);
                 break;
-            case 0x1A:  /* SUB - substitution (affiche espace) */
-                put_char(' ', ctx->charset);
+            case 0x1A:  /* SUB : symbole d'erreur, « un pave remplissant
+                         * l'emplacement ... avec les attributs courants »,
+                         * en code comme hors code (STUM 1B, § 2-2-1-2-8 et
+                         * § 1-5-1-3). Pave G0 $7F (glyphe plein, meme en
+                         * disjoint) ; le jeu courant est conserve. Jusqu'en
+                         * v0.3.21 : un espace. */
+                put_char(0x7F, CHARSET_G0);
                 break;
             case 0x1B:  /* ESC */
                 ctx->state = VTX_STATE_ESC;

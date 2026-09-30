@@ -61,14 +61,16 @@ static unsigned char map_ctrl_to_func(unsigned char ctrl_code)
             return KEY_FUNC_FLAG | KEY_ANNULATION;
         case 0x03:  /* CTRL+C = Connexion/Fin */
             return KEY_FUNC_FLAG | KEY_CONNEXION;
-        case 0x05:  /* CTRL+E = Repetition */
+        case 0x05:  /* CTRL+E = Repetition (alias historique) */
             return KEY_FUNC_FLAG | KEY_REPETITION;
         case 0x07:  /* CTRL+G = Guide */
             return KEY_FUNC_FLAG | KEY_GUIDE;
-        case 0x0E:  /* CTRL+N = Suite (Next) */
+        case 0x0E:  /* CTRL+N = Suite (alias historique ; usuel : fleche droite) */
             return KEY_FUNC_FLAG | KEY_SUITE;
-        case 0x12:  /* CTRL+R = Retour */
-            return KEY_FUNC_FLAG | KEY_RETOUR;
+        case 0x12:  /* CTRL+R = Repetition (usage Minitel, comme NeoTel 0.8.1 ;
+                     * Retour = fleche gauche ou haut). Etait Retour jusqu'en
+                     * v0.3.21. */
+            return KEY_FUNC_FLAG | KEY_REPETITION;
         case 0x13:  /* CTRL+S = Sommaire */
             return KEY_FUNC_FLAG | KEY_SOMMAIRE;
         default:
@@ -262,15 +264,19 @@ void keyboard_process(vtx_context_t* ctx, unsigned char key)
         return;
     }
 
-    /* Fleches gauche/droite: actives uniquement en mode curseur
-     * (PRO3 START $59 $43), comme sur un Minitel 1B reel. */
+    /* Fleches gauche/droite : en mode curseur (PRO3 START $59 $43) elles
+     * emettent CSI D / CSI C, comme sur un Minitel 1B reel ; hors mode
+     * curseur, gauche = RETOUR et droite = SUITE (raccourcis de NeoTel
+     * 0.8.1 ; jusqu'en v0.3.21 elles n'emettaient rien). */
     if (key == KEY_ARROW_LEFT || key == KEY_ARROW_RIGHT) {
         if (ctx->kbd_cursor) {
             kbd_emit(ctx, 0x1B);
             kbd_emit(ctx, 0x5B);
             kbd_emit(ctx, (key == KEY_ARROW_LEFT) ? 0x44 : 0x43);
+            return;
         }
-        return;
+        key = KEY_FUNC_FLAG |
+              ((key == KEY_ARROW_LEFT) ? KEY_RETOUR : KEY_SUITE);
     }
 
     /* Touche fonction Minitel */

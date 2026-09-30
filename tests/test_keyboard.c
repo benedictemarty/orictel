@@ -77,6 +77,8 @@ int main(void)
     { unsigned char s[] = {0x01}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_ANNULATION), "CTRL+A -> ANNULATION"); }
     { unsigned char s[] = {0x13}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_SOMMAIRE),   "CTRL+S -> SOMMAIRE"); }
     { unsigned char s[] = {0x0E}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_SUITE),      "CTRL+N -> SUITE"); }
+    { unsigned char s[] = {0x12}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_REPETITION), "CTRL+R -> REPETITION (usage Minitel)"); }
+    { unsigned char s[] = {0x05}; CHECK(scan1(s,1) == (KEY_FUNC_FLAG|KEY_REPETITION), "CTRL+E -> REPETITION (alias)"); }
 
     /* --- CTRL locaux (non envoyes au serveur) --- */
     { unsigned char s[] = {0x04}; CHECK(scan1(s,1) == KEY_TOGGLE_RENDER, "CTRL+D -> toggle rendu"); }
@@ -114,13 +116,24 @@ int main(void)
 
         tx_reset();
         keyboard_process(&ctx, KEY_ARROW_LEFT);     /* mode curseur OFF */
-        CHECK(txn == 0, "fleche gauche hors mode curseur -> rien");
+        CHECK(txn == 2 && tx[0] == SEP && tx[1] == KEY_RETOUR,
+              "fleche gauche hors mode curseur -> SEP RETOUR");
+
+        tx_reset();
+        keyboard_process(&ctx, KEY_ARROW_RIGHT);    /* mode curseur OFF */
+        CHECK(txn == 2 && tx[0] == SEP && tx[1] == KEY_SUITE,
+              "fleche droite hors mode curseur -> SEP SUITE");
 
         ctx.kbd_cursor = 1;
         tx_reset();
         keyboard_process(&ctx, KEY_ARROW_LEFT);     /* mode curseur ON */
         CHECK(txn == 3 && tx[0] == 0x1B && tx[1] == 0x5B && tx[2] == 0x44,
               "fleche gauche (curseur) -> ESC [ D");
+
+        tx_reset();
+        keyboard_process(&ctx, KEY_ARROW_RIGHT);    /* mode curseur ON */
+        CHECK(txn == 3 && tx[0] == 0x1B && tx[1] == 0x5B && tx[2] == 0x43,
+              "fleche droite (curseur) -> ESC [ C");
     }
 
     printf("\n=== Resultats: %d/%d passes ===\n", pass, run);

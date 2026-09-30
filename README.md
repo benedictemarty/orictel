@@ -169,15 +169,15 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 | Fonction Minitel  | Oric-1 & Atmos    | Atmos seul  | Codes envoyes  |
 |-------------------|-------------------|-------------|----------------|
 | Envoi             | RETURN            |             | SEP $41        |
-| Retour            | CTRL+R ou Fl.HAUT | FUNCT+R     | SEP $42        |
-| Repetition        | CTRL+E            | FUNCT+E     | SEP $43        |
+| Retour            | Fl.GAUCHE ou Fl.HAUT | FUNCT+R  | SEP $42        |
+| Repetition        | CTRL+R (ou CTRL+E) | FUNCT+E    | SEP $43        |
 | Guide             | CTRL+G            | FUNCT+G     | SEP $44        |
 | Annulation        | CTRL+A            | FUNCT+A     | SEP $45        |
 | Sommaire          | CTRL+S            | FUNCT+S     | SEP $46        |
 | Correction        | DELETE            |             | SEP $47        |
-| Suite (page suiv) | CTRL+N            | FUNCT+N     | SEP $48        |
+| Suite (page suiv) | Fl.DROITE (ou CTRL+N) | FUNCT+N | SEP $48        |
 | Connexion/Fin     | CTRL+C            | FUNCT+C     | SEP $49        |
-| Fleches G/D       | Fl.GAUCHE/DROITE  |             | ESC[D / ESC[C (mode curseur PRO3) |
+| Fleches G/D       | Fl.GAUCHE/DROITE  |             | RETOUR / SUITE ; ESC[D / ESC[C en mode curseur PRO3 |
 | Mode rendu        | CTRL+D            |             | (local)        |
 | Effacer ecran     | CTRL+L            |             | (local)        |
 | Reset ACIA        | CTRL+F            |             | (local)        |

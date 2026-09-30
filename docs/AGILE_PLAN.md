@@ -103,6 +103,25 @@ tronque a 40 colonnes, un pas de sondage AT plus lent que le temps-octet, et un
 fuzzing mort en silence depuis des mois. D'ou l'ajout de garde-fous qui echouent
 bruyamment plutot que de dependre d'un oeil humain.
 
+## Sprint 4a - Mise a niveau depuis NeoTel (v0.3.22) [TERMINE]
+**Objectif:** reprendre dans OricTel les corrections de NeoTel (portage
+Neo6502, v1.0.0) qui tiennent dans la RAM de l'Oric.
+
+- [x] US-045: Attributs de zone STUM 1B (semi-graphique delimiteur de fond,
+      zone d'accueil apres deplacement) et SUB = pave d'erreur
+      (`test_videotex` +23, 11 en echec sur l'ancien code).
+- [x] US-046: Glyphes jointifs G0/G2 : barres, pave, diagonales, fleches
+      (`make test-fonts`, 23 checks ; capture cible avant/apres).
+- [x] US-047: Raccourcis Minitel : CTRL+R Repetition, fleche gauche Retour,
+      fleche droite Suite hors mode curseur (`test_keyboard` +5) ; message
+      `ACIA reset` efface apres 2 a 3 s.
+
+Ecarte : mode 80 colonnes (240 pixels de large), enregistrement `.vdt` et
+reglages persistants (pas de stockage fichier), DRCS / Minitel 2 et aide
+bilingue (RAM : ~450 octets de marge sous `$97FF`). Suppr = Annulation de
+NeoTel non repris : DELETE est la seule touche d'effacement de l'Oric et
+reste la CORRECTION.
+
 ## Prochaines pistes (non planifiees)
 - US-025 DRCS.
 - (fait en v0.3.18 : base de temps Timer 2 du VIA, `make test-carrier`)

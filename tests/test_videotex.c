@@ -345,6 +345,84 @@ static void test_background_color(void)
     vtx_process(&ctx, 0x20);
     ASSERT_EQ("bg_color = BLUE", VTX_BLUE, ctx.bg_color);
     ASSERT_EQ("cell bg = BLUE", VTX_BLUE, ctx.screen[1][0].bg);
+
+    /* STUM 1B : un caractere semi-graphique (G1) valide la couleur de fond
+     * latente, sans espace (cartes du POKER de 3617.fr : fond blanc, encre
+     * noire, mosaiques directement apres ESC $57 ESC $40 SO) */
+    {
+        static const unsigned char seq[] = {
+            0x1F, 0x43, 0x44,           /* US rangee 3, colonne 4 */
+            0x1B, 0x57, 0x1B, 0x40,     /* fond blanc, encre noire (latent) */
+            0x0E, 0x7E, 0x7E, 0x0F      /* SO mosaique mosaique SI */
+        };
+        send_bytes(&ctx, seq, sizeof seq);
+        ASSERT_EQ("G1 : cell bg = WHITE", VTX_WHITE, ctx.screen[3][3].bg);
+        ASSERT_EQ("G1 : cell fg = BLACK", VTX_BLACK, ctx.screen[3][3].fg);
+        ASSERT_EQ("G1 : 2e mosaique bg = WHITE", VTX_WHITE, ctx.screen[3][4].bg);
+        ASSERT_EQ("G1 : bg_color = WHITE", VTX_WHITE, ctx.bg_color);
+    }
+    /* Le soulignement latent, lui, attend un espace explicite */
+    {
+        static const unsigned char seq[] = {
+            0x1F, 0x44, 0x44, 0x1B, 0x5A, 0x1B, 0x52,   /* US ; souligne ; fond vert */
+            0x0E, 0x7E, 0x0F, 'A', ' ', 'B'
+        };
+        send_bytes(&ctx, seq, sizeof seq);
+        ASSERT_EQ("G1 : fond vert applique", VTX_GREEN, ctx.screen[4][3].bg);
+        ASSERT_EQ("G1 : pas de souligne", 0, ctx.screen[4][3].flags & ATTR_UNDERLINE);
+        ASSERT_EQ("A : pas encore souligne", 0, ctx.screen[4][4].flags & ATTR_UNDERLINE);
+        ASSERT_EQ("B : souligne apres l'espace", ATTR_UNDERLINE, ctx.screen[4][6].flags & ATTR_UNDERLINE);
+    }
+
+    /* Zone d'accueil : apres un deplacement explicite (US, LF, BS, CSI),
+     * l'ecriture reprend le fond de la zone ou arrive le curseur */
+    {
+        static const unsigned char fill[] = {
+            0x1F, 0x46, 0x44, 0x1B, 0x57, 0x1B, 0x40, ' ', 0x12, 0x45   /* rangee 6 col 3-8 blanche */
+        };
+        static const unsigned char write_r[] = {
+            0x1F, 0x46, 0x44, 0x1B, 0x57, 0x1B, 0x40, 0x1B, 0x4F, 'R', 0x1B, 0x4C   /* R double taille sur le delimiteur */
+        };
+        static const unsigned char moves[] = {
+            0x1F, 0x45, 0x46, 0x0A, 'X',            /* US rangee 5 col 5 puis LF : arrive en (6,5) blanc */
+            0x1F, 0x46, 0x4B, 0x08, 0x08, 'Y',      /* col 10 puis BS BS : (6,8) blanc */
+            0x1F, 0x46, 0x4B, 'Z',                  /* col 10 : hors zone, noir */
+            0x1B, 0x5B, '6', 0x3B, '7', 'H', 'W'    /* CSI 6;7 H : (6,6) blanc */
+        };
+        send_bytes(&ctx, fill, sizeof fill);
+        ASSERT_EQ("remplissage blanc", VTX_WHITE, ctx.screen[6][8].bg);
+        send_bytes(&ctx, write_r, sizeof write_r);
+        ASSERT_EQ("R sur zone blanche : fond blanc", VTX_WHITE, ctx.screen[6][3].bg);
+        ASSERT_EQ("R : encre noire", VTX_BLACK, ctx.screen[6][3].fg);
+        send_bytes(&ctx, moves, sizeof moves);
+        ASSERT_EQ("LF vers zone blanche : X fond blanc", VTX_WHITE, ctx.screen[6][5].bg);
+        ASSERT_EQ("BS vers zone blanche : Y fond blanc", VTX_WHITE, ctx.screen[6][8].bg);
+        ASSERT_EQ("hors zone : Z fond noir", VTX_BLACK, ctx.screen[6][10].bg);
+        ASSERT_EQ("CSI H vers zone blanche : W fond blanc", VTX_WHITE, ctx.screen[6][6].bg);
+    }
+}
+
+/* ===================================================================
+ *  Test: SUB = symbole d'erreur (STUM 1B § 2-2-1-2-8, v0.3.22)
+ * =================================================================== */
+static void test_sub_error_symbol(void)
+{
+    vtx_context_t ctx;
+    static const unsigned char hors_code[] = { 0x1B, 0x41, 0x1A };      /* encre rouge, SUB */
+    static const unsigned char en_code[]   = { 0x0E, 0x1B, 0x42, 0x1A }; /* SO, encre verte, SUB */
+
+    printf("Test: SUB = symbole d'erreur (pave plein)\n");
+    vtx_init(&ctx);
+    send_bytes(&ctx, hors_code, sizeof hors_code);
+    ASSERT_EQ("SUB hors code : pave $7F", 0x7F, ctx.screen[1][0].ch);
+    ASSERT_EQ("SUB hors code : jeu G0", CHARSET_G0, ctx.screen[1][0].charset);
+    ASSERT_EQ("SUB hors code : encre courante (rouge)", VTX_RED, ctx.screen[1][0].fg);
+    ASSERT_EQ("SUB : le curseur avance", 1, ctx.cur_x);
+    send_bytes(&ctx, en_code, sizeof en_code);
+    ASSERT_EQ("SUB en code : pave $7F", 0x7F, ctx.screen[1][1].ch);
+    ASSERT_EQ("SUB en code : pave G0 (plein meme en disjoint)", CHARSET_G0, ctx.screen[1][1].charset);
+    ASSERT_EQ("SUB en code : encre courante (verte)", VTX_GREEN, ctx.screen[1][1].fg);
+    ASSERT_EQ("SUB en code : le jeu courant reste G1", CHARSET_G1, ctx.charset);
 }
 
 /* ===================================================================
@@ -1164,6 +1242,7 @@ int main(void)
     test_reinit_global_mask();
     test_double_height_dirty();
     test_dirty_spans();
+    test_sub_error_symbol();
 
     printf("\n=== Resultats: %d/%d passes", tests_passed, tests_run);
     if (tests_failed > 0) {

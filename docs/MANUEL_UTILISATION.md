@@ -140,14 +140,15 @@ desormais jusqu'a l'obtention de l'IP avant de composer, ce qui evite le
 ```
  C  PAVI 3617         00:12  AUTO  ESC      <- etat (cyan)
 ESC: quitter? ESC=menu autre=reprendre      <- messages (jaune)
-^A Annul ^R Retour ^S Somm ^N Suite         <- aide (blanc)
+^A Annul ^R Repet ^S Somm <Ret >Suite       <- aide (blanc)
 ```
 
   - `C` inverse = donnees recues recemment (connecte), `F` = pas de
     donnees depuis 30 s (liaison probablement coupee) ;
   - le serveur choisi, puis le **chrono** de la session (`mm:ss`) ;
   - le **mode de rendu** courant (`AUTO`, `TRAME`, `BRUT`, voir CTRL+D) ;
-  - la ligne du milieu accueille les messages (question ESC, `ACIA reset`).
+  - la ligne du milieu accueille les messages (question ESC, `ACIA reset`) ;
+    `ACIA reset` s'efface seul apres 2 a 3 secondes.
 
 ## 4. Le clavier
 
@@ -159,9 +160,9 @@ Minitel passent par **CTRL+lettre** (les deux machines) ou
 |---|---|---|
 | **ENVOI** | valider une saisie | RETURN |
 | **SOMMAIRE** | revenir au sommaire du service | CTRL+S |
-| **RETOUR** | page precedente | CTRL+R ou fleche HAUT |
-| **SUITE** | page suivante | CTRL+N |
-| **REPETITION** | reafficher la page | CTRL+E |
+| **RETOUR** | page precedente | fleche GAUCHE ou fleche HAUT |
+| **SUITE** | page suivante | fleche DROITE (ou CTRL+N) |
+| **REPETITION** | reafficher la page | CTRL+R (ou CTRL+E) |
 | **GUIDE** | aide du service | CTRL+G |
 | **ANNULATION** | effacer la saisie en cours | CTRL+A |
 | **CORRECTION** | effacer le dernier caractere | DELETE |
@@ -172,9 +173,14 @@ Les caracteres tapes sont envoyes au serveur, qui les echoie a l'ecran
 Minitel 1B affiche en MAJUSCULES tant que le serveur n'active pas le
 mode minuscules.
 
-Les **fleches gauche/droite** envoient les sequences curseur
-(ESC[D / ESC[C) uniquement si le serveur a active le mode curseur
-(PRO3), comme sur un vrai Minitel 1B.
+Les **fleches gauche/droite** envoient RETOUR / SUITE ; si le serveur
+a active le mode curseur (PRO3), elles envoient a la place les
+sequences curseur (ESC[D / ESC[C), comme sur un vrai Minitel 1B.
+
+Depuis la v0.3.22 (raccourcis repris de NeoTel), CTRL+R est la
+REPETITION et non plus le RETOUR. CORRECTION reste sur DELETE : c'est
+la seule touche d'effacement du clavier Oric (NeoTel, lui, met
+l'ANNULATION sur Suppr et la CORRECTION sur Retour arriere).
 
 ### Raccourcis locaux (n'envoient rien au serveur)
 

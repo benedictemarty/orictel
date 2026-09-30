@@ -1,9 +1,11 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.21 (lancements emulateur : ~/Oric1/oric1-emu par defaut, run-ws avec --loci)
+## Version actuelle: 0.3.22 (mise a niveau depuis NeoTel : attributs de zone, SUB, glyphes jointifs, raccourcis Minitel)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
+| orictel.tap        | 0.3.22     | 2026-09-30 | repris de NeoTel : attributs de zone STUM 1B (G1 delimiteur de fond, zone d'accueil), SUB = pave $7F, glyphes jointifs G0/G2, CTRL+R Repetition, fleches G/D = Retour/Suite, message ACIA reset 3 s ; +220 o de code, marge 448 o sous $97FF |
+| test_fonts.c (glyphes jointifs)| 0.1.0 | 2026-09-30 | 23 checks : barres, pave, diagonales, fleches G0/G2 (16 en echec sur l'ancienne police) |
 | Makefile (run-*)   | 0.3.21     | 2026-09-30 | EMU = ~/Oric1/oric1-emu (v2.1.0 SDL2), repli tools/oric1-emu-sdl 1.27.6 ; run-ws + --loci (ACIA $0380, sinon $031C et sonde 'absent') ; orictel.tap inchange |
 | orictel.tap        | 0.3.20     | 2026-09-13 | serial_probe avant serial_init : sans 6551 en $0380 (miroir VIA) ecran "PAS D'INTERFACE SERIE" au lieu du gel clavier ; /DSR -> "MODEM USB NON DETECTE" (non bloquant, non valide cible) |
 | test_serial_probe.c (faux bus)| 0.1.0 | 2026-09-13 | 11 checks : miroir VIA (DDR intacts, ORA restaure), 6551 $70/$10, lecture perdue, /DSR |

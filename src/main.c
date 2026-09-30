@@ -27,7 +27,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.20"
+#define ORICTEL_VERSION "v0.3.22"
 
 /* Silence exige, en MILLISECONDES, pour CONFIRMER une presomption de perte de
  * porteuse (un vrai NO CARRIER n'est suivi de RIEN, une page qui citerait ces
@@ -933,6 +933,10 @@ static const char*  status_server = "";
 static unsigned char status_connected;
 static unsigned int  status_secs;       /* chrono de session (secondes) */
 static unsigned char status_sec_ticks;  /* tics de 10 ms vers la seconde */
+/* Message transitoire de la ligne 1 : secondes restantes avant effacement
+ * (0 = aucun message a expirer). Comme NeoTel 0.9.8 : lisible 2 a 3 s. */
+#define STATUS_MSG_SECS 3
+static unsigned char status_msg_hold;
 
 static const char* const render_mode_names[3] = { "AUTO", "TRAME", "BRUT" };
 
@@ -964,7 +968,16 @@ static void status_bar_init(void)
     status_sec_ticks = 0;
     status_bar_draw();
     display_status_clear(1);
-    display_status_text(2, 1, "^A Annul ^R Retour ^S Somm ^N Suite", 0);
+    status_msg_hold = 0;
+    display_status_text(2, 1, "^A Annul ^R Repet ^S Somm <Ret >Suite", 0);
+}
+
+/* Message transitoire en ligne 1, efface apres STATUS_MSG_SECS tops
+ * d'horloge (2 a 3 s selon la phase de la seconde en cours). */
+static void status_message(const char* msg)
+{
+    display_status(msg);
+    status_msg_hold = STATUS_MSG_SECS;
 }
 
 static void status_set_connected(unsigned char on)
@@ -983,6 +996,9 @@ static void status_tick(unsigned char ticks)
         status_sec_ticks -= 100;
         ++status_secs;
         status_bar_draw();
+        if (status_msg_hold && --status_msg_hold == 0) {
+            display_status_clear(1);
+        }
     }
 }
 
@@ -1177,7 +1193,7 @@ int main(void)
             vtx.full_refresh = 1;
         } else if (key == KEY_LOCAL_RESET) {
             serial_init(acia_base);
-            display_status("ACIA reset");
+            status_message("ACIA reset");
         } else if (key == KEY_LOCAL_ESCAPE) {
             if (session_escape_page(&vtx)) {
                 break;      /* quitter la session -> raccrocher, menu */

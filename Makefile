@@ -151,7 +151,7 @@ CA65FLAGS = -t $(TARGET)
 # Cibles principales
 # ============================================================================
 
-.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-probe test-serial-noraw test-menus test-carrier test-servers test-atmodem test-keyboard test-ui test-bridge fuzz coverage help
+.PHONY: all clean run run-picowifi run-loci run-loci-emu run-loci-cosim run-loci-real run-ws run-dsk bridge dsk diag bench-render test test-videotex test-serial test-serial-probe test-serial-noraw test-menus test-carrier test-servers test-atmodem test-keyboard test-ui test-fonts test-bridge fuzz coverage help
 
 all: $(OUTPUT)
 
@@ -315,7 +315,7 @@ bridge:
 # Tests
 # ============================================================================
 
-test: test-videotex test-serial test-serial-probe test-atmodem test-keyboard test-ui test-serial-noraw test-menus test-carrier test-bridge
+test: test-videotex test-fonts test-serial test-serial-probe test-atmodem test-keyboard test-ui test-serial-noraw test-menus test-carrier test-bridge
 
 # Garde-fou reception FIDELE au 6551 reel : rejoue une rafale sur $0380 via le
 # backend `file:` de Phosphoric SANS --serial-buffer (RX 1 octet), verifie via
@@ -381,6 +381,11 @@ test-keyboard: $(TESTDIR)/test_keyboard.c $(SRCDIR)/keyboard.c | $(BLDDIR)
 
 # Helpers UI (ui.c): clip ui_print + bornes de saisie ui_text_input
 # (non-regression des findings revue #2-#5). Clavier scripte, rendu neutralise.
+test-fonts: $(TESTDIR)/test_fonts.c $(SRCDIR)/fonts.c | $(BLDDIR)
+	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_fonts \
+		$(TESTDIR)/test_fonts.c $(SRCDIR)/fonts.c
+	$(BLDDIR)/test_fonts
+
 test-ui: $(TESTDIR)/test_ui.c $(SRCDIR)/ui.c | $(BLDDIR)
 	gcc -Wall -Wextra -I$(SRCDIR) -o $(BLDDIR)/test_ui \
 		$(TESTDIR)/test_ui.c $(SRCDIR)/ui.c
@@ -494,6 +499,7 @@ help:
 	@echo "  test-serial-probe Sonde 6551 vs miroir VIA en \$$0380 + /DSR (faux bus hote)"
 	@echo "  test-atmodem  Tests machine d'etats modem AT (faux modem)"
 	@echo "  test-keyboard Tests mapping clavier Oric -> Minitel (clavier scripte)"
+	@echo "  test-fonts    Tests glyphes jointifs G0/G2 (barres, diagonales, fleches, pave)"
 	@echo "  test-ui       Tests helpers UI (clip ui_print + bornes saisie)"
 	@echo "  test-carrier  Delai de perte de porteuse mesure sur cible (~40 s, Timer 2)"
 	@echo "  test-bridge   Tests du bridge"

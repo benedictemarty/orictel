@@ -104,6 +104,11 @@ static void hires_on(void)
 
 static void g1_cache_init(void);
 
+/* Caret ^ des libelles de la barre de statut (6 x 8, bits 5-0) */
+static const unsigned char status_caret[8] = {
+    0x04, 0x0A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
 void display_init(void)
 {
     unsigned char i;
@@ -118,6 +123,9 @@ void display_init(void)
      * les codes $20-$7F a $9900-$9BFF. Les codes < $20 sont des attributs
      * en mode texte, sans glyphe. */
     memcpy((unsigned char*)0x9900, font_g0, 96 * 8);
+    /* $5E est une fleche jointive en Videotex ; la barre de statut garde
+     * le caret de la notation ^A (CTRL+A). */
+    memcpy((unsigned char*)(0x9900 + (0x5E - 0x20) * 8), status_caret, 8);
 
     /* Barre de statut : 3 lignes texte a $BF68-$BFDF, encre en colonne 0 */
     for (i = 0; i < STATUS_LINES; ++i) {

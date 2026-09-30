@@ -215,6 +215,30 @@ CSI ──params+lettre──> NORMAL (commande ANSI-like)
   - G0: alphanumerique (ASCII Minitel, accents francais)
   - G1: mosaiques semi-graphiques (2x3 blocs = 64 motifs)
   - G2: caracteres supplementaires (diacritiques)
+- Caracteres jointifs (v0.3.22, repris de NeoTel 0.9.4-0.9.11) : ils
+  touchent le bord de la cellule 6x8 pour se raccorder a leurs voisins.
+  G0 `$7B`/`$7C`/`$7D` barres verticales (colonnes 1/3/5, 8 lignes),
+  `$7E`/`$60`/`$5F` barres horizontales (lignes 1/3/6, 6 pixels), `$7F`
+  pave plein (aussi le symbole d'erreur de SUB), `$2F`/`$5C` diagonales
+  coin a coin, `$5E` fleche haut ; fleches G2 `$2C`-`$2F` sur les axes
+  des barres medianes. Sources : STUM 2 annexes 3.6 et 3.9, STUM 1B
+  (formats de caractere). Lignes et colonnes exactes = hypothese (la STUM
+  donne des schemas) : celles des lettres de la police, la ligne 7 restant
+  au soulignement. Simples donnees de `font_g0` : le rendu C et asm n'a
+  pas change. Le jeu de la barre de statut (copie de `font_g0` en `$9900`)
+  garde un caret `^` en `$5E` pour la notation `^A`.
+
+### Attributs de zone (STUM 1B, v0.3.22)
+- Un espace G0 valide tous les attributs latents (fond, soulignement) ; un
+  caractere semi-graphique G1 valide le fond seulement (cartes du POKER de
+  3617.fr).
+- Zone d'accueil : apres US, LF, VT, BS, HT ou CSI H, la couleur de fond
+  courante devient celle de la cellule d'arrivee (`adopt_zone_bg`), au
+  lieu d'un fond noir force.
+- SUB (`$1A`) affiche le pave plein G0 `$7F` aux attributs courants.
+- Portes depuis NeoTel 0.8.2 / 0.9.10 ; verifies par `test_videotex`. Sur
+  l'ecran Oric, l'effet reste borne par les attributs serie du HIRES (une
+  encre sombre sur fond de zone clair n'est pas toujours rendable).
 
 ### Attributs par cellule
 - Couleur encre (0-7)
