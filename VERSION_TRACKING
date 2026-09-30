@@ -1,9 +1,10 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.23 (ecrans locaux sur la charte NeoTel, options du menu, navigation aux fleches, clavier Atmos corrige)
+## Version actuelle: 0.3.24 (ecran d'accueil sans mention de NeoTel)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
+| orictel.tap        | 0.3.24     | 2026-09-30 | splash : ligne 'Version Neo6502 : NeoTel' retiree (demande PO) |
 | orictel.tap        | 0.3.23     | 2026-09-30 | charte NeoTel des ecrans locaux (ui_header/ui_item/ui_footer/ui_nav), menu principal Connexion/WiFi/Rendu/Identification/Son, menu serveur aux fleches (ESC = retour), fleche droite $09 et FUNCT+lettre corriges, tampons LOBSS/HIBSS + ligne AT partagee ; marge 343 o sous $97FF |
 | test_ui.c          | 0.2.0      | 2026-09-30 | 34 checks (+23 : bandeau, filet, item, pied, navigation, libelle long) |
 | test_menus.sh      | 0.4.0      | 2026-09-30 | 26 checks (+5 : valeur Connexion, navigation Rendu, menu serveur, ESC serveur) ; frappes espacees de 4 Mcycles ; garde de pile $9D10-$9DFF |

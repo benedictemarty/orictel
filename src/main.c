@@ -27,7 +27,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.23"
+#define ORICTEL_VERSION "v0.3.24"
 
 /* Silence exige, en MILLISECONDES, pour CONFIRMER une presomption de perte de
  * porteuse (un vrai NO CARRIER n'est suivi de RIEN, une page qui citerait ces
@@ -254,7 +254,6 @@ static void splash_screen(vtx_context_t* ctx)
     ui_rule(ctx, 9, VTX_YELLOW);
     ui_print(ctx, 11, 2, "par Benedicte Marty", VTX_WHITE);
     ui_print(ctx, 12, 2, "Licence EUPL 1.2", VTX_YELLOW);
-    ui_print(ctx, 14, 2, "Version Neo6502 : NeoTel", VTX_GREEN);
     ui_rule(ctx, 16, VTX_YELLOW);
 
     p = "Appuyez sur une touche...";
