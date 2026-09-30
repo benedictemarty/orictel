@@ -76,8 +76,12 @@ Serveur Minitel (ex: pavi.3617.fr:3617)
      serveur, chrono de session, mode de rendu, messages (ESC, ACIA reset),
      aide des touches - la ligne 0 de la page reste entierement au serveur
    - Splash screen avec jingle AY-3-8912 (version affichee via ORICTEL_VERSION)
-   - Ecran interface (rappel du montage LOCI + PicoWiFi), menu de mode (modem
-     AT / config WiFi) et de serveur (predefinis + saisie libre)
+   - Ecrans locaux sur une charte commune (reprise de NeoTel) : bandeau bleu,
+     filets, items `[n] option .... valeur`, item courant sur fond bleu,
+     navigation aux fleches ou au chiffre. Menu principal : Connexion
+     (serveur retenu), Config WiFi, Rendu, Identification, Son ; menu Serveur
+     (predefinis + saisie libre) ; ecrans liaison, WiFi, connexion, echec,
+     perte de porteuse
 
 2. **Bridge WebSocket-TCP** (`orictel_bridge.py`) - Proxy Python asyncio
    - Ecoute TCP sur port 3615 (emulateur), connexion WebSocket vers 3617.fr
@@ -163,7 +167,8 @@ make run-ws         # lance bridge + emulateur, et arrete le bridge en sortant
 
 ## Touches Minitel
 
-Compatible Oric-1 (pas de touche FUNCT) et Atmos.
+Compatible Oric-1 (pas de touche FUNCT) et Atmos (FUNCT maintenue avec la
+lettre).
 Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 
 | Fonction Minitel  | Oric-1 & Atmos    | Atmos seul  | Codes envoyes  |
@@ -194,8 +199,10 @@ Methode principale: **CTRL+lettre** (fonctionne sur les deux machines).
 - **Emission:** file TX logicielle non bloquante drainee par la boucle
   principale (prerequis vrai materiel V23)
 - **Memoire:** TAP ~28 Ko (CODE 25,5 Ko, RODATA 2,3 Ko, BSS 7,7 Ko), code+donnees
-  sous $9800 ; jeu de caracteres de la barre de statut $9800-$9BFF, pile cc65
-  $9C00-$9FFF (1 Ko), framebuffer HIRES $A000-$BF3F, 3 lignes texte $BF68-$BFDF
+  sous $9800 ; jeu de caracteres de la barre de statut $9800-$9BFF (dont
+  $9800-$98FF, glyphes des codes 0-31 jamais affiches, recycles en tampons
+  LOBSS), pile cc65 $9C00-$9FFF (1 Ko, dont $9C00-$9D0F en tampons HIBSS),
+  framebuffer HIRES $A000-$BF3F, 3 lignes texte $BF68-$BFDF
 - **Protocole:** Videotex Teletel/Antiope (STUM 1B); l'identification
   ENQ/ENQROM est volontairement muette (alignement miedit: les serveurs
   modernes echoient la reponse dans le champ de saisie)

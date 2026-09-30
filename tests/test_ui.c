@@ -106,6 +106,77 @@ int main(void)
               "masque '*' a l'ecran, vrai texte conserve dans buf");
     }
 
+    /* ================= Charte des ecrans locaux (v0.3.23) ================= */
+
+    /* --- bandeau : fond bleu rangees 1-2, titre double largeur en (2,2) --- */
+    memset(&ctx, 0, sizeof ctx);
+    ui_header(&ctx, "ORIC", "v1");
+    CHECK(ctx.screen[1][0].bg == UI_BAND_BG && ctx.screen[2][39].bg == UI_BAND_BG,
+          "ui_header : rangees 1-2 sur fond bleu, jusqu'aux bords");
+    CHECK(ctx.screen[2][2].ch == 'O' && ctx.screen[2][4].ch == 'R' &&
+          ctx.screen[2][2].size == SIZE_DOUBLE_WIDTH,
+          "ui_header : titre en double largeur (une lettre toutes les 2 colonnes)");
+    CHECK(ctx.screen[2][2].size != SIZE_DOUBLE_HEIGHT,
+          "ui_header : pas de double hauteur (rangee rendue en brut sur Oric)");
+    CHECK(ctx.screen[2][36].ch == 'v' && ctx.screen[2][37].ch == '1' &&
+          ctx.screen[2][36].fg == VTX_YELLOW && ctx.screen[2][35].ch == ' ',
+          "ui_header : texte de droite jaune, fin en col. 37, precede d'un espace");
+    CHECK(ctx.screen[3][0].ch == ' ' && ctx.screen[3][1].ch == 0x60 &&
+          ctx.screen[3][1].charset == CHARSET_G1 && ctx.screen[3][39].fg == VTX_CYAN,
+          "ui_rule : filet G1 cyan des col. 1 a 39, col. 0 libre (attribut)");
+
+    /* --- item non selectionne / selectionne --- */
+    memset(&ctx, 0, sizeof ctx);
+    ui_item(&ctx, 8, '3', "Rendu", "AUTO", 0);
+    CHECK(ctx.screen[8][3].ch == '[' && ctx.screen[8][4].ch == '3' &&
+          ctx.screen[8][5].ch == ']' && ctx.screen[8][4].fg == VTX_CYAN,
+          "ui_item : [k] en cyan a la col. 3");
+    CHECK(ctx.screen[8][7].ch == 'R' && ctx.screen[8][7].fg == VTX_YELLOW &&
+          ctx.screen[8][6].ch == ' ', "ui_item : libelle jaune col. 7, precede d'un espace");
+    CHECK(ctx.screen[8][12].ch == ' ' && ctx.screen[8][13].ch == '.' &&
+          ctx.screen[8][20].ch == '.' && ctx.screen[8][21].ch == ' ',
+          "ui_item : pointilles entre libelle et valeur, bordes d'espaces");
+    CHECK(ctx.screen[8][22].ch == 'A' && ctx.screen[8][22].fg == VTX_WHITE,
+          "ui_item : valeur blanche en col. 22");
+    CHECK(ctx.screen[8][10].bg == VTX_BLACK, "ui_item non selectionne : fond noir");
+    ui_item(&ctx, 8, '3', "Rendu", "AUTO", 1);
+    CHECK(ctx.screen[8][0].bg == VTX_BLACK && ctx.screen[8][1].bg == UI_BAND_BG &&
+          ctx.screen[8][38].bg == UI_BAND_BG && ctx.screen[8][39].bg == VTX_BLACK,
+          "ui_item selectionne : fond bleu col. 1-38");
+    CHECK(ctx.screen[8][1].ch == ' ' && ctx.screen[8][2].ch == ' ',
+          "ui_item selectionne : 2 cases vides avant '[' (attributs fond + encre)");
+    CHECK(ctx.screen[8][4].fg == VTX_WHITE && ctx.screen[8][7].fg == VTX_WHITE,
+          "ui_item selectionne : encre blanche");
+    ui_item(&ctx, 9, '1', "UnReseauAuNomTresLong", "cle", 0);
+    CHECK(ctx.screen[9][27].ch == 'g' && ctx.screen[9][28].ch == ' ' &&
+          ctx.screen[9][29].ch == 'c',
+          "ui_item : libelle long non ecrase, valeur apres un espace");
+    ui_item(&ctx, 8, '1', "Config WiFi", 0, 0);
+    CHECK(ctx.screen[8][22].ch == ' ' && ctx.screen[8][1].bg == VTX_BLACK,
+          "ui_item : rangee effacee avant redessin (valeur et fond de l'ancien)");
+
+    /* --- pied de page --- */
+    memset(&ctx, 0, sizeof ctx);
+    ui_footer(&ctx, "gauche", "ESC");
+    CHECK(ctx.screen[UI_ROW_FOOTRULE][1].ch == 0x60 &&
+          ctx.screen[UI_ROW_FOOTER][2].ch == 'g' &&
+          ctx.screen[UI_ROW_FOOTER][2].fg == VTX_GREEN &&
+          ctx.screen[UI_ROW_FOOTER][37].ch == 'C',
+          "ui_footer : filet, texte vert a gauche, texte a droite fin col. 37");
+
+    /* --- navigation --- */
+    {
+        unsigned char sel = 0;
+        CHECK(ui_nav(KEY_ARROW_DOWN, &sel, 5) == 1 && sel == 1, "ui_nav : bas -> item suivant");
+        sel = 4;
+        CHECK(ui_nav(KEY_ARROW_DOWN, &sel, 5) == 1 && sel == 0, "ui_nav : bas sur le dernier -> premier");
+        CHECK(ui_nav(KEY_ARROW_UP, &sel, 5) == 1 && sel == 4, "ui_nav : haut sur le premier -> dernier");
+        CHECK(ui_nav(KEY_FUNC_FLAG | KEY_ENVOI, &sel, 5) == 2 && sel == 4, "ui_nav : RETURN valide");
+        CHECK(ui_nav(KEY_ARROW_RIGHT, &sel, 5) == 2, "ui_nav : fleche droite valide");
+        CHECK(ui_nav(KEY_FUNC_FLAG | KEY_SUITE, &sel, 5) == 2, "ui_nav : SUITE valide");
+        CHECK(ui_nav('x', &sel, 5) == 0 && sel == 4, "ui_nav : autre touche ignoree");
+    }
+
     printf("\n=== Resultats: %d/%d passes ===\n", pass, run);
     return (pass == run) ? 0 : 1;
 }

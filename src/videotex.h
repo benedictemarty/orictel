@@ -204,4 +204,8 @@ void vtx_set_cursor(vtx_context_t* ctx, unsigned char row, unsigned char col);
 void vtx_touch(vtx_context_t* ctx, unsigned char row,
                unsigned char col_from, unsigned char col_to);
 
+/* Reponse a ENQ / ENQROM (SOH C u 1 EOT) : 0 = muet (defaut), 1 = active.
+ * Reglable au menu (option Identification). */
+extern unsigned char g_ident_enabled;
+
 #endif /* VIDEOTEX_H */

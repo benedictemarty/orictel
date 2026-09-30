@@ -122,6 +122,34 @@ bilingue (RAM : ~450 octets de marge sous `$97FF`). Suppr = Annulation de
 NeoTel non repris : DELETE est la seule touche d'effacement de l'Oric et
 reste la CORRECTION.
 
+## Sprint 4b - Ecrans locaux et options, charte NeoTel (v0.3.23) [TERMINE]
+**Objectif:** que les pages avant la connexion aient la presentation et les
+options de NeoTel, dans la RAM de l'Oric.
+
+- [x] US-048: Charte des ecrans locaux (bandeau, filets, items avec valeur,
+      item courant sur fond bleu, pied de page) sur splash, liaison, menu,
+      serveur, WiFi, connexion, echec, perte de porteuse, sans ACIA, sans
+      modem ; adaptee aux attributs serie du HIRES (`test_ui` 34).
+- [x] US-049: Navigation aux fleches (haut/bas, RETURN ou fleche droite) dans
+      le menu principal et le menu serveur ; ESC au menu serveur revient au
+      menu (`test_menus` 26).
+- [x] US-050: Options du menu : Rendu, Identification (ENQ/ENQROM, OFF par
+      defaut), Son (BEL) ; valeur courante affichee (`test_videotex` +8).
+- [x] US-051: Clavier Atmos : fleche droite (`$09`) et FUNCT+lettre
+      (lettre|`$80`) reconnus - defauts trouves a la trace serie sur
+      Phosphoric (`test_keyboard` 33).
+- [x] Dette : RAM recuperee (+~530 o) par un tampon AT partage (NeoTel 0.8.2)
+      et deux segments hors BSS (LOBSS `$9800-$98FF`, HIBSS `$9C00-$9D0F`).
+
+Ecarte : aide `H` bilingue (RAM : 350 o de marge) ; reglages conserves
+(pas de stockage) ; accelerer le rendu des rangees (cout fixe ~30 000
+cycles, moteur asm : a traiter dans une US de performance dediee).
+Retrospective : les temps de rendu plus longs ont casse les tests cibles
+cales au cycle (frappe purgee par `keyboard_flush` pendant un rendu) ; les
+frappes sont espacees de 4 Mcycles. Un marqueur d'etat en RAM pour
+`--type-keys-when` (comme `g_dbg_state` de NeoTel) rendrait ces tests
+insensibles a la vitesse de rendu.
+
 ## Prochaines pistes (non planifiees)
 - US-025 DRCS.
 - (fait en v0.3.18 : base de temps Timer 2 du VIA, `make test-carrier`)

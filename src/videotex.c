@@ -55,14 +55,20 @@ extern unsigned char g_global_mask;
  * miedit, l'emulateur de reference qui fonctionne avec ces serveurs,
  * ne repond a AUCUNE sequence PRO. On s'aligne.
  * Reactivable ici si un serveur exigeant l'identification apparait. */
+/* Reponse active par le menu (option Identification, v0.3.23, comme
+ * NeoTel) : SOH 'C' 'u' '1' EOT (constructeur, Minitel 1B, version ;
+ * memes octets que NeoTel en profil 1B). Desactivee par defaut. */
+unsigned char g_ident_enabled = 0;
+
 static void send_ident(void)
 {
-    /* serial_send(0x01); SOH
-     * serial_send(0x7B); constructeur (Matra)
-     * serial_send(0x74); type (Minitel 1B)
-     * serial_send(0x63); version
-     * serial_send(0x04); EOT
-     * serial_tx_flush(); */
+    if (!g_ident_enabled) return;
+    serial_send(0x01);                  /* SOH */
+    serial_send('C');
+    serial_send('u');
+    serial_send('1');
+    serial_send(0x04);                  /* EOT */
+    serial_tx_flush();
 }
 
 /* ===================================================================

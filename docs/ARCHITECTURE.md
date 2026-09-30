@@ -52,7 +52,7 @@ Serveur Minitel (ws://3617.fr/ws)
 
 `main.c` est un cycle *menus -> connexion -> session* : la session ne se quitte
 que par ESC (confirme sur la ligne 0, sans effacer la page), qui raccroche
-(`at_hangup`) et repart au menu Mode de connexion avec `vtx_init`. Les ecrans
+(`at_hangup`) et repart au menu principal avec `vtx_init`. Les ecrans
 d'echec de connexion et de perte de porteuse rendent 2 sur ESC pour le meme
 retour. ESC sur le menu principal sort d'OricTel par `jmp ($FFFC)` (vecteur
 de reset, independant de la ROM 1.0/1.1) : la zone programme BASIC ayant ete
@@ -85,10 +85,18 @@ $0300-$030F  VIA 6522 (miroir $0300-$03FF)
 $0380-$0383  ACIA 6551 (serie, base LOCI)
 $0400-$0500  Zone systeme Oric
 $0501-$97FF  CODE + DATA + BSS OricTel (~37 Ko ; BSS borne a $9800 par le cfg)
-$9800-$9BFF  Jeu de caracteres standard des lignes texte (copie de font_g0)
+$9800-$98FF  LOBSS (v0.3.23) : glyphes des codes $00-$1F, jamais affiches
+             (attributs en mode texte) -> tampons non initialises : ligne AT
+             partagee, file TX, saisie serveur, cle et securite WiFi (168 o)
+$9900-$9BFF  Jeu de caracteres standard des lignes texte (copie de font_g0)
+$9C00-$9D0F  HIBSS (v0.3.23) : SSID WiFi (264 o), sous la pile
 $9C00-$9FFF  Pile cc65 (1 Ko ; releve < 32 octets en session, test_menus
-             verifie qu'elle reste au-dessus de $9E00). C'est la place du jeu
-             de caracteres ALTERNATIF, jamais selectionne.
+             verifie qu'elle reste au-dessus de $9E00 : garde $9D10-$9DFF).
+             C'est la place du jeu de caracteres ALTERNATIF, jamais
+             selectionne.
+             LOBSS et HIBSS ne sont pas mis a zero par le crt0, et la bascule
+             HIRES de la ROM les remplit de $40 : n'y loger que des tampons
+             ecrits avant d'etre lus, utilises apres display_init.
 $A000-$BF3F  Framebuffer HIRES (8000 octets)
 $BF68-$BFDF  3 lignes texte sous le HIRES = barre de statut ($BFDF = octet
              de bascule HIRES pose par la ROM, jamais ecrit)
@@ -227,6 +235,21 @@ CSI ──params+lettre──> NORMAL (commande ANSI-like)
   au soulignement. Simples donnees de `font_g0` : le rendu C et asm n'a
   pas change. Le jeu de la barre de statut (copie de `font_g0` en `$9900`)
   garde un caret `^` en `$5E` pour la notation `^A`.
+
+### Charte des ecrans locaux (v0.3.23, reprise de NeoTel 0.9.1)
+`ui.c` : `ui_header` (bandeau bleu rangees 1-2, titre en double LARGEUR,
+texte de droite jaune, filet cyan), `ui_rule`, `ui_fill`, `ui_item`
+(`[k] libelle .... valeur`, item courant sur fond bleu), `ui_footer`,
+`ui_print_right`, `ui_nav` (fleches haut/bas en boucle, RETURN / SUITE /
+fleche droite valident). Adaptation au HIRES Oric : une couleur ne change
+que par un attribut serie qui occupe une cellule VIDE (rendu hybride de
+`display.c`), donc chaque transition est precedee d'un espace (deux pour
+fond + encre : `[` en colonne 3), les filets laissent la colonne 0 libre, et
+le titre n'est pas en double hauteur (qui ferait rendre la rangee en brut).
+Un ecran complet colore se rend en 2 a 3 s a 1 MHz (~30 000 cycles de cout
+fixe par rangee, cf. `make bench-render`) : la navigation ne redessine que
+l'ancien et le nouvel item. Tests : `test_ui` (charte, 34), `test_menus`
+(parcours, 26).
 
 ### Attributs de zone (STUM 1B, v0.3.22)
 - Un espace G0 valide tous les attributs latents (fond, soulignement) ; un

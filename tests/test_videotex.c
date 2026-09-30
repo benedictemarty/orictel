@@ -582,6 +582,24 @@ static void test_enqrom(void)
     vtx_process(&ctx, 0x39);
     vtx_process(&ctx, 0x41);  /* code arbitraire non gere */
     ASSERT_EQ("PRO1 inconnu: 0 octet emis", 0, tx_len);
+
+    /* Option Identification du menu (v0.3.23) : ENQROM et ENQ repondent
+     * SOH 'C' 'u' '1' EOT (memes octets que NeoTel en profil 1B) */
+    g_ident_enabled = 1;
+    tx_reset();
+    vtx_process(&ctx, 0x1B);
+    vtx_process(&ctx, 0x39);
+    vtx_process(&ctx, 0x7B);
+    ASSERT_EQ("Identification ON : 5 octets emis", 5, tx_len);
+    ASSERT_EQ("Identification ON : SOH", 0x01, tx_buf[0]);
+    ASSERT_EQ("Identification ON : constructeur 'C'", 'C', tx_buf[1]);
+    ASSERT_EQ("Identification ON : type 'u' (1B)", 'u', tx_buf[2]);
+    ASSERT_EQ("Identification ON : version '1'", '1', tx_buf[3]);
+    ASSERT_EQ("Identification ON : EOT", 0x04, tx_buf[4]);
+    tx_reset();
+    vtx_process(&ctx, 0x05);  /* ENQ */
+    ASSERT_EQ("Identification ON : ENQ repond aussi", 5, tx_len);
+    g_ident_enabled = 0;
 }
 
 /* ===================================================================

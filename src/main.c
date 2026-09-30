@@ -27,7 +27,7 @@
 
 /* Version OricTel affichee au splash. A garder synchronisee avec CHANGELOG /
  * VERSION_TRACKING a chaque release. */
-#define ORICTEL_VERSION "v0.3.22"
+#define ORICTEL_VERSION "v0.3.23"
 
 /* Silence exige, en MILLISECONDES, pour CONFIRMER une presomption de perte de
  * porteuse (un vrai NO CARRIER n'est suivi de RIEN, une page qui citerait ces
@@ -237,63 +237,34 @@ static void play_jingle(void)
     ay_write(7, 0x7F);  /* Mixer: tout off, Port A input */
 }
 
-/* Les helpers d'affichage/saisie des menus (ui_print, ui_menu_item,
+/* Les helpers d'affichage/saisie des menus (ui_print, ui_item,
  * ui_text_input) vivent desormais dans ui.c (testables host: tests/test_ui.c). */
 
-/* Ecran splash: titre, auteur, licence, email, jingle */
+/* Ecran splash (charte v0.3.23, comme NeoTel 0.9.1) : bandeau, titre,
+ * auteur, licence, jingle. L'adresse e-mail n'y figure plus (NeoTel 0.8.0). */
 static void splash_screen(vtx_context_t* ctx)
 {
-    unsigned char i, c;
+    unsigned char i;
     const char* p;
 
-    /* Titre en double hauteur (row 4-5 centré) */
-    static const char title[] = "OricTel";
-    for (i = 0; title[i]; ++i) {
-        c = 16 + i;
-        ctx->screen[5][c].ch = title[i];
-        ctx->screen[5][c].fg = VTX_CYAN;
-        ctx->screen[5][c].size = SIZE_DOUBLE_HEIGHT;
-    }
-    ctx->dirty[4] = 1;
-    ctx->dirty[5] = 1;
+    ctx->cur_visible = 0;           /* pas de curseur sur les ecrans locaux */
+    ui_header(ctx, "ORICTEL", ORICTEL_VERSION);
+    ui_print(ctx, 6, 2, "Terminal Minitel 1B", VTX_WHITE);
+    ui_print(ctx, 7, 2, "pour Oric-1 / Atmos", VTX_WHITE);
+    ui_rule(ctx, 9, VTX_YELLOW);
+    ui_print(ctx, 11, 2, "par Benedicte Marty", VTX_WHITE);
+    ui_print(ctx, 12, 2, "Licence EUPL 1.2", VTX_YELLOW);
+    ui_print(ctx, 14, 2, "Version Neo6502 : NeoTel", VTX_GREEN);
+    ui_rule(ctx, 16, VTX_YELLOW);
 
-    /* Version */
-    ui_print(ctx, 7, 17, ORICTEL_VERSION, VTX_WHITE);
-
-    /* Trait de separation */
-    for (c = 5; c < 35; ++c) {
-        ctx->screen[9][c].ch = 0x60;
-        ctx->screen[9][c].charset = CHARSET_G1;
-        ctx->screen[9][c].fg = VTX_YELLOW;
-    }
-    ctx->dirty[9] = 1;
-
-    /* Auteur / email / licence */
-    ui_print(ctx, 11, 10, "par Benedicte Marty", VTX_WHITE);
-    ui_print(ctx, 13, 12, "bmarty@mailo.com", VTX_CYAN);
-    ui_print(ctx, 15, 12, "Licence EUPL 1.2", VTX_YELLOW);
-
-    /* Cadre bas */
-    for (c = 5; c < 35; ++c) {
-        ctx->screen[19][c].ch = 0x60;
-        ctx->screen[19][c].charset = CHARSET_G1;
-        ctx->screen[19][c].fg = VTX_YELLOW;
+    p = "Appuyez sur une touche...";
+    for (i = 0; p[i]; ++i) {
+        ctx->screen[19][7 + i].ch = p[i];
+        ctx->screen[19][7 + i].flags = ATTR_FLASH;
     }
     ctx->dirty[19] = 1;
 
-    /* Message attente */
-    p = "Appuyez sur une touche...";
-    for (i = 0; p[i]; ++i) {
-        ctx->screen[22][7 + i].ch = p[i];
-        ctx->screen[22][7 + i].fg = VTX_WHITE;
-        ctx->screen[22][7 + i].flags = ATTR_FLASH;
-    }
-    ctx->dirty[22] = 1;
-
-    /* Afficher */
     display_render_all(ctx);
-
-    /* Jouer le jingle */
     play_jingle();
 
     /* Attendre une touche ou ~5 secondes */
@@ -307,7 +278,6 @@ static void splash_screen(vtx_context_t* ctx)
         }
     }
 
-    /* Effacer l'ecran pour la connexion */
     vtx_clear_page(ctx);
     display_render_all(ctx);
 }
@@ -340,29 +310,116 @@ static void oric_cold_reset(void)
     __asm__("jmp ($FFFC)");
 }
 
-/* Menu selection du mode de connexion.
- * Retourne MODE_MODEM, MODE_WIFI ou MODE_QUIT (ESC). */
-static unsigned char select_mode(vtx_context_t* ctx)
+extern unsigned char g_render_mode;     /* display.c : 0 AUTO, 1 TRAME, 2 BRUT */
+
+/* Bandeau d'etat : rangee de fond bg, texte fg en colonne 2 (cartes verte,
+ * jaune ou rouge des ecrans locaux, comme NeoTel 0.9.1/0.9.3). */
+static void ui_band(vtx_context_t* ctx, unsigned char row, unsigned char bg,
+                    const char* msg, unsigned char fg)
 {
-    vtx_clear_page(ctx);
+    ui_fill(ctx, row, bg);
+    ui_print(ctx, row, 2, msg, fg);
+}
 
-    ui_print(ctx, 10, 10, "Mode de connexion:", VTX_WHITE);
-    ui_menu_item(ctx, 13, "1 - Modem AT");
-    ui_menu_item(ctx, 15, "2 - Config WiFi");
-    ui_print(ctx, 19, 12, "ESC Quitter (BASIC)", VTX_WHITE);
+/* Serveurs disponibles */
+static const char* const servers[] = {
+    "pavi.3617.fr:3617",
+    "go.minipavi.fr:516",
+};
+static const char* const server_names[] = {
+    "PAVI 3617",
+    "MiniPavi",
+};
+#define NUM_SERVERS 2
 
-    display_render_all(ctx);
+/* Saisie libre du serveur, et serveur retenu (affiche dans le menu).
+ * custom_server est hors BSS (cfg : LOBSS, non initialise, rempli de $40 par
+ * la bascule HIRES) : main() le vide apres display_init. */
+#pragma bss-name (push, "LOBSS")
+static char custom_server[40];
+#pragma bss-name (pop)
+static unsigned char s_srv_idx;         /* 0..NUM_SERVERS-1, ou 255 = saisie */
 
-    keyboard_flush();           /* anti-rebond: attendre relachement avant lecture */
-    for (;;) {
-        unsigned char key = keyboard_scan();
-        if (key == '1') return MODE_MODEM;
-        if (key == '2') return MODE_WIFI;
-        if (key == KEY_LOCAL_ESCAPE) return MODE_QUIT;
+/* Menu principal (charte v0.3.23, repris de NeoTel 0.9.1) : items avec leur
+ * valeur courante, item courant sur fond bleu, fleches haut/bas + RETURN
+ * (ou fleche droite) ; les chiffres restent actifs. Les options se reglent
+ * sur place (valeur basculee, menu redessine) et valent jusqu'a la sortie
+ * d'OricTel (pas de stockage de reglages sur Oric). */
+#define MENU_ITEMS 5
+static const char* const menu_labels[MENU_ITEMS] = {
+    "Connexion", "Config WiFi", "Rendu", "Identification", "Son"
+};
+static const char* const render_mode_names[3] = { "AUTO", "TRAME", "BRUT" };
+
+static const char* menu_value(unsigned char i)
+{
+    switch (i) {
+    case 0: return (s_srv_idx == 255) ? custom_server : server_names[s_srv_idx];
+    case 2: return render_mode_names[g_render_mode];
+    case 3: return g_ident_enabled ? "ON" : "OFF";
+    case 4: return g_sound ? "ON" : "OFF";
+    default: return 0;
     }
 }
 
-/* Ecran d'interface serie. OricTel ne connait qu'un seul montage materiel :
+static void menu_draw_item(vtx_context_t* ctx, unsigned char i,
+                           unsigned char sel)
+{
+    ui_item(ctx, (unsigned char)(6 + i * 2), (char)('1' + i),
+            menu_labels[i], menu_value(i), i == sel);
+}
+
+/* Retourne MODE_MODEM (Connexion), MODE_WIFI ou MODE_QUIT (ESC). */
+static unsigned char select_mode(vtx_context_t* ctx)
+{
+    static unsigned char sel;       /* item courant, conserve entre deux menus */
+    unsigned char key, act, i, prev;
+
+    vtx_clear_page(ctx);
+    ctx->cur_visible = 0;
+    ui_header(ctx, "ORICTEL", "Minitel 1B");
+    ui_print(ctx, 19, 2, "Fleches / chiffre, RETURN valide", VTX_CYAN);
+    ui_footer(ctx, "CTRL+D rendu en session", "ESC BASIC");
+    for (i = 0; i < MENU_ITEMS; ++i) menu_draw_item(ctx, i, sel);
+    for (;;) {
+        display_render_all(ctx);
+
+        keyboard_flush();       /* anti-rebond: attendre relachement avant lecture */
+        for (;;) {
+            key = keyboard_scan();
+            if (key == KEY_NONE) continue;
+            if (key == KEY_LOCAL_ESCAPE) return MODE_QUIT;
+            prev = sel;
+            act = 0xFF;
+            if (key >= '1' && key < '1' + MENU_ITEMS) {
+                act = key - '1';
+            } else {
+                unsigned char r = ui_nav(key, &sel, MENU_ITEMS);
+                if (r == 2) act = sel;
+                else if (r != 1) continue;
+            }
+            if (act != 0xFF) {
+                sel = act;
+                if (act == 0) return MODE_MODEM;
+                if (act == 1) return MODE_WIFI;
+                if (act == 2) {
+                    if (++g_render_mode > 2) g_render_mode = 0;
+                } else if (act == 3) {
+                    g_ident_enabled ^= 1;
+                } else {
+                    g_sound ^= 1;
+                }
+            }
+            /* Seuls l'ancien et le nouvel item sont redessines (un ecran
+             * complet colore coute 2 a 3 s de rendu a 1 MHz). */
+            menu_draw_item(ctx, prev, sel);
+            menu_draw_item(ctx, sel, sel);
+            break;
+        }
+    }
+}
+
+/* Ecran de la liaison serie. OricTel ne connait qu'un seul montage materiel :
  * LOCI + PicoWiFiModemUSB sur l'ACIA 6551 a la base LOCI ($0380). Les 3
  * variantes d'exploitation (tout physique ; Phosphoric tout emule ; Phosphoric
  * LOCI emule + Pico physique sur USB de l'hote) sont identiques cote firmware,
@@ -371,12 +428,11 @@ static unsigned char select_mode(vtx_context_t* ctx)
 static unsigned select_interface(vtx_context_t* ctx)
 {
     vtx_clear_page(ctx);
-
-    ui_print(ctx, 8, 10, "Interface serie:", VTX_WHITE);
-    ui_print(ctx, 11, 12, "LOCI + PicoWiFiModemUSB", VTX_YELLOW);
-    ui_print(ctx, 12, 12, "($0380)", VTX_CYAN);
-    ui_print(ctx, 16, 8, "[une touche] pour continuer", VTX_WHITE);
-
+    ctx->cur_visible = 0;
+    ui_header(ctx, "LIAISON", ORICTEL_VERSION);
+    ui_band(ctx, 6, VTX_GREEN, "LOCI + PicoWiFiModemUSB", VTX_BLACK);
+    ui_print(ctx, 8, 2, "ACIA 6551 en $0380", VTX_CYAN);
+    ui_footer(ctx, "une touche : continuer", 0);
     display_render_all(ctx);
 
     keyboard_flush();           /* anti-rebond: attendre relachement avant lecture */
@@ -396,17 +452,19 @@ static unsigned char no_acia_page(vtx_context_t* ctx)
     unsigned char key;
 
     vtx_clear_page(ctx);
-    ui_print(ctx, 5, 8,  "PAS D'INTERFACE SERIE", VTX_RED);
-    ui_print(ctx, 7, 3,  "Aucun 6551 ne repond en $0380 :", VTX_WHITE);
-    ui_print(ctx, 8, 3,  "c'est le miroir du VIA qui est lu.", VTX_WHITE);
-    ui_print(ctx, 10, 3, "- LOCI absent ou hors contexte", VTX_CYAN);
-    ui_print(ctx, 11, 3, "  disque (lancer depuis le .dsk),", VTX_CYAN);
-    ui_print(ctx, 12, 3, "- Phosphoric : --loci --serial ...", VTX_CYAN);
-    ui_print(ctx, 13, 3, "  ou --loci-emu ... --loci-cdc DEV", VTX_CYAN);
-    ui_print(ctx, 16, 3, "OricTel ne programme pas l'ACIA :", VTX_WHITE);
-    ui_print(ctx, 17, 3, "le clavier reste utilisable.", VTX_WHITE);
-    ui_menu_item(ctx, 20, "1 Reessayer");
-    ui_print(ctx, 22, 12, "ESC Quitter (BASIC)", VTX_WHITE);
+    ctx->cur_visible = 0;
+    ui_header(ctx, "LIAISON", ORICTEL_VERSION);
+    ui_band(ctx, 5, VTX_RED, "PAS D'INTERFACE SERIE", VTX_WHITE);
+    ui_print(ctx, 7, 2,  "Aucun 6551 ne repond en $0380 :", VTX_WHITE);
+    ui_print(ctx, 8, 2,  "c'est le miroir du VIA qui est lu.", VTX_WHITE);
+    ui_print(ctx, 10, 2, "- LOCI absent ou hors contexte", VTX_CYAN);
+    ui_print(ctx, 11, 2, "  disque (lancer depuis le .dsk),", VTX_CYAN);
+    ui_print(ctx, 12, 2, "- Phosphoric : --loci --serial ...", VTX_CYAN);
+    ui_print(ctx, 13, 2, "  ou --loci-emu ... --loci-cdc DEV", VTX_CYAN);
+    ui_print(ctx, 15, 2, "OricTel ne programme pas l'ACIA :", VTX_WHITE);
+    ui_print(ctx, 16, 2, "le clavier reste utilisable.", VTX_WHITE);
+    ui_item(ctx, 19, '1', "Reessayer", 0, 0);
+    ui_footer(ctx, 0, "ESC BASIC");
     display_render_all(ctx);
 
     keyboard_flush();
@@ -429,13 +487,15 @@ static unsigned char no_acia_page(vtx_context_t* ctx)
 static void no_modem_page(vtx_context_t* ctx)
 {
     vtx_clear_page(ctx);
-    ui_print(ctx, 6, 9,  "MODEM USB NON DETECTE", VTX_YELLOW);
-    ui_print(ctx, 8, 3,  "L'ACIA repond en $0380 mais /DSR", VTX_WHITE);
-    ui_print(ctx, 9, 3,  "est haut : aucun PicoWiFiModemUSB", VTX_WHITE);
-    ui_print(ctx, 10, 3, "n'est monte sur le port USB du LOCI.", VTX_WHITE);
-    ui_print(ctx, 13, 3, "Brancher le Pico puis revenir ici", VTX_CYAN);
-    ui_print(ctx, 14, 3, "(CTRL+F : reset ACIA en session).", VTX_CYAN);
-    ui_print(ctx, 18, 6, "[une touche] pour continuer", VTX_WHITE);
+    ctx->cur_visible = 0;
+    ui_header(ctx, "LIAISON", ORICTEL_VERSION);
+    ui_band(ctx, 5, VTX_YELLOW, "MODEM USB NON DETECTE", VTX_BLACK);
+    ui_print(ctx, 7, 2,  "L'ACIA repond en $0380 mais /DSR", VTX_WHITE);
+    ui_print(ctx, 8, 2,  "est haut : aucun PicoWiFiModemUSB", VTX_WHITE);
+    ui_print(ctx, 9, 2,  "n'est monte sur le port USB du LOCI.", VTX_WHITE);
+    ui_print(ctx, 12, 2, "Brancher le Pico puis revenir ici", VTX_CYAN);
+    ui_print(ctx, 13, 2, "(CTRL+F : reset ACIA en session).", VTX_CYAN);
+    ui_footer(ctx, "une touche : continuer", 0);
     display_render_all(ctx);
 
     keyboard_flush();
@@ -444,16 +504,6 @@ static void no_modem_page(vtx_context_t* ctx)
     }
 }
 
-/* Serveurs disponibles */
-static const char* servers[] = {
-    "pavi.3617.fr:3617",
-    "go.minipavi.fr:516",
-};
-static const char* server_names[] = {
-    "PAVI 3617",
-    "MiniPavi",
-};
-#define NUM_SERVERS 2
 
 /* ===================================================================
  *  Trace de debug de la phase AT (compilee uniquement si DEBUG)
@@ -525,10 +575,17 @@ static void dbg_idle(void)
  * =================================================================== */
 
 #define WIFI_MAX 8                  /* reseaux affichables a l'ecran */
+/* Tampons WiFi hors BSS (non initialises : toujours remplis par le scan ou
+ * la saisie avant d'etre lus) : wifi_ssid sous la pile C (HIBSS, 264 o),
+ * les autres en LOBSS. */
+#pragma bss-name (push, "HIBSS")
 static char wifi_ssid[WIFI_MAX][33];/* SSID (<=32 car + nul) */
+#pragma bss-name (pop)
+#pragma bss-name (push, "LOBSS")
 static char wifi_sec[WIFI_MAX];     /* 'S'=securise, 'O'=ouvert */
-static unsigned char wifi_count;    /* reseaux trouves */
 static char wifi_pass[40];          /* mot de passe saisi */
+#pragma bss-name (pop)
+static unsigned char wifi_count;    /* reseaux trouves */
 
 /* Scanner les reseaux WiFi via AT$SCAN. Le firmware liste un point
  * d'acces par ligne sous la forme "<index> <ssid><TAB><sec>". On lit
@@ -578,12 +635,23 @@ static unsigned char wifi_scan(void)
 }
 
 /* Afficher un message centre-ish sur une ligne et attendre une touche. */
-static void wifi_msg_wait(vtx_context_t* ctx, unsigned char row,
-                          unsigned char col, const char* msg)
+static void wifi_msg_wait(vtx_context_t* ctx, unsigned char bg,
+                          const char* msg)
 {
-    ui_print(ctx, row, col, msg, VTX_WHITE);
+    ui_band(ctx, 12, bg, msg, bg == VTX_GREEN ? VTX_BLACK : VTX_WHITE);
+    ui_footer(ctx, "une touche : retour", 0);
     display_render_all(ctx);
+    keyboard_flush();
     while (keyboard_scan() == KEY_NONE) { /* attente touche */ }
+}
+
+/* En-tete des ecrans WiFi : page effacee, bandeau, message en rangee 6 */
+static void wifi_header(vtx_context_t* ctx, const char* right,
+                        const char* msg)
+{
+    vtx_clear_page(ctx);
+    ui_header(ctx, "WIFI", right);
+    if (msg) ui_print(ctx, 6, 2, msg, VTX_WHITE);
 }
 
 /* Page complete de configuration WiFi. Suppose serial_init() deja fait. */
@@ -592,38 +660,22 @@ static void wifi_config_page(vtx_context_t* ctx)
     unsigned char i, sel;
 
     for (;;) {                                  /* boucle scan/rescan */
-        vtx_clear_page(ctx);
-        ui_print(ctx, 10, 9, "Scan WiFi en cours...", VTX_WHITE);
+        wifi_header(ctx, 0, "Recherche des reseaux...");
         display_render_all(ctx);
 
         if (wifi_scan() == 0) {
-            vtx_clear_page(ctx);
-            wifi_msg_wait(ctx, 10, 6, "Aucun reseau. Touche=retour");
+            wifi_header(ctx, 0, 0);
+            wifi_msg_wait(ctx, VTX_RED, "Aucun reseau trouve");
             return;
         }
 
-        /* Liste des reseaux */
-        vtx_clear_page(ctx);
-        ui_print(ctx, 2, 3, "Reseaux WiFi:", VTX_WHITE);
+        /* Liste des reseaux : items [n] ssid .... cle / ouvert */
+        wifi_header(ctx, "reseaux", 0);
         for (i = 0; i < wifi_count; ++i) {
-            unsigned char row = 4 + i;
-            unsigned char d;
-            ctx->screen[row][3].ch = '1' + i;
-            ctx->screen[row][3].fg = VTX_CYAN;
-            ctx->screen[row][5].ch = '-';
-            ctx->screen[row][5].fg = VTX_WHITE;
-            for (d = 0; wifi_ssid[i][d] && (7 + d) < VTX_COLS; ++d) {
-                ctx->screen[row][7 + d].ch = wifi_ssid[i][d];
-                ctx->screen[row][7 + d].fg = VTX_YELLOW;
-            }
-            if (wifi_sec[i] == 'S' && (7 + d + 1) < VTX_COLS) {  /* cadenas */
-                ctx->screen[row][7 + d + 1].ch = '*';
-                ctx->screen[row][7 + d + 1].fg = VTX_RED;
-            }
-            ctx->dirty[row] = 1;
+            ui_item(ctx, (unsigned char)(5 + i * 2), (char)('1' + i),
+                    wifi_ssid[i], wifi_sec[i] == 'S' ? "cle" : "ouvert", 0);
         }
-        ui_print(ctx, 22, 0, "Chiffre=choix REPET=rescan ESC=retour",
-                 VTX_GREEN);
+        ui_footer(ctx, "chiffre, CTRL+R rescan", "ESC retour");
         display_render_all(ctx);
 
         /* Selection */
@@ -651,16 +703,19 @@ static void wifi_config_page(vtx_context_t* ctx)
         /* Mot de passe si reseau securise */
         wifi_pass[0] = 0;
         if (wifi_sec[sel] == 'S') {
-            vtx_clear_page(ctx);
-            ui_print(ctx, 8, 3, "Mot de passe WiFi:", VTX_WHITE);
+            wifi_header(ctx, wifi_ssid[sel], "Cle du reseau :");
+            ui_footer(ctx, "RETURN valide", "ESC annule");
             display_render_all(ctx);
-            /* col 3, masque '*' ; longueur bornee par le buffer et l'ecran */
-            ui_text_input(ctx, 10, 3, wifi_pass, sizeof(wifi_pass), '*');
+            /* col 2, masque '*' ; longueur bornee par le buffer et l'ecran.
+             * ESC pendant la saisie annule (comme NeoTel 0.9.3). */
+            if (ui_text_input(ctx, 8, 2, wifi_pass, sizeof(wifi_pass), '*')
+                == 0xFF) {
+                continue;
+            }
         }
 
         /* Configuration + connexion */
-        vtx_clear_page(ctx);
-        ui_print(ctx, 10, 11, "Connexion WiFi...", VTX_WHITE);
+        wifi_header(ctx, wifi_ssid[sel], "Connexion WiFi...");
         display_render_all(ctx);
         DBG_AT_BEGIN(ctx, 12);
 
@@ -674,79 +729,90 @@ static void wifi_config_page(vtx_context_t* ctx)
         if (at_wait_ip(20000)) {
             at_send("AT&W");                    /* sauver en NVRAM */
             at_wait_response("OK", 3000);
-            wifi_msg_wait(ctx, 18, 5, "Connecte! Config sauvee.");
+            wifi_msg_wait(ctx, VTX_GREEN, "Connecte, config sauvee");
         } else {
-            wifi_msg_wait(ctx, 18, 3, "Echec IP. Verifier mot de passe.");
+            wifi_msg_wait(ctx, VTX_RED, "Echec IP : verifier la cle");
         }
         return;
     }
 }
 
-/* Buffer pour saisie libre du serveur */
-static char custom_server[40];
 
-/* Menu de selection serveur.
- * Retourne 0-1 pour les predefinis, 255 pour saisie libre. */
+/* Menu de selection serveur (charte v0.3.23, comme NeoTel 0.9.1) : item
+ * courant = serveur retenu, fleches + RETURN ou chiffre.
+ * Retourne 0..NUM_SERVERS-1 (predefini), 255 (saisie libre) ou 254 (ESC,
+ * retour au menu principal). */
+#define SRV_ESC 254
 static unsigned char select_server(vtx_context_t* ctx)
 {
-    unsigned char sel, n;
+    unsigned char sel, key, i, r;
 
-    ui_print(ctx, 10, 5, "Serveur:", VTX_WHITE);
-
-    for (sel = 0; sel < NUM_SERVERS; ++sel) {
-        unsigned char row = 12 + sel * 2;
-        ctx->screen[row][5].ch = '1' + sel;
-        ctx->screen[row][5].fg = VTX_CYAN;
-        ctx->screen[row][7].ch = '-';
-        ctx->screen[row][7].fg = VTX_WHITE;
-        ui_print(ctx, row, 9, server_names[sel], VTX_YELLOW);
-    }
-
-    /* Option 3: saisie libre */
-    {
-        unsigned char row = 12 + NUM_SERVERS * 2;
-        ctx->screen[row][5].ch = '3';
-        ctx->screen[row][5].fg = VTX_CYAN;
-        ctx->screen[row][7].ch = '-';
-        ctx->screen[row][7].fg = VTX_WHITE;
-        ui_print(ctx, row, 9, "Autre (host:port)", VTX_YELLOW);
-    }
-    display_render_all(ctx);
-
-    /* Attendre touche 1, 2 ou 3 */
-    keyboard_flush();           /* anti-rebond: attendre relachement avant lecture */
+    sel = (s_srv_idx == 255) ? NUM_SERVERS : s_srv_idx;
+    vtx_clear_page(ctx);
+    ctx->cur_visible = 0;
+    ui_header(ctx, "SERVEUR", 0);
+    ui_footer(ctx, "3 saisir une adresse", "ESC retour");
     for (;;) {
-        unsigned char key = keyboard_scan();
-        if (key >= '1' && key < '1' + NUM_SERVERS) {
-            return key - '1';
+        for (i = 0; i <= NUM_SERVERS; ++i) {
+            ui_item(ctx, (unsigned char)(5 + i * 2), (char)('1' + i),
+                    i < NUM_SERVERS ? server_names[i] : "Autre",
+                    i < NUM_SERVERS ? servers[i]
+                    : (custom_server[0] ? custom_server : "host:port"),
+                    i == sel);
         }
-        if (key == '3') {
-            /* Saisie libre du serveur : invite "host:port> " (col 3..13),
-             * saisie bornee a partir de la col 14 via ui_text_input. */
-            unsigned char row = 12 + NUM_SERVERS * 2 + 2;
-            ui_print(ctx, row, 3, "host:port> ", VTX_WHITE);
-            display_render_all(ctx);
-            n = ui_text_input(ctx, row, 14, custom_server,
-                              sizeof(custom_server), 0);
-            if (n != 0xFF && n > 0) return 255;   /* valide -> serveur perso */
-            /* ANNULATION ou saisie vide: nettoyer la ligne, revenir au menu */
-            {
-                unsigned char c;
-                for (c = 0; c < VTX_COLS; ++c) ctx->screen[row][c].ch = ' ';
-                ctx->dirty[row] = 1;
+        display_render_all(ctx);
+
+        keyboard_flush();       /* anti-rebond: attendre relachement avant lecture */
+        for (;;) {
+            key = keyboard_scan();
+            if (key == KEY_NONE) continue;
+            if (key == KEY_LOCAL_ESCAPE) return SRV_ESC;
+            r = 0;
+            if (key >= '1' && key <= '1' + NUM_SERVERS) {
+                sel = key - '1';
+                r = 2;
+            } else {
+                r = ui_nav(key, &sel, NUM_SERVERS + 1);
             }
-            display_render_all(ctx);
+            if (r == 1) break;                  /* redessiner la selection */
+            if (r != 2) continue;
+            if (sel < NUM_SERVERS) return sel;
+            /* Saisie libre du serveur, rangee 11 a partir de la colonne 2 */
+            {
+                unsigned char row = 7 + NUM_SERVERS * 2;
+                ui_print(ctx, row, 2, "host:port", VTX_WHITE);
+                display_render_all(ctx);
+                i = ui_text_input(ctx, row + 1, 2, custom_server,
+                                  sizeof(custom_server), 0);
+                if (i != 0xFF && i > 0) return 255;   /* serveur perso */
+                /* ANNULATION ou saisie vide: nettoyer, revenir au menu */
+                ui_fill(ctx, row, VTX_BLACK);
+                ui_fill(ctx, row + 1, VTX_BLACK);
+            }
+            break;
         }
     }
 }
 
 /* Tenter la connexion modem AT. Retourne 1 si connecte. */
+/* Etape de connexion : rangee 8 de l'ecran CONNEXION (le reste de la page
+ * n'est pas redessine, seul le message change). */
+static void conn_step(vtx_context_t* ctx, const char* msg, const char* arg)
+{
+    ui_fill(ctx, 8, VTX_BLACK);
+    ui_print(ctx, 8, 2, msg, VTX_WHITE);
+    if (arg) ui_print(ctx, 8, 8, arg, VTX_CYAN);
+    display_render_all(ctx);
+}
+
 static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
 {
-    /* Afficher "Connexion..." */
     vtx_clear_page(ctx);
-    ui_print(ctx, 10, 17, "ATZ...", VTX_WHITE);
-    display_render_all(ctx);
+    ctx->cur_visible = 0;
+    ui_header(ctx, "CONNEXION",
+              server_idx == 255 ? 0 : server_names[server_idx]);
+    ui_footer(ctx, "PicoWiFiModemUSB", 0);
+    conn_step(ctx, "ATZ...", 0);
 
     /* ATZ - reset modem */
     DBG_AT_BEGIN(ctx, 12);
@@ -762,15 +828,11 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
          *     flux commence en cours de page (premiere page illisible).
          * On tente donc l'echappement Hayes + ATH, puis on rejoue ATZ. Ce
          * chemin ne coute rien dans le cas nominal (le 1er ATZ a repondu). */
-        vtx_clear_page(ctx);
-        ui_print(ctx, 10, 15, "Modem en ligne: ATH...", VTX_WHITE);
-        display_render_all(ctx);
+        conn_step(ctx, "Modem en ligne : ATH...", 0);
         DBG_AT_BEGIN(ctx, 12);
         at_hangup();
 
-        vtx_clear_page(ctx);
-        ui_print(ctx, 10, 17, "ATZ...", VTX_WHITE);
-        display_render_all(ctx);
+        conn_step(ctx, "ATZ...", 0);
         DBG_AT_BEGIN(ctx, 12);
         at_send("ATZ");
         if (!at_wait_response("OK", 3000)) {
@@ -784,9 +846,7 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
      * et immediat aussi sur un modem SANS WiFi (backend --serial modem):
      * at_wait_ip detecte l'absence de sous-systeme WiFi et sort tout de
      * suite au lieu d'attendre les 15 s. */
-    vtx_clear_page(ctx);
-    ui_print(ctx, 10, 11, "Attente IP WiFi...", VTX_WHITE);
-    display_render_all(ctx);
+    conn_step(ctx, "Attente IP WiFi...", 0);
     DBG_AT_BEGIN(ctx, 12);
     at_wait_ip(15000);
 
@@ -800,11 +860,7 @@ static unsigned char modem_connect(vtx_context_t* ctx, unsigned char server_idx)
             srv = servers[server_idx];
         }
 
-        /* Afficher "ATDT serveur..." */
-        vtx_clear_page(ctx);
-        ui_print(ctx, 10, 5, "ATDT ", VTX_WHITE);
-        ui_print(ctx, 10, 10, srv, VTX_CYAN);
-        display_render_all(ctx);
+        conn_step(ctx, "ATDT", srv);
 
         /* ATDT serveur:port : le 'T' (tonalite) est INDISPENSABLE. Sans lui,
          * le PicoWiFiModemUSB prend le 1er caractere de l'hote pour un
@@ -863,16 +919,15 @@ static unsigned char connect_failed_page(vtx_context_t* ctx,
     unsigned char key;
 
     vtx_clear_page(ctx);
-    ui_print(ctx, 6, 11, "ECHEC DE CONNEXION", VTX_RED);
-    ui_print(ctx, 8,  3, "Pas de CONNECT: la ligne ne porte", VTX_WHITE);
-    ui_print(ctx, 9,  3, "aucun flux Videotex exploitable.", VTX_WHITE);
-    ui_menu_item(ctx, 12, "1 Reessayer");
-    ui_menu_item(ctx, 14, "2 Choisir un autre serveur");
-    /* Libelles bornes a 28 caracteres : ui_menu_item ecrit en colonne 12, et
-     * ui_print clippe a 40 colonnes. "3 Entrer en session quand meme" (30 car.)
-     * s'affichait tronque en "...quand me". */
-    ui_menu_item(ctx, 16, "3 Entrer quand meme");
-    ui_print(ctx, 20, 12, "ESC Retour au menu", VTX_WHITE);
+    ctx->cur_visible = 0;
+    ui_header(ctx, "CONNEXION", 0);
+    ui_band(ctx, 5, VTX_RED, "ECHEC DE CONNEXION", VTX_WHITE);
+    ui_print(ctx, 7, 2, "Pas de CONNECT : la ligne ne porte", VTX_WHITE);
+    ui_print(ctx, 8, 2, "aucun flux Videotex exploitable.", VTX_WHITE);
+    ui_item(ctx, 11, '1', "Reessayer", 0, 0);
+    ui_item(ctx, 13, '2', "Choisir un autre serveur", 0, 0);
+    ui_item(ctx, 15, '3', "Entrer quand meme", 0, 0);
+    ui_footer(ctx, 0, "ESC retour au menu");
     display_render_all(ctx);
 
     for (;;) {
@@ -884,8 +939,10 @@ static unsigned char connect_failed_page(vtx_context_t* ctx,
             return 2;
         }
         if (key == '2') {
-            vtx_clear_page(ctx);
-            *srv_idx = select_server(ctx);
+            key = select_server(ctx);
+            if (key == SRV_ESC) return 2;
+            *srv_idx = key;
+            s_srv_idx = key;
             vtx_clear_page(ctx);
             return 1;
         }
@@ -906,12 +963,14 @@ static unsigned char carrier_lost_page(vtx_context_t* ctx)
     unsigned char key;
 
     vtx_clear_page(ctx);
-    ui_print(ctx, 6, 11, "PERTE DE PORTEUSE", VTX_RED);
-    ui_print(ctx, 8,  3, "Le modem a signale NO CARRIER:", VTX_WHITE);
-    ui_print(ctx, 9,  3, "la communication est terminee.", VTX_WHITE);
-    ui_menu_item(ctx, 12, "1 Reconnecter");
-    ui_menu_item(ctx, 14, "2 Rester en local");
-    ui_print(ctx, 18, 12, "ESC Retour au menu", VTX_WHITE);
+    ctx->cur_visible = 0;
+    ui_header(ctx, "CONNEXION", 0);
+    ui_band(ctx, 5, VTX_RED, "PERTE DE PORTEUSE", VTX_WHITE);
+    ui_print(ctx, 7, 2, "Le modem a signale NO CARRIER :", VTX_WHITE);
+    ui_print(ctx, 8, 2, "la communication est terminee.", VTX_WHITE);
+    ui_item(ctx, 11, '1', "Reconnecter", 0, 0);
+    ui_item(ctx, 13, '2', "Rester en local", 0, 0);
+    ui_footer(ctx, 0, "ESC retour au menu");
     display_render_all(ctx);
 
     for (;;) {
@@ -938,7 +997,6 @@ static unsigned char status_sec_ticks;  /* tics de 10 ms vers la seconde */
 #define STATUS_MSG_SECS 3
 static unsigned char status_msg_hold;
 
-static const char* const render_mode_names[3] = { "AUTO", "TRAME", "BRUT" };
 
 static void status_bar_draw(void)
 {
@@ -1048,6 +1106,7 @@ int main(void)
     vtx_init(&vtx);
     display_init();
     keyboard_init();
+    custom_server[0] = 0;   /* LOBSS non initialise (voir sa declaration) */
 
     /* Ecran splash avec jingle */
     splash_screen(&vtx);
@@ -1100,8 +1159,11 @@ int main(void)
             break;
         }
 
-        vtx_clear_page(&vtx);
         srv_idx = select_server(&vtx);
+        if (srv_idx == SRV_ESC) {
+            continue;       /* ESC au menu serveur : retour au menu principal */
+        }
+        s_srv_idx = srv_idx;
         vtx_clear_page(&vtx);
         status_server = (srv_idx == 255) ? custom_server : server_names[srv_idx];
         status_bar_draw();
@@ -1126,6 +1188,7 @@ int main(void)
             }
         }
         vtx_clear_page(&vtx);
+        vtx.cur_visible = 1;    /* curseur masque sur les ecrans locaux */
         if (r == 2) {
             at_hangup();    /* une tentative a pu laisser le modem en ligne */
             continue;

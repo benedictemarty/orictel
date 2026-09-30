@@ -66,14 +66,16 @@ trap 'rm -rf "$TMP"' EXIT
 echo "=== OricTel - Parcours de menus jusqu'a l'ecran d'echec ==="
 echo "    EMU=$EMU (v$VER)"
 
-# Touches : splash, interface, mode "1" (Modem AT), serveur "1", puis "1"
-# (Reessayer) une fois l'ecran d'echec affiche.
+# Touches : splash, interface, menu "1" (Connexion), serveur "1", puis "1"
+# (Reessayer) une fois l'ecran d'echec affiche. Espacees de 4 Mcycles depuis
+# la charte v0.3.23 : un ecran colore se rend en 2 a 3 s, et une frappe
+# arrivee pendant le rendu est purgee par keyboard_flush (voulu : anti-rebond).
 run_to() {   # $1 = cycle du dump, $2 = fichier, $3.. = --type-keys en plus
     local at="$1" out="$2"; shift 2
     "$EMU" --rom "$ROM" --tape "$TAP" -f \
         --loci --serial "file:/dev/null:$TMP/null.bin" --headless \
-        --type-keys "14000000:A" --type-keys "16000000:A" \
-        --type-keys "19000000:1" --type-keys "22000000:1" "$@" \
+        --type-keys "14000000:A" --type-keys "18000000:A" \
+        --type-keys "22000000:1" --type-keys "26000000:1" "$@" \
         --dump-ram-at "$at:$out" -c $((at + 500000)) >/dev/null 2>&1
 }
 
@@ -105,8 +107,9 @@ check() {
     if [ "$1" -eq 0 ]; then echo "ok   : $2"; else echo "FAIL : $2"; fails=$((fails + 1)); fi
 }
 
-run_to 18000000 "$TMP/menu.bin"
-find_text "$TMP/menu.bin" "Mode de connexion"; check $? "menu Mode de connexion atteint"
+run_to 21500000 "$TMP/menu.bin"
+find_text "$TMP/menu.bin" "Fleches / chiffre"; check $? "menu principal atteint"
+find_text "$TMP/menu.bin" "PAVI 3617"; check $? "menu principal : valeur de l'item Connexion (serveur retenu)"
 
 # Barre de statut (3 lignes texte sous la page HIRES) : version + aide touches,
 # et son jeu de caracteres en $9800, que la pile C (reduite a $9C00-$9FFF)
@@ -124,19 +127,19 @@ PY
 
 run_to 60000000 "$TMP/echec.bin"
 find_text "$TMP/echec.bin" "ECHEC DE CONNEXION"; check $? "ecran d'echec affiche (pas d'entree en session aveugle)"
-find_text "$TMP/echec.bin" "1 Reessayer"; check $? "option 1 Reessayer presente"
-find_text "$TMP/echec.bin" "3 Entrer quand meme"; check $? "option 3 entiere (non tronquee a 40 colonnes)"
+find_text "$TMP/echec.bin" "[1] Reessayer"; check $? "option [1] Reessayer presente"
+find_text "$TMP/echec.bin" "[3] Entrer quand meme"; check $? "option [3] entiere (non tronquee a 40 colonnes)"
 
 run_to 64000000 "$TMP/retry.bin" --type-keys "62000000:1"
 find_text "$TMP/retry.bin" "ATZ"; check $? "Reessayer relance une tentative (ATZ)"
 
 # ESC sur l'ecran d'echec : abandon et retour au menu Mode de connexion (la
 # touche de sortie universelle). L'ecran d'echec doit avoir disparu.
-find_text "$TMP/echec.bin" "ESC Retour au menu"; check $? "ecran d'echec : ESC propose"
+find_text "$TMP/echec.bin" "ESC retour au menu"; check $? "ecran d'echec : ESC propose"
 # 85 Mcycles : ESC declenche at_hangup (deux gardes de 1,1 s + attentes OK 2 s
 # et NO CARRIER 3 s, sans modem ici), soit ~7,5 s avant le menu.
 run_to 85000000 "$TMP/esc.bin" --type-keys '62000000:\e'
-find_text "$TMP/esc.bin" "Mode de connexion"; check $? "ESC sur l'echec -> retour au menu Mode de connexion"
+find_text "$TMP/esc.bin" "Fleches / chiffre"; check $? "ESC sur l'echec -> retour au menu principal"
 if find_text "$TMP/esc.bin" "ECHEC DE CONNEXION"; then check 1 "ecran d'echec efface apres ESC"; else check 0 "ecran d'echec efface apres ESC"; fi
 
 # ESC en SESSION : "3 Entrer quand meme" entre en session ; un premier ESC
@@ -145,26 +148,27 @@ if find_text "$TMP/esc.bin" "ECHEC DE CONNEXION"; then check 1 "ecran d'echec ef
 run_to 70000000 "$TMP/ask.bin" --type-keys "62000000:3" --type-keys '66000000:\e'
 find_status "$TMP/ask.bin" "ESC: quitter?"; check $? "ESC en session : question posee dans la barre de statut"
 if find_text "$TMP/ask.bin" "ESC: quitter?"; then check 1 "la page Videotex n'est pas touchee par la question"; else check 0 "la page Videotex n'est pas touchee par la question"; fi
-python3 - "$TMP/ask.bin" <<'PY'; check $? "pile C : releve au-dessus de \$9E00 (512 octets de marge sur 1 Ko)"
+python3 - "$TMP/ask.bin" <<'PY'; check $? "pile C : releve au-dessus de \$9E00 (garde \$9D10-\$9DFF intacte)"
 import sys
 ram = open(sys.argv[1], 'rb').read()
 # La bascule HIRES de la ROM a rempli $9800-$9FFF de $40 : tout octet
-# different sous $9E00 signifierait que la pile y est descendue.
-sys.exit(0 if all(b == 0x40 for b in ram[0x9C00:0x9E00]) else 1)
+# different sous $9E00 signifierait que la pile y est descendue. $9C00-$9D0F
+# loge des tampons (cfg : HIBSS, v0.3.23) : la garde commence apres.
+sys.exit(0 if all(b == 0x40 for b in ram[0x9D10:0x9E00]) else 1)
 PY
 run_to 74000000 "$TMP/resume.bin" --type-keys "62000000:3" --type-keys '66000000:\e' --type-keys "70000000:x"
 if find_status "$TMP/resume.bin" "ESC: quitter?"; then check 1 "autre touche : question retiree, session reprise"; else check 0 "autre touche : question retiree, session reprise"; fi
 run_to 95000000 "$TMP/quit.bin" --type-keys "62000000:3" --type-keys '66000000:\e' --type-keys '70000000:\e'
-find_text "$TMP/quit.bin" "Mode de connexion"; check $? "ESC ESC en session -> raccroche et retour au menu"
+find_text "$TMP/quit.bin" "Fleches / chiffre"; check $? "ESC ESC en session -> raccroche et retour au menu"
 
 # ESC sur le menu principal : sortie d'OricTel par le vecteur de reset ROM.
 # Preuve : la RAM texte ($BB80) porte le "Ready" du BASIC (pas de 1, pas de 6)
-# et la page Videotex "Mode de connexion" n'est plus la.
+# et le menu principal n'est plus la.
 # Appel direct : les --type-keys doivent etre donnes par cycle CROISSANT, et
-# run_to envoie deja "1" a 19 et 22 Mcycles (ici, pas de "1" : on reste au menu et ESC tombe a 24 Mcycles).
+# run_to envoie deja "1" a 22 et 26 Mcycles (ici, pas de "1" : on reste au menu et ESC tombe a 24 Mcycles).
 "$EMU" --rom "$ROM" --tape "$TAP" -f \
     --loci --serial "file:/dev/null:$TMP/null.bin" --headless \
-    --type-keys "14000000:A" --type-keys "16000000:A" --type-keys '24000000:\e' \
+    --type-keys "14000000:A" --type-keys "18000000:A" --type-keys '24000000:\e' \
     --dump-ram-at "30000000:$TMP/basic.bin" -c 30500000 >/dev/null 2>&1
 python3 - "$TMP/basic.bin" <<'PY'; check $? "ESC sur le menu -> redemarrage a froid, BASIC Ready"
 import sys
@@ -179,21 +183,37 @@ PY
 # "1" reessaie (l'ecran reste), et ESC ramene au BASIC - preuve que le clavier
 # est toujours vivant.
 "$EMU" --rom "$ROM" --tape "$TAP" -f --loci --headless \
-    --type-keys "14000000:A" --type-keys "16000000:A" --type-keys "20000000:1" \
-    --type-keys '24000000:\e' \
-    --dump-ram-at "19000000:$TMP/noacia.bin" --dump-ram-at "23000000:$TMP/noacia2.bin" \
-    --dump-ram-at "30000000:$TMP/noacia_basic.bin" -c 30500000 >/dev/null 2>&1
+    --type-keys "14000000:A" --type-keys "18000000:A" --type-keys "23000000:1" \
+    --type-keys '28000000:\e' \
+    --dump-ram-at "22000000:$TMP/noacia.bin" --dump-ram-at "27000000:$TMP/noacia2.bin" \
+    --dump-ram-at "34000000:$TMP/noacia_basic.bin" -c 34500000 >/dev/null 2>&1
 find_text "$TMP/noacia.bin" "PAS D'INTERFACE SERIE"; check $? "sans ACIA en \$0380 : ecran 'PAS D'INTERFACE SERIE' (pas de gel)"
-if find_text "$TMP/noacia.bin" "Mode de connexion"; then check 1 "sans ACIA : le menu n'est pas atteint (ACIA non programmee)"; else check 0 "sans ACIA : le menu n'est pas atteint (ACIA non programmee)"; fi
-find_text "$TMP/noacia2.bin" "1 Reessayer"; check $? "sans ACIA : '1' resonde et l'ecran reste"
+if find_text "$TMP/noacia.bin" "Fleches / chiffre"; then check 1 "sans ACIA : le menu n'est pas atteint (ACIA non programmee)"; else check 0 "sans ACIA : le menu n'est pas atteint (ACIA non programmee)"; fi
+find_text "$TMP/noacia2.bin" "[1] Reessayer"; check $? "sans ACIA : '1' resonde et l'ecran reste"
 python3 - "$TMP/noacia_basic.bin" <<'PY'; check $? "sans ACIA : ESC -> BASIC Ready (clavier vivant, VIA intact)"
 import sys
 ram = open(sys.argv[1], 'rb').read()
 sys.exit(0 if b"Ready" in ram[0xBB80:0xBFE0] else 1)
 PY
 
+# Charte v0.3.23 : navigation aux fleches dans le menu principal (bas, bas,
+# RETURN = item 3 Rendu, bascule AUTO -> TRAME), puis ESC au menu serveur.
+"$EMU" --rom "$ROM" --tape "$TAP" -f \
+    --loci --serial "file:/dev/null:$TMP/null.bin" --headless \
+    --type-keys "14000000:A" --type-keys "18000000:A" --type-keys '22000000:\d\p1\d\p1\n' \
+    --dump-ram-at "30000000:$TMP/nav.bin" -c 30500000 >/dev/null 2>&1
+find_text "$TMP/nav.bin" "TRAME"; check $? "menu : fleches + RETURN reglent l'option Rendu (TRAME)"
+find_text "$TMP/nav.bin" "Fleches / chiffre"; check $? "menu : reste affiche apres le reglage"
+"$EMU" --rom "$ROM" --tape "$TAP" -f \
+    --loci --serial "file:/dev/null:$TMP/null.bin" --headless \
+    --type-keys "14000000:A" --type-keys "18000000:A" --type-keys "22000000:1" \
+    --dump-ram-at "26000000:$TMP/srv.bin" \
+    --type-keys '27000000:\e' --dump-ram-at "32000000:$TMP/srvesc.bin" -c 32500000 >/dev/null 2>&1
+find_text "$TMP/srv.bin" "go.minipavi.fr:516"; check $? "menu serveur : adresse affichee en valeur d'item"
+if find_text "$TMP/srvesc.bin" "go.minipavi.fr:516"; then check 1 "ESC au menu serveur -> retour au menu principal"; else find_text "$TMP/srvesc.bin" "Fleches / chiffre"; check $? "ESC au menu serveur -> retour au menu principal"; fi
+
 if [ "$fails" -eq 0 ]; then
-    echo "=== Resultats: 21/21 passes ==="
+    echo "=== Resultats: 26/26 passes ==="
     exit 0
 fi
 echo "=== Resultats: ECHEC ($fails) ==="

@@ -14,6 +14,8 @@
 
 | Cible           | Plateforme | Status     | Date       |
 |-----------------|------------|------------|------------|
+| orictel.tap     | atmos+oric1| BUILD OK v0.3.23 (charte des ecrans locaux, options du menu, fleches/FUNCT Atmos corriges) | 2026-09-30 |
+| suite complete  | host+emu   | 450/450 (Videotex 249, glyphes 23, SMC 22, sonde 11, AT 28, clavier 33, UI 34, reception fidele, menus 26, porteuse 1, bridge 23) | 2026-09-30 |
 | orictel.tap     | atmos+oric1| BUILD OK v0.3.22 (mise a niveau NeoTel : zones STUM 1B, SUB, glyphes jointifs, raccourcis Minitel) | 2026-09-30 |
 | suite complete  | host+emu   | 409/409 (Videotex 242, glyphes 23, SMC 22, sonde 11, AT 28, clavier 27, UI 11, reception fidele, menus 21, porteuse 1, bridge 23) | 2026-09-30 |
 | orictel.tap     | atmos+oric1| BUILD OK v0.3.19 (barre de statut, base de temps T2, ESC quitter/retour menu/sortie BASIC, perte de porteuse, rendu 4,0x) | 2026-09-11 |

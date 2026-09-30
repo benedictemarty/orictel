@@ -95,6 +95,8 @@ void display_cursor(unsigned char visible, unsigned char col, unsigned char row)
 /**
  * Beep via PSG AY-3-8912 (~1kHz, ~100ms).
  */
+/* Option Son du menu : 0 = display_beep muet. */
+extern unsigned char g_sound;
 void display_beep(void);
 
 /**

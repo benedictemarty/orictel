@@ -27,12 +27,23 @@ automatiquement (fast-load + RUN). Ensuite :
    quitte vers le BASIC) au lieu de geler le clavier. Si l'ACIA repond mais
    qu'aucun modem USB n'est monte sur le LOCI (`/DSR` haut), l'avertissement
    **« MODEM USB NON DETECTE »** s'affiche ; une touche continue.
-3. **Mode de connexion** - tapez `1` (Modem AT, recommande) ou `2` (Config
-   WiFi, voir section 2bis pour le materiel PicoWiFiModemUSB). Le PicoWiFi
-   etant un modem Hayes, la connexion passe toujours par AT : il n'y a plus
-   de mode « Direct ».
-4. **Serveur** - tapez `1` (PAVI 3617), `2` (MiniPavi) ou `3` (saisie libre
-   d'un `hote:port`, validee par RETURN).
+3. **Menu principal** (bandeau `ORICTEL`) - chaque ligne `[n] option ....
+   valeur` affiche son reglage courant ; l'item courant est sur fond bleu.
+   Choisir au **chiffre**, ou aux **fleches haut/bas** puis **RETURN** (ou
+   fleche droite) :
+   - `[1] Connexion` (valeur : serveur retenu) - ouvre le menu Serveur ;
+   - `[2] Config WiFi` - voir section 2bis ;
+   - `[3] Rendu` - `AUTO` / `TRAME` / `BRUT` (comme CTRL+D en session) ;
+   - `[4] Identification` - `OFF` / `ON` : reponse du terminal a ENQ et
+     ENQROM (`SOH C u 1 EOT`). OFF par defaut : les serveurs actuels
+     renvoient cette reponse comme une frappe ;
+   - `[5] Son` - `ON` / `OFF` : bips du serveur (BEL).
+   Les options 3 a 5 basculent sur place et valent jusqu'a la sortie
+   d'OricTel (l'Oric n'a pas de stockage pour les conserver). Le PicoWiFi
+   etant un modem Hayes, la connexion passe toujours par AT.
+4. **Serveur** - item courant = dernier serveur retenu ; `1` (PAVI 3617),
+   `2` (MiniPavi) ou `3` (saisie libre d'un `hote:port`, validee par
+   RETURN), au chiffre ou aux fleches. ESC revient au menu principal.
 5. La sequence ATZ/ATD s'execute (~2 s) et la page d'accueil du serveur
    s'affiche.
 
@@ -114,17 +125,17 @@ Sinon `ATD` echoue immediatement par `NO CARRIER (00:00:00)` (statut
 l'Oric :
 
 1. **Scan** : OricTel envoie `AT$SCAN` ; les reseaux 2,4 GHz a portee
-   s'affichent, numerotes. Un `*` rouge signale un reseau securise.
-2. **Selection** : tapez le **chiffre** du reseau. **REPETITION** relance
-   le scan, **ANNULATION** revient au menu.
-3. **Mot de passe** : pour un reseau securise, saisissez le mot de passe
-   (masque par des `*`), **ENVOI** valide, **CORRECTION** efface.
+   s'affichent en items `[n] reseau .... cle` (securise) ou `ouvert`.
+2. **Selection** : tapez le **chiffre** du reseau. **REPETITION** (CTRL+R)
+   relance le scan, **ANNULATION** ou ESC revient au menu.
+3. **Mot de passe** : pour un reseau securise, saisissez la cle (masquee
+   par des `*`), **ENVOI** valide, **CORRECTION** efface, ESC annule.
 4. **Connexion** : OricTel envoie `AT$SSID=` / `AT$PASS=` / `ATC1`, puis
    attend l'IP DHCP. En cas de succes, `AT&W` sauve la config en NVRAM du
-   Pico (« Connecte! Config sauvee. ») - elle sera rechargee aux demarrages
-   suivants. Sinon « Echec IP. Verifier mot de passe. ».
+   Pico (bandeau vert « Connecte, config sauvee ») - elle sera rechargee aux
+   demarrages suivants. Sinon bandeau rouge « Echec IP : verifier la cle ».
 
-Une fois le WiFi configure, revenez au menu et choisissez `1 - Modem AT`
+Une fois le WiFi configure, revenez au menu et choisissez `1 - Connexion`
 pour vous connecter normalement. Note : apres un `ATZ`, OricTel patiente
 desormais jusqu'a l'obtention de l'IP avant de composer, ce qui evite le
 `NO CARRIER` du a un DHCP encore en cours.
@@ -154,7 +165,9 @@ ESC: quitter? ESC=menu autre=reprendre      <- messages (jaune)
 
 OricTel fonctionne sur Oric-1 et Atmos. Les touches de fonction
 Minitel passent par **CTRL+lettre** (les deux machines) ou
-**FUNCT+lettre** (Atmos uniquement, FUNCT puis la lettre).
+**FUNCT+lettre** (Atmos uniquement, FUNCT maintenue avec la lettre ; corrige
+en v0.3.23 : OricTel attendait FUNCT *puis* la lettre, ce que la ROM ne
+produit pas).
 
 | Touche Minitel | A quoi ca sert | Oric |
 |---|---|---|
@@ -173,9 +186,12 @@ Les caracteres tapes sont envoyes au serveur, qui les echoie a l'ecran
 Minitel 1B affiche en MAJUSCULES tant que le serveur n'active pas le
 mode minuscules.
 
-Les **fleches gauche/droite** envoient RETOUR / SUITE ; si le serveur
-a active le mode curseur (PRO3), elles envoient a la place les
-sequences curseur (ESC[D / ESC[C), comme sur un vrai Minitel 1B.
+Les **fleches gauche/droite** envoient RETOUR / SUITE (haut = RETOUR,
+bas = ENVOI) ; si le serveur a active le mode curseur (PRO3), les quatre
+fleches envoient a la place les sequences curseur (ESC[A/B/C/D), comme
+sur un vrai Minitel 1B. Dans les menus, haut/bas deplacent la selection.
+Jusqu'en v0.3.22, la fleche droite n'envoyait rien (code ROM `$09` pris
+pour FUNCT).
 
 Depuis la v0.3.22 (raccourcis repris de NeoTel), CTRL+R est la
 REPETITION et non plus le RETOUR. CORRECTION reste sur DELETE : c'est
@@ -198,14 +214,14 @@ Quel que soit l'ecran, **ESC** ramene en arriere :
 - **en session** : un premier ESC pose la question sur la ligne 0 de la
   page (`ESC: quitter? ESC=menu autre=reprendre`) sans effacer la page.
   Un second ESC raccroche (`+++`, `ATH`, environ 3 a 8 s) et revient au
-  menu *Mode de connexion*, decodeur remis a neuf. Toute autre touche
+  menu principal, decodeur remis a neuf. Toute autre touche
   retire la question et reprend la session la ou elle en etait ;
 - **sur l'ecran d'echec de connexion** ou **de perte de porteuse** : ESC
   abandonne et revient au menu ;
 - **dans un menu ou une saisie** (serveur `host:port`, WiFi) : ESC annule
   et revient a l'ecran precedent.
 
-- **sur le menu *Mode de connexion*** : ESC **quitte OricTel** et rend la
+- **sur le menu principal** : ESC **quitte OricTel** et rend la
   main au BASIC (`Ready`), par un redemarrage a froid de la ROM : la zone
   programme BASIC ayant ete ecrasee au chargement, c'est la seule sortie
   propre. La chaine complete est donc ESC, ESC (session -> menu) puis ESC

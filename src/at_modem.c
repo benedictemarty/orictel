@@ -100,11 +100,25 @@ void at_send_kv(const char* prefix, const char* value)
  * temps-octet de la liaison (8,33 ms a 1200 bauds). */
 #define AT_POLL_MS 2
 
+/* Ligne de reponse en cours, PARTAGEE par at_wait_response, at_wait_ip et la
+ * surveillance de porteuse (jamais actives en meme temps : les attentes AT
+ * ont lieu hors session, la surveillance en session, et at_carrier_reset
+ * remet s_car_len a 0 avant chaque session). Un tampon au lieu de trois
+ * (-96 o, comme NeoTel 0.8.2), loge hors BSS (cfg : LOBSS, non initialise :
+ * toujours ecrit avant d'etre lu). */
+#ifdef __CC65__
+#pragma bss-name (push, "LOBSS")
+#endif
+static char s_line[AT_LINE_MAX];
+#ifdef __CC65__
+#pragma bss-name (pop)
+#endif
+#define line s_line
+
 unsigned char at_wait_response(const char* keyword, unsigned int timeout_ms)
 {
     unsigned int  elapsed = 0;
     unsigned char pending = 0;          /* octets recus, rendu differe au creux */
-    static char   line[AT_LINE_MAX];    /* ligne courante (BSS, pas la pile) */
     unsigned char lp = 0;
 
     while (elapsed < timeout_ms) {
@@ -166,7 +180,6 @@ unsigned char at_wait_ip(unsigned int timeout_ms)
         unsigned char vocab = 0;        /* reponse ATI mentionne le WiFi/connexion */
         unsigned char pending = 0;
         unsigned int  rwait = 0;        /* budget lecture d'une reponse ATI */
-        static char   line[AT_LINE_MAX];
         unsigned char lp = 0;
 
         at_send("ATI");
@@ -268,7 +281,8 @@ unsigned char at_hangup(void)
 
 /* --- Surveillance de la porteuse (voir at_modem.h) ----------------------- */
 
-static char          s_car_line[AT_LINE_MAX];
+#undef line
+#define s_car_line s_line               /* tampon partage (voir s_line) */
 static unsigned char s_car_len;
 
 void at_carrier_reset(void)

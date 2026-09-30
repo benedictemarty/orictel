@@ -979,8 +979,11 @@ void display_status(const char* msg)
 
 /* Beep via ROM Atmos - utilise la routine PING ($FA9F)
  * qui fait un bip court via le PSG AY-3-8912 */
+unsigned char g_sound = 1;      /* option Son du menu : 0 = bips muets */
+
 void display_beep(void)
 {
+    if (!g_sound) return;
     __asm__("jsr $FA9F");
 }
 

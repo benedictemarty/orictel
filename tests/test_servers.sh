@@ -70,8 +70,8 @@ run_server() {
     "$EMU" --rom "$ROM" --tape "$TAP" -f \
         --loci-emu "$FW_ELF" --loci-cdc "$PICO_DEV" \
         --headless --realtime \
-        --type-keys "14000000:A" --type-keys "16000000:A" \
-        --type-keys "19000000:1" --type-keys "22000000:$key" \
+        --type-keys "14000000:A" --type-keys "18000000:A" \
+        --type-keys "22000000:1" --type-keys "26000000:$key" \
         --dump-ram-at "115000000:$dump" -c 116000000 >/dev/null 2>&1
 
     if [ ! -s "$dump" ]; then

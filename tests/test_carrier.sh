@@ -37,16 +37,18 @@ echo "=== OricTel - Delai de confirmation de perte de porteuse (Timer 2 VIA) ===
 python3 "$HERE/tests/fake_modem.py" "$PORT" 3 & MODEM=$!
 sleep 0.5
 
-# Touches : splash, interface, mode "1", serveur "1". CONNECT vers ~25 s,
-# NO CARRIER 3 s plus tard, fenetre de vidages 28-38 s par pas de 0,2 s.
+# Touches : splash, interface, menu "1" (Connexion), serveur "1", espacees de
+# 4 s (un ecran de la charte v0.3.23 se rend en 2 a 3 s ; une frappe pendant
+# le rendu est purgee). NO CARRIER 3 s apres CONNECT, fenetre de vidages
+# 30-44 s par pas de 0,2 s.
 DUMPS=""
-for c in $(seq 280 2 380); do DUMPS="$DUMPS --dump-ram-at ${c}00000:$TMP/d_$c.bin"; done
-timeout 120 "$EMU" --rom "$ROM" --tape "$TAP" -f --loci \
+for c in $(seq 300 2 440); do DUMPS="$DUMPS --dump-ram-at ${c}00000:$TMP/d_$c.bin"; done
+timeout 150 "$EMU" --rom "$ROM" --tape "$TAP" -f --loci \
     --serial "tcp:127.0.0.1:$PORT" --serial-buffer 4096 --serial-trace "$TMP/trace.txt" \
     --headless --realtime \
-    --type-keys "14000000:A" --type-keys "16000000:A" \
-    --type-keys "19000000:1" --type-keys "22000000:1" \
-    $DUMPS -c 38500000 >"$TMP/emu.log" 2>&1
+    --type-keys "14000000:A" --type-keys "18000000:A" \
+    --type-keys "22000000:1" --type-keys "26000000:1" \
+    $DUMPS -c 44500000 >"$TMP/emu.log" 2>&1
 
 LAST="$(grep ' RX ' "$TMP/trace.txt" | tail -1 | awk '{print $1}')"
 [ -n "$LAST" ] || { echo "FAIL : aucun octet RX trace (faux modem non joint ?)"; exit 1; }
@@ -58,7 +60,7 @@ def vt(ram, s):
     w = s.encode()
     return any(all(ram[b + 6 * k] == w[k] for k in range(len(w))) for b in range(0x6000, 0x9800))
 seen_page = False
-for c in range(280, 381, 2):
+for c in range(300, 441, 2):
     ram = open(f"{tmp}/d_{c}.bin", "rb").read()
     page = vt(ram, "PAGE DE TEST")
     if page:

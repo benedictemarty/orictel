@@ -22,7 +22,15 @@
                             * reponse protocole (ACK PRO3 = 5 octets) */
 #define TX_QUEUE_MASK (TX_QUEUE_SIZE - 1)
 
+/* Hors BSS (cfg : LOBSS, non initialise) : un octet n'y est lu qu'apres
+ * avoir ete ecrit (indices tete/queue en BSS, eux mis a zero). */
+#ifdef __CC65__
+#pragma bss-name (push, "LOBSS")
+#endif
 static unsigned char tx_queue[TX_QUEUE_SIZE];
+#ifdef __CC65__
+#pragma bss-name (pop)
+#endif
 static unsigned char tx_head;   /* prochain octet a emettre */
 static unsigned char tx_tail;   /* prochaine case libre */
 
