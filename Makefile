@@ -63,23 +63,17 @@ ORIC_ROMS ?= /home/bmarty/Oric1/roms
 # ROM Microdisc pour booter une disquette Sedoric dans Phosphoric
 DISK_ROM ?= $(ORIC_ROMS)/microdis.rom
 
-# Emulateur Phosphoric (oric1-emu).
-# IMPORTANT: le binaire fourni par l'equipe Phosphoric est compile SANS SDL
-# (cible headless uniquement, aucune fenetre). Pour l'affichage graphique, on
-# utilise une copie locale compilee avec SDL2 (make SDL2=1 cote Phosphoric),
-# stockee dans tools/ pour ne PAS modifier le depot Phosphoric.
-# Regenerer si besoin :
-#   cd /home/bmarty/Oric1 && make clean && make SDL2=1 -j
-#   cp /home/bmarty/Oric1/oric1-emu tools/oric1-emu-sdl
-#   cd /home/bmarty/Oric1 && make clean   # restaure l'etat headless de l'equipe
-# Version actuelle de la copie locale : Phosphoric 1.27.6-alpha + SDL2.
-EMU      ?= ./tools/oric1-emu-sdl
+# Emulateur Phosphoric (oric1-emu). Reference : ~/Oric1/oric1-emu, bati avec
+# SDL2 (fenetre) et a jour (v2.x : --type-keys fiable, --loci-emu/--loci-cdc,
+# ACIA $0380 servie par --loci). La copie figee tools/oric1-emu-sdl (1.27.6)
+# ne sert plus que de repli si ~/Oric1 est absent. Surcharge : make run EMU=...
+EMU      ?= $(firstword $(wildcard $(HOME)/Oric1/oric1-emu) ./tools/oric1-emu-sdl)
 EMU_ROM  ?= $(ORIC_ROMS)/basic11b.rom
 
 # OricTel pilote l'ACIA 6551 a la base LOCI ($0380) uniquement. Le flag
 # `--loci` de Phosphoric (>= 1.27) mappe justement l'ACIA modem a $0380 (cf.
-# main.c:3121 cote Phosphoric) : on l'utilise pour TOUS les lancements, le
-# binaire local tools/oric1-emu-sdl etant desormais en 1.27.6. (--acia-addr
+# main.c cote Phosphoric) : on l'utilise pour TOUS les lancements, y compris
+# run-ws (sans lui l'ACIA reste en $031C et OricTel ne la trouve pas). (--acia-addr
 # 0380 n'est plus necessaire ; --loci est la forme canonique.)
 
 # Lancement par defaut: emule fidelement le seul device reel, le
@@ -118,7 +112,7 @@ EMU_OPTS_LOCI = --loci --serial com:$(PICO_BAUD),8,N,1,$(PICO_DEV) --serial-buff
 EMU_OPTS_LOCI_EMU = --loci --serial picowifi:$(PICOWIFI_SSID) --serial-buffer 4096
 
 # Scenario B' (run-loci-real) : montage REEL Oric-1 + LOCI + Pico. Le binaire
-# local tools/oric1-emu-sdl est desormais en 1.27.6 (>= 1.27 -> --loci mappe
+# $(EMU) (~/Oric1, >= 1.27 -> --loci mappe
 # l'ACIA a $0380), il sert donc aussi pour ce scenario. Specificites : ROM
 # Oric-1 (basic10) au lieu d'Atmos, et AUCUN --serial-buffer : le 6551 garde
 # son unique octet RX. ATTENTION : ce n'est PAS le montage reel. Le firmware
@@ -282,8 +276,8 @@ run-loci-cosim: $(OUTPUT)
 	@test -c $(PICO_DEV) || { echo "ERREUR: $(PICO_DEV) introuvable (Pico branche ?)"; exit 1; }
 	$(EMU_COSIM) --rom $(EMU_ROM) --tape $(OUTPUT) -f $(EMU_OPTS_LOCI_COSIM)
 
-# Montage REEL Oric-1 + LOCI + PicoWiFiModemUSB physique, emulateur 1.27.6
-# (tools/oric1-emu-sdl, --loci => ACIA $0380), ROM Oric-1 (basic10).
+# Montage REEL Oric-1 + LOCI + PicoWiFiModemUSB physique, emulateur Phosphoric
+# ($(EMU), --loci => ACIA $0380), ROM Oric-1 (basic10).
 run-loci-real: $(OUTPUT)
 	@echo "=== OricTel -> LOCI reel (Oric-1, ACIA \$$0380, $(PICO_DEV)) ==="
 	@echo "    Emulateur : $(EMU_LOCI_REAL)"
@@ -310,7 +304,7 @@ run-ws: $(OUTPUT)
 	python3 $(BRDIR)/orictel_bridge.py & BRIDGE_PID=$$!; \
 	sleep 2; \
 	$(EMU) --rom $(EMU_ROM) --tape $(OUTPUT) -f \
-		--serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf; \
+		--loci --serial tcp:127.0.0.1:3615 --serial-buffer 256 --serial-irq-on-rdrf; \
 	kill $$BRIDGE_PID 2>/dev/null || true
 
 # Lancer uniquement le bridge

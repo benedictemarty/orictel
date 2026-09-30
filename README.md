@@ -103,6 +103,8 @@ make coverage       # Couverture host gcov (Videotex + modem AT)
 make test-server    # Serveur Videotex local de demo (test manuel)
 make bench-render   # Banc de mesure : cout du rendu HIRES en cycles 6502 reels
 make test-menus     # Parcours de menus de bout en bout (Phosphoric >= v1.118)
+# Emulateur des cibles run-* : ~/Oric1/oric1-emu (SDL2, v2.x), repli sur
+# tools/oric1-emu-sdl (1.27.6) si absent ; surcharge : make run EMU=...
 make test-carrier   # Delai de perte de porteuse mesure sur cible (~40 s, Timer 2 VIA)
 make test-servers   # Fidelite du decodage sur de vrais serveurs (dongle requis)
 make clean          # Nettoyage

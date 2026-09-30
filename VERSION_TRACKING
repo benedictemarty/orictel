@@ -1,9 +1,10 @@
 # VERSION TRACKING - OricTel
 
-## Version actuelle: 0.3.20 (sonde 6551/miroir VIA en $0380 : plus de gel clavier sans ACIA)
+## Version actuelle: 0.3.21 (lancements emulateur : ~/Oric1/oric1-emu par defaut, run-ws avec --loci)
 
 | Composant          | Version   | Date       | Statut      |
 |--------------------|-----------|------------|-------------|
+| Makefile (run-*)   | 0.3.21     | 2026-09-30 | EMU = ~/Oric1/oric1-emu (v2.1.0 SDL2), repli tools/oric1-emu-sdl 1.27.6 ; run-ws + --loci (ACIA $0380, sinon $031C et sonde 'absent') ; orictel.tap inchange |
 | orictel.tap        | 0.3.20     | 2026-09-13 | serial_probe avant serial_init : sans 6551 en $0380 (miroir VIA) ecran "PAS D'INTERFACE SERIE" au lieu du gel clavier ; /DSR -> "MODEM USB NON DETECTE" (non bloquant, non valide cible) |
 | test_serial_probe.c (faux bus)| 0.1.0 | 2026-09-13 | 11 checks : miroir VIA (DDR intacts, ORA restaure), 6551 $70/$10, lecture perdue, /DSR |
 | test_menus.sh (parcours menus)| 0.3.0 | 2026-09-13 | 21 checks (+4 : sans ACIA -> ecran, '1' resonde, ESC -> BASIC Ready) |

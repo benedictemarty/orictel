@@ -100,7 +100,8 @@ silencieuse : la reconnexion coute une communication, c'est a vous de la decider
 
 `make run-ws` lance le bridge Python (`orictel_bridge.py`) qui relaie
 TCP (port 3615) vers le serveur WebSocket `ws://3617.fr/ws`, puis
-l'emulateur. Le bridge est un relais binaire transparent : OricTel suit
+l'emulateur (avec `--loci`, pour que l'ACIA soit en `$0380`, seule base
+sondee par OricTel). Le bridge est un relais binaire transparent : OricTel suit
 son flux modem AT habituel (le handshake AT echoue silencieusement faute
 de modem cote bridge, puis le flux Videotex circule).
 
